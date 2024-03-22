@@ -1,4 +1,5 @@
 import IParagonProperty from "@/types/IParagonProperty";
+import DisplayUtils from "@/lib/utils/DisplayUtils";
 
 interface IParagonPropertyViewProps {
     property: IParagonProperty;
@@ -8,9 +9,9 @@ interface IParagonPropertyViewProps {
 export default function ParagonPropertyView(props: IParagonPropertyViewProps) {
     return (
         <div>
-            <div>Parcel Number: {props.property.ParcelNumber}</div>
-            <div>Listing Price: {props.property.ListPrice}</div>
-            <div>City: {props.property.City}</div>
+            <div><strong>Parcel Number:</strong> {props.property.ParcelNumber}</div>
+            <div><strong>Listing Price:</strong> {DisplayUtils.formatCurrency(props.property.ListPrice)}</div>
+            <div><strong>City:</strong> {props.property.City}</div>
             <hr />
         </div>
     );
