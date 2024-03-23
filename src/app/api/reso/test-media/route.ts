@@ -9,7 +9,7 @@ const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? "";
 
 export async function GET(request: NextApiRequest) {
     const paragonApiClient = new ParagonApiClient(RESO_BASE_URL, RESO_TOKEN_URL, RESO_CLIENT_ID, RESO_CLIENT_SECRET);
-    const allProperty = await paragonApiClient.getAllProperty(10);
+    const allPropertyWithMedia = await paragonApiClient.getAllPropertyWithMedia(10);
 
-    return NextResponse.json(allProperty, { status: 200 });
+    return NextResponse.json(allPropertyWithMedia, { status: 200 });
 }
