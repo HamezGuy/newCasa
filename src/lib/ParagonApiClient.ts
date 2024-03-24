@@ -12,7 +12,7 @@ interface ITokenResponse {
   expires_in: number;
 }
 
-type LocalToken = {
+interface ILocalToken {
   token: string;
   tokenExpiration: Date;
 }
@@ -24,7 +24,7 @@ interface IOdataResponse<T> {
   value: T[];
 }
 
-export default class ParagonApiClient {
+export class ParagonApiClient {
   private __baseUrl: string;
   private __tokenUrl: string;
   private __clientId: string;
@@ -32,6 +32,7 @@ export default class ParagonApiClient {
   private __accessToken: string | undefined;
   private __tokenExpiration: Date | undefined;
   private __maxPageSize = 2500;
+  private __maxConcurrentQueries = 120;
 
   constructor(baseUrl: string, tokenUrl: string, clientId: string, clientSecret: string) {
     this.__baseUrl = baseUrl;
@@ -51,7 +52,7 @@ export default class ParagonApiClient {
       console.log('Token file found!');
 
       fs.readFile(filepath).then((data) => {
-        const token = JSON.parse(data.toString()) as LocalToken;
+        const token = JSON.parse(data.toString()) as ILocalToken;
         this.__accessToken = token.token;
         this.__tokenExpiration = new Date(token.tokenExpiration);
       });
@@ -141,11 +142,11 @@ export default class ParagonApiClient {
   }
 
   // Just used for testing...
-  public async getAllProperty(n?: number): Promise<IParagonProperty[]> {
-    const url = this.getPropertyUrl(n ? n : this.__maxPageSize);
+  public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
+    const url = this.getPropertyUrl(top ? top : this.__maxPageSize);
     const response = await this.get<IParagonProperty>(url);
 
-    if (!n) {
+    if (!top) {
       const count = response['@odata.count'];
 
       if (count && count > this.__maxPageSize) {
@@ -166,62 +167,77 @@ export default class ParagonApiClient {
     return `${this.__baseUrl}/Media?$count=true${topStr}${skipStr}${filterStr}`;
   }
 
-  private buildMediaFilters(listingKeys: string[]): string[] {
-    const baseURLLength = encodeURI(this.getMediaUrl(9999999, 9999999, '1')).length;
+  private generateMediaFilters(listingKeys: string[]): string[] {
+    const baseURL = this.getMediaUrl(9999999, 9999999, '1');
     const maxURLLength = 2048;
 
     let mediaFilters = [];
     let filter = '';
-    let length = baseURLLength;
 
-    const generateFilter = (id: string) => `${filter ? ' or ' : ''}ResourceRecordKey eq '${id}'`;
+    const generateFilter = (id: string, reset: boolean = false) => `${filter === '' || reset ? '' : ' or '}ResourceRecordKey eq '${id}'`;
+    const getEncodedLength = (str: string) => url.format(url.parse(str, true)).length;
 
     for (const id of listingKeys) {
-      const newFilter = generateFilter(id);
+      const currentFilter = generateFilter(id);
 
-      if (length + encodeURIComponent(newFilter).length <= maxURLLength) {
-        filter += newFilter;
-        length += encodeURIComponent(newFilter).length;
+      if (getEncodedLength(`${baseURL}${filter}${currentFilter}`) <= maxURLLength) {
+        filter += currentFilter;
       } else {
-        if (filter !== '') {
+        if (filter !== '' || id === listingKeys[listingKeys.length - 1]) {
           mediaFilters.push(filter);
         }
-        filter = generateFilter(id);
-        length = baseURLLength + encodeURIComponent(filter).length;
+        filter = generateFilter(id, true);
       }
-    }
-
-    if (filter !== '') {
-      mediaFilters.push(filter);
     }
 
     return mediaFilters;
   }
 
-  public async getAllPropertyWithMedia(n?: number): Promise<ParagonPropertyWithMedia[]> {
-    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(n);
+  public async getAllPropertyWithMedia(top?: number): Promise<any> {
+    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(top);
 
-    await Promise.all(this.buildMediaFilters(properties.map(p => p.ListingKey)).map(async (filter) => {
-      const url = this.getMediaUrl(this.__maxPageSize, undefined, filter);
-      const response = await this.get<IParagonMedia>(url);
-      const count = response['@odata.count'];
+    let queries = this.generateMediaFilters(properties.map(p => p.ListingKey));
 
-      if (count && count > this.__maxPageSize) {
-        response.value = response.value.concat((await this.getFollowNext<IParagonMedia>(this.getMediaUrl(count, this.__maxPageSize, filter))).value);
-      }
+    while (queries.length > 0) {
+      // Get the next set of URLs
+      const currentQueries = queries.slice(0, this.__maxConcurrentQueries);
 
-      response.value.map(media => {
-        const property = properties.find(p => p.ListingKey === media.ResourceRecordKey);
-        if (property) {
-          if (!property.Media) {
-            property.Media = [];
+      // Send requests to all URLs in the current set
+      await Promise.all(
+        currentQueries.map(async (filter) => {
+          const url = this.getMediaUrl(this.__maxPageSize, undefined, filter);
+          const response = await this.get<IParagonMedia>(url);
+          const count = response['@odata.count'];
+
+          if (count && count > this.__maxPageSize) {
+            response.value = response.value.concat((await this.getFollowNext<IParagonMedia>(this.getMediaUrl(count, this.__maxPageSize, filter))).value);
           }
-          property.Media.push(media);
-        }
-      });
 
-    }));
+          response.value.map(media => {
+            const property = properties.find(p => p.ListingKey === media.ResourceRecordKey);
+            if (property) {
+              if (!property.Media) {
+                property.Media = [];
+              }
+              property.Media.push(media);
+            }
+          });
+        }),
+      );
+
+      // Remove the URLs that have been processed
+      queries = queries.slice(this.__maxConcurrentQueries);
+    }
 
     return properties;
   }
 }
+
+const RESO_BASE_URL = process.env.RESO_BASE_URL ?? '';
+const RESO_TOKEN_URL = process.env.RESO_TOKEN_URL ?? '';
+const RESO_CLIENT_ID = process.env.RESO_CLIENT_ID ?? '';
+const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? '';
+
+const paragonApiClient = new ParagonApiClient(RESO_BASE_URL, RESO_TOKEN_URL, RESO_CLIENT_ID, RESO_CLIENT_SECRET);
+
+export default paragonApiClient;
