@@ -24,7 +24,7 @@ export default interface IParagonProperty {
     BuyerOfficeMlsId?: string
     BuyerOfficeName?: string
     CarportYN: any
-    City: string
+    City: string | null;
     CloseDate?: string
     ClosePrice?: number
     CoBuyerAgentFirstName: any

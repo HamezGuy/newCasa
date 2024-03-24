@@ -65,4 +65,28 @@ export default class ParagonApiClient {
         return await response.json();
     }
 
+    public async searchByStreetName(): Promise<{ "@odata.context": string, "@odata.nextLink": string, value: IParagonProperty[] }> {
+        const url = `${this.__baseUrl}/Property?$filter=contains(StreetName, 'Kenosha')`;
+
+        const headers: HeadersInit = {};
+        headers["Accept"] = "application/json";
+        headers["Authorization"] = this.__getAuthHeaderValue();
+
+        const options: RequestInit = { method: "GET", headers: headers };
+        const response = await fetch(url, options);
+        return await response.json();
+    }
+
+    public async searchByZipCode(zipCode: string): Promise<{ "@odata.context": string, "@odata.nextLink": string, value: IParagonProperty[] }> {
+        const url = `${this.__baseUrl}/Property?$filter=contains(PostalCode, '${zipCode}')`;
+
+        const headers: HeadersInit = {};
+        headers["Accept"] = "application/json";
+        headers["Authorization"] = this.__getAuthHeaderValue();
+
+        const options: RequestInit = { method: "GET", headers: headers };
+        const response = await fetch(url, options);
+        return await response.json();
+    }
+
 }
