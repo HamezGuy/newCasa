@@ -18,13 +18,14 @@ export default class ParagonPropertyUtils {
 
     // Formats the street address...
     public static formatStreetAddress(property: IParagonProperty): string {
-        const { StreetDirPrefix, StreetName, StreetNumber, StreetSuffix } = property;
+        const { StreetDirPrefix, StreetName, StreetNumber, StreetSuffix, UnitNumber } = property;
 
         let sAddress = "";
-        if (!!StreetDirPrefix) { sAddress += StreetDirPrefix + " "; }
         if (!!StreetNumber) { sAddress += StreetNumber + " "; }
+        if (!!StreetDirPrefix) { sAddress += StreetDirPrefix + " "; }
         if (!!StreetName) { sAddress += StreetName + " "; }
         if (!!StreetSuffix) { sAddress += StreetSuffix; }
+        if (!!UnitNumber) { sAddress += " #" + UnitNumber; }
         return sAddress;
     }
 
