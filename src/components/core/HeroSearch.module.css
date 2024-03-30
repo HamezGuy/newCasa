@@ -1,0 +1,11 @@
+.heroSearch {
+  img {
+    z-index: 1;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 9;
+    text-shadow: 1px 1px 1px rgba(40, 40, 40, 0.6);
+  }
+}
