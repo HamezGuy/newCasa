@@ -8,11 +8,12 @@ function CoverImage({ title, subtitle }: { title: string; subtitle: string }) {
     </div>
   );
 }
+
 export default function Listings() {
   return (
-    <>
+    <main>
       <CoverImage title="53715" subtitle="Madison, WI" />
-      <PropertyList />
-    </>
+      <PropertyList className="container" />
+    </main>
   );
 }

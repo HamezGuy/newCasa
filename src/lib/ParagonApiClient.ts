@@ -51,7 +51,6 @@ export class ParagonApiClient {
 
   // Get the token and expiration date from a local file...
   private async initializeToken(): Promise<void> {
-    console.log("initializing token....");
     const filepath = path.join(
       process.cwd(),
       `tokens/.token${md5(this.__clientId)}`

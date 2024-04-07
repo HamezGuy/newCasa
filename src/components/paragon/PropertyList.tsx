@@ -5,8 +5,10 @@ import PropertySearchResultCard from "./PropertySearchResultCard";
 
 export default function PropertyList({
   searchTerm = "53705",
+  className,
 }: {
   searchTerm?: string;
+  className?: string;
 }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [properties, setProperties] = useState<IParagonProperty[]>([]);
@@ -17,7 +19,6 @@ export default function PropertyList({
     // Call /api/reso/test...
     const url = `/api/reso/test?searchTerm=${searchTerm}`;
     const response = await fetch(url).then((response) => response.json());
-    debugger;
     setProperties(response.value);
   }
 
@@ -28,13 +29,15 @@ export default function PropertyList({
   }, []);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div
+      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${className}`}
+    >
       {properties.map((property) => (
         <PropertySearchResultCard
           onClick={(property) => {
             console.log(property);
             setSelectedProperty(property);
-            open();
+            // open();
           }}
           key={property.ListingKey}
           property={property}
