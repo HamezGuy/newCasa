@@ -3,7 +3,7 @@
 import FullPropertySummary from "@/components/paragon/FullPropertySummary";
 import PropertySearchResultCard from "@/components/paragon/PropertySearchResultCard";
 import IParagonProperty from "@/types/IParagonProperty";
-import { Loader, Modal, Space, Text, TextInput, Title } from "@mantine/core";
+import { Button, Modal, Text, TextInput, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import Image from "next/image";
 import { useCallback, useState } from "react";
@@ -31,7 +31,7 @@ export default function HeroSearch() {
   return (
     <div
       style={{ height: 600 }}
-      className={`${styles.heroSearch} relative flex flex-col justify-center p-24 text-white`}
+      className={`${styles.heroSearch} relative flex flex-col justify-center items-center p-24 text-white`}
     >
       <Image
         src="/img/home-hero3.jpg"
@@ -39,29 +39,35 @@ export default function HeroSearch() {
         fill
         priority
         style={{ objectFit: "cover" }}
+        className="brightness-75"
       />
-      <Space h={20} />
-      {isLoading && <Loader color="blue" size={40} />}
 
       {/* Search Form */}
-      <Title order={2} className="drop-shadow">
+      <Title
+        order={2}
+        className="drop-shadow text-center text-4xl mb-4 normal-case"
+      >
         Find your next home
       </Title>
-      <div className="flex flex-row">
+      <div className="flex flex-row gap-3 w-full max-w-xl">
         <TextInput
           value={searchTerm}
-          onChange={(event) => setSearchTerm(event.currentTarget.value)}
           placeholder="City, Zip, Neighborhood, Address"
+          onChange={(event) => setSearchTerm(event.currentTarget.value)}
           className="flex-grow"
+          size="md"
+          rightSectionWidth="auto"
+          rightSection={
+            <Button
+              variant="filled"
+              loading={isLoading}
+              onClick={onSearchPress}
+              size="md"
+            >
+              Search
+            </Button>
+          }
         />
-        <Space h={10} />
-        <button
-          type="button"
-          onClick={onSearchPress}
-          className="focus:outline-none text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800"
-        >
-          Search
-        </button>
       </div>
       <Text size="sm">(Only Zip Code search works right now)</Text>
       <Text size="sm">Click a property to view details</Text>
