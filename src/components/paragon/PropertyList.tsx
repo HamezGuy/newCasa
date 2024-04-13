@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import PropertySearchResultCard from "./PropertySearchResultCard";
 
 export default function PropertyList({
-  searchTerm = "53705",
+  searchTerm = "53715",
   className,
 }: {
   searchTerm?: string;

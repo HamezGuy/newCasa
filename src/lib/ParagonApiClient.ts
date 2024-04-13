@@ -241,6 +241,7 @@ export class ParagonApiClient {
 
     const options: RequestInit = { method: "GET", headers: headers };
     const response = await fetch(url, options);
+
     return await response.json();
   }
 
@@ -249,7 +250,7 @@ export class ParagonApiClient {
     "@odata.nextLink": string;
     value: IParagonProperty[];
   }> {
-    const url = `${this.__baseUrl}/Property?$filter=contains(PostalCode, '${zipCode}')`;
+    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${zipCode}')`;
 
     const headers: HeadersInit = {};
     headers["Accept"] = "application/json";
@@ -257,6 +258,7 @@ export class ParagonApiClient {
 
     const options: RequestInit = { method: "GET", headers: headers };
     const response = await fetch(url, options);
+
     return await response.json();
   }
 
