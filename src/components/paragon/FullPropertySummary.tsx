@@ -6,11 +6,13 @@ import {
   Box,
   Card,
   Divider,
+  Flex,
   Group,
   SimpleGrid,
   Space,
   Stack,
   Text,
+  Title,
 } from "@mantine/core";
 
 interface IFullPropertySummaryProps {
@@ -44,18 +46,26 @@ export default function FullPropertySummary(props: IFullPropertySummaryProps) {
       />
 
       {/* Description */}
-      <Space h={10} />
+      <Space h={20} />
       <Text>{property.PublicRemarks}</Text>
 
       {/* Property Summary */}
-      <Space h={20} />
-      <PropertySummary
-        mlsNumber={property.ListingId}
-        style={property.ArchitecturalStyle.join(", ")}
-        type="Single Family, Multi-level"
-        yearBuilt={property.YearBuilt}
-        estimatedTaxes={property.TaxAnnualAmount}
-      />
+      <Space h={80} />
+      <PropertySection title="Property Summary">
+        <PropertySummary property={property} />
+      </PropertySection>
+
+      {/* Property Features */}
+      <PropertySection title="Features">
+        <PropertyFeatures property={property} />
+      </PropertySection>
+
+      {/* Listing Information */}
+      <PropertySection
+        title={`Listing Information for MLS #${property.ListAgentMlsId}`}
+      >
+        <ListingInformation property={property} />
+      </PropertySection>
     </>
   );
 }
@@ -108,7 +118,7 @@ function PropertyHeader(props: IPropertyHeaderProps) {
         <Stack gap={0}>
           <Text size="sm">
             Est. Mortgage:
-            <Text display="inline" fw="bold">
+            <Text span fw="bold">
               &nbsp;{DisplayUtils.formatCurrency(estimatedMortgage)}
             </Text>
           </Text>
@@ -122,31 +132,56 @@ function PropertyHeader(props: IPropertyHeaderProps) {
 }
 
 interface IPropertySummaryProps {
-  mlsNumber?: string;
-  style?: string;
-  type?: string;
-  yearBuilt?: number;
-  estimatedTaxes?: number;
+  property: IParagonProperty;
+}
+
+function PropertySection({
+  title,
+  children,
+}: {
+  title: String;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <Title order={2} mt={40} mb={10} className="normal-case font-normal">
+        {title}
+      </Title>
+      <Divider py={10} mt={0} />
+      {children}
+    </>
+  );
 }
 
 // Displays the "Property Summary" table...
-function PropertySummary(props: IPropertySummaryProps) {
+function PropertySummary({ property }: IPropertySummaryProps) {
   return (
     <>
-      <Text size="xl">Property Summary</Text>
-      <Divider py={10} mt={0} />
-
       <SimpleGrid cols={2}>
-        <LabelValueTextDisplay label="MLS Number: " value={props.mlsNumber} />
-        <LabelValueTextDisplay label="Style: " value={props.style} />
-        <LabelValueTextDisplay label="Type: " value={props.type} />
+        <LabelValueTextDisplay label="MLS #: " value={property.ListingId} />
+        <LabelValueTextDisplay
+          label="Type: "
+          value={property.PropertySubType}
+        />
         <LabelValueTextDisplay
           label="Year Built: "
-          value={props.yearBuilt ? props.yearBuilt.toString() : ""}
+          value={property.YearBuilt ? property.YearBuilt.toString() : ""}
         />
         <LabelValueTextDisplay
           label="Estimated Taxes: "
-          value={DisplayUtils.formatCurrency(props.estimatedTaxes)}
+          value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
+        />
+        <LabelValueTextDisplay
+          label="Subdivision: "
+          value={property.SubdivisionName}
+        />
+        <LabelValueTextDisplay
+          label="Stories: "
+          value={property.StoriesTotal?.toString()}
+        />
+        <LabelValueTextDisplay
+          label="Style: "
+          value={property.ArchitecturalStyle.join(", ")}
         />
       </SimpleGrid>
     </>
@@ -204,6 +239,182 @@ function PropertyStatus(props: IPropertyStatusProps) {
         </Stack>
       </SimpleGrid>
     </Card>
+  );
+}
+
+function PropertyFeatures({ property }: { property: IParagonProperty }) {
+  return (
+    <>
+      <Flex gap={"md"} justify="space-evenly">
+        <Stack className="w-full">
+          <Title order={3}>Listing Details</Title>
+          <LabelValueTextDisplay label="C/T/V:" value={property.ListingId} />
+          <LabelValueTextDisplay
+            label="Municipality:"
+            value={property.City ?? ""}
+          />
+          <LabelValueTextDisplay
+            label="Status Detail:"
+            value={property.StandardStatus}
+          />
+          <LabelValueTextDisplay
+            label="Mailing City:"
+            value={property.PostalCity}
+          />
+          <LabelValueTextDisplay
+            label="County:"
+            value={property.CountyOrParish}
+          />
+
+          {/* <LabelValueTextDisplay
+            label="Class:"
+            value={"Single Family"}
+          /> */}
+          <LabelValueTextDisplay label="Type:" value={"Single Family"} />
+          {/* <LabelValueTextDisplay
+            label="Type of Property:"
+            value={""}
+          /> */}
+          <LabelValueTextDisplay
+            label="Items Excluded:"
+            value={property.Exclusions}
+          />
+          <LabelValueTextDisplay
+            label="Items Included:"
+            value={property.Inclusions}
+          />
+          <LabelValueTextDisplay
+            label="Year Built Source:"
+            value={property.YearBuiltSource}
+          />
+          <LabelValueTextDisplay
+            label="Year Built:"
+            value={property.YearBuilt?.toString() ?? "unknown"}
+          />
+          {/* <LabelValueTextDisplay
+            label="Above Grade price per sq. ft:"
+            value={property?.sq}
+          /> */}
+          <Title order={3}>Exterior Features</Title>
+          {/* <LabelValueTextDisplay label="Exterior " value={"Vinyl"} /> */}
+          <LabelValueTextDisplay
+            label="Exterior Features:"
+            value={property.ExteriorFeatures.join(",")}
+          />
+          <Title order={3}>Garage / Parking</Title>
+          <LabelValueTextDisplay
+            label="Driveway:"
+            value={
+              property.ParkingFeatures.includes("Paved") ? "Paved" : "Unpaved"
+            }
+          />
+          <LabelValueTextDisplay
+            label="Parking Features:"
+            value={property.ParkingFeatures.join(", ")}
+          />
+          <Title order={3}>Utilities</Title>
+          <LabelValueTextDisplay
+            label="Fuel:"
+            value={
+              property.Heating.includes("Natural Gas") ? "Natural Gas" : ""
+            }
+          />
+          <LabelValueTextDisplay
+            label="Heating Cooling:"
+            value={property.Heating.join(",")}
+          />
+          {/* <LabelValueTextDisplay label="Water Waste:" value={property} /> */}
+          <Title order={3}>Tax Info</Title>
+          {/* <LabelValueTextDisplay label="Land Assessment:" value={property.LandAssessment} /> */}
+          <LabelValueTextDisplay
+            label="Improvements:"
+            value={property.Improvements}
+          />
+          <LabelValueTextDisplay
+            label="Total Assessment:"
+            value={property.TaxAssessedValue?.toString()}
+          />
+          <LabelValueTextDisplay
+            label="Assessment Year:"
+            value={property.Total_Assess_Year?.toString()}
+          />
+          <LabelValueTextDisplay
+            label="Net Taxes:"
+            value={property.TaxAnnualAmount?.toString()}
+          />
+          <LabelValueTextDisplay
+            label="Tax Year:"
+            value={property.TaxYear?.toString()}
+          />
+          <Title order={3}>Buyer Broker Compensation</Title>
+          <LabelValueTextDisplay
+            label="Compensation:"
+            value={property.BuyerAgencyCompensation?.toString()}
+          />
+          <LabelValueTextDisplay
+            label="Sub-Agency Compensation:"
+            value={property.SubAgencyCompensation}
+          />
+          {/* <LabelValueTextDisplay
+            label="Disclaimer:"
+            value={property.Disclaimer?.toString()}
+          />
+          <LabelValueTextDisplay
+            label="BrokerAttribContact:"
+            value={property.BrokerAttribContact?.toString()}
+          /> */}
+        </Stack>
+        <Stack className="w-full">
+          <Title order={3}>Interior Features</Title>
+          <LabelValueTextDisplay
+            label="Above Grade Finished Sq Ft:"
+            value={property.AboveGradeFinishedArea?.toString()}
+          />
+          {/* <LabelValueTextDisplay
+            label="Finished Sq Ft:"
+            value={property.FinishedSqFt}
+          /> */}
+          <LabelValueTextDisplay
+            label="Above Grade Finished Sq Ft:"
+            value={property.AboveGradeFinishedArea?.toString()}
+          />
+          <LabelValueTextDisplay
+            label="Above Grade Finished Sq Ft:"
+            value={property.AboveGradeFinishedArea?.toString()}
+          />
+
+          <LabelValueTextDisplay
+            label="Estimated Taxes: "
+            value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
+          />
+          <Title order={3}>Lot Info</Title>
+          <Title order={3}>Location Info</Title>
+        </Stack>
+      </Flex>
+    </>
+  );
+}
+
+function ListingInformation({ property }: { property: IParagonProperty }) {
+  return (
+    <Stack>
+      <LabelValueTextDisplay
+        label="Listing Broker:"
+        value={property.ListOfficeName}
+      />
+      <LabelValueTextDisplay
+        label="Listing Agent:"
+        value={property.ListAgentFullName}
+      />
+      <LabelValueTextDisplay
+        label="Last Changed:"
+        value={property.StatusChangeTimestamp}
+      />
+      <Text>
+        Accuracy of information is not guaranteed and should be verified by
+        buyer if material
+      </Text>
+    </Stack>
   );
 }
 
