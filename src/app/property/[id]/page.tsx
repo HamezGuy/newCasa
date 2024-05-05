@@ -1,5 +1,6 @@
 import propertiesJson from "@/../data/properties.json";
-import FullPropertySummary from "@/components/paragon/FullPropertySummary";
+import PropertyDetails from "@/components/property/PropertyDetails";
+import { PropertyImages } from "@/components/property/PropertyImages";
 
 //TODO: temporary. Replace with an env var?
 const baseApiUrl = "http://localhost:3000";
@@ -58,10 +59,11 @@ export default async function PropertyPage({
     : await response.json();
 
   return (
-    <div className="container mx-auto px-4 flex flex-row max-w-5xl">
-      <div className="content-main">
-        <FullPropertySummary property={property} />
+    <main>
+      <PropertyImages property={property} />
+      <div className="container mx-auto max-w-5xl">
+        <PropertyDetails property={property} />
       </div>
-    </div>
+    </main>
   );
 }

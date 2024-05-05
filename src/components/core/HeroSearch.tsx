@@ -1,7 +1,7 @@
 "use client";
 
-import FullPropertySummary from "@/components/paragon/FullPropertySummary";
 import PropertySearchResultCard from "@/components/paragon/PropertySearchResultCard";
+import PropertyDetails from "@/components/property/PropertyDetails";
 import IParagonProperty from "@/types/IParagonProperty";
 import { Button, Modal, Text, TextInput, Title } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -94,7 +94,7 @@ export default function HeroSearch() {
         title="Property Details"
         size="90%"
       >
-        <FullPropertySummary property={selectedProperty!} />
+        <PropertyDetails property={selectedProperty!} />
       </Modal>
     </div>
   );
