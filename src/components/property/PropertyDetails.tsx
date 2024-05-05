@@ -240,7 +240,7 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
     <>
       <Flex gap={"md"} justify="space-evenly">
         <Stack className="w-full">
-          <Title order={3}>Listing Details</Title>
+          <DetailsSubtitle>Listing Details</DetailsSubtitle>
           <LabelValueTextDisplay label="C/T/V:" value={property.ListingId} />
           <LabelValueTextDisplay
             label="Municipality:"
@@ -288,13 +288,13 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
             label="Above Grade price per sq. ft:"
             value={property?.sq}
           /> */}
-          <Title order={3}>Exterior Features</Title>
+          <DetailsSubtitle>Exterior Features</DetailsSubtitle>
           {/* <LabelValueTextDisplay label="Exterior " value={"Vinyl"} /> */}
           <LabelValueTextDisplay
             label="Exterior Features:"
             value={property.ExteriorFeatures.join(",")}
           />
-          <Title order={3}>Garage / Parking</Title>
+          <DetailsSubtitle>Garage / Parking</DetailsSubtitle>
           <LabelValueTextDisplay
             label="Driveway:"
             value={
@@ -305,7 +305,7 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
             label="Parking Features:"
             value={property.ParkingFeatures.join(", ")}
           />
-          <Title order={3}>Utilities</Title>
+          <DetailsSubtitle>Utilities</DetailsSubtitle>
           <LabelValueTextDisplay
             label="Fuel:"
             value={
@@ -317,7 +317,7 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
             value={property.Heating.join(",")}
           />
           {/* <LabelValueTextDisplay label="Water Waste:" value={property} /> */}
-          <Title order={3}>Tax Info</Title>
+          <DetailsSubtitle>Tax Info</DetailsSubtitle>
           {/* <LabelValueTextDisplay label="Land Assessment:" value={property.LandAssessment} /> */}
           <LabelValueTextDisplay
             label="Improvements:"
@@ -339,7 +339,7 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
             label="Tax Year:"
             value={property.TaxYear?.toString()}
           />
-          <Title order={3}>Buyer Broker Compensation</Title>
+          <DetailsSubtitle>Buyer Broker Compensation</DetailsSubtitle>
           <LabelValueTextDisplay
             label="Compensation:"
             value={property.BuyerAgencyCompensation?.toString()}
@@ -358,7 +358,7 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
           /> */}
         </Stack>
         <Stack className="w-full">
-          <Title order={3}>Interior Features</Title>
+          <DetailsSubtitle>Interior Features</DetailsSubtitle>
           <LabelValueTextDisplay
             label="Above Grade Finished Sq Ft:"
             value={property.AboveGradeFinishedArea?.toString()}
@@ -380,8 +380,8 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
             label="Estimated Taxes: "
             value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
           />
-          <Title order={3}>Lot Info</Title>
-          <Title order={3}>Location Info</Title>
+          <DetailsSubtitle>Lot Info</DetailsSubtitle>
+          <DetailsSubtitle>Location Info</DetailsSubtitle>
         </Stack>
       </Flex>
     </>
@@ -418,5 +418,13 @@ function LabelValueTextDisplay(props: { label?: string; value?: string }) {
       <Text fw="bold">{props.label ?? ""}</Text>
       <Text pl={5}>{props.value ?? ""}</Text>
     </Group>
+  );
+}
+
+function DetailsSubtitle({ children }: { children: React.ReactNode }) {
+  return (
+    <Title order={3} className="text-lg">
+      {children}
+    </Title>
   );
 }
