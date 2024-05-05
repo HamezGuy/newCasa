@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import PropertySearchResultCard from "./PropertySearchResultCard";
 
 export default function PropertyList({
-  searchTerm = "53705",
+  searchTerm = "53715",
   className,
 }: {
   searchTerm?: string;
@@ -30,7 +30,7 @@ export default function PropertyList({
 
   return (
     <div
-      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${className}`}
+      className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}
     >
       {properties.map((property) => (
         <PropertySearchResultCard
