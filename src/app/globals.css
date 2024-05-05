@@ -41,3 +41,28 @@ main > .container {
     text-shadow: 1px 1px 1px rgba(40, 40, 40, 0.6);
   }
 }
+
+h1 {
+  @apply text-3xl mb-4 font-bold;
+}
+
+h2 {
+  @apply text-2xl mb-4 uppercase font-bold tracking-wider;
+}
+
+h3 {
+  @apply text-xl mb-4 uppercase font-bold tracking-wider;
+}
+
+p {
+  @apply mb-4;
+}
+
+a {
+  @apply text-blue-800;
+}
+
+a:focus,
+a:hover {
+  @apply text-blue-600;
+}
