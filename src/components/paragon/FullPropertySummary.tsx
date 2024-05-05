@@ -5,9 +5,11 @@ import {
   Badge,
   Box,
   Card,
+  Container,
   Divider,
   Flex,
   Group,
+  Image,
   SimpleGrid,
   Space,
   Stack,
@@ -31,6 +33,7 @@ export default function FullPropertySummary(props: IFullPropertySummaryProps) {
     <>
       {/* Image */}
       {/* <Image src={imgUrl} height={256} width={384} alt="Listing" /> */}
+      {<PropertyImageGrid property={property} />}
 
       {/* Header */}
       <PropertyHeader property={property} />
@@ -73,6 +76,40 @@ export default function FullPropertySummary(props: IFullPropertySummaryProps) {
 //
 // PRIVATE COMPONENTS
 //
+
+function PropertyImageGrid({ property }: { property: IParagonProperty }) {
+  const images = [
+    "/img/property/0.jpg",
+    "/img/property/1.jpg",
+    "/img/property/2.jpg",
+    "/img/property/3.jpg",
+    "/img/property/4.jpg",
+    "/img/property/5.jpg",
+    "/img/property/6.jpg",
+    "/img/property/7.jpg",
+    "/img/property/8.jpg",
+    "/img/property/9.jpg",
+    "/img/property/10.jpg",
+    "/img/property/11.jpg",
+  ];
+
+  return (
+    <Container className="w-full h-96 overflow-hidden">
+      <Container className="grid grid-flow-col grid-rows-2 ">
+        {images.map((p, i) => (
+          <Image
+            width={"100%"}
+            height={"100%"}
+            fit="cover"
+            src={p}
+            key={i}
+            alt=""
+          />
+        ))}
+      </Container>
+    </Container>
+  );
+}
 
 interface IPropertyHeaderProps {
   property: IParagonProperty;
