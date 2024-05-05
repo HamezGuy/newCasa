@@ -5,17 +5,16 @@ import {
   Badge,
   Box,
   Card,
-  Container,
   Divider,
   Flex,
   Group,
-  Image,
   SimpleGrid,
   Space,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
+import Image from "next/image";
 
 interface IFullPropertySummaryProps {
   property: IParagonProperty;
@@ -90,24 +89,26 @@ function PropertyImageGrid({ property }: { property: IParagonProperty }) {
     "/img/property/8.jpg",
     "/img/property/9.jpg",
     "/img/property/10.jpg",
-    "/img/property/11.jpg",
   ];
 
   return (
-    <Container className="w-full h-96 overflow-hidden">
-      <Container className="grid grid-flow-col grid-rows-2 ">
+    <Box className="w-full overflow-x-scroll">
+      <Box
+        className="flex flex-col flex-wrap gap-1"
+        style={{ height: "24.25rem" }}
+      >
         {images.map((p, i) => (
-          <Image
-            width={"100%"}
-            height={"100%"}
-            fit="cover"
-            src={p}
+          <Box
             key={i}
-            alt=""
-          />
+            className={`relative overflow-hidden ${
+              i == 0 ? "w-96 h-full" : "w-56 h-48"
+            }`}
+          >
+            <Image fill={true} src={p} alt="" style={{ objectFit: "cover" }} />
+          </Box>
         ))}
-      </Container>
-    </Container>
+      </Box>
+    </Box>
   );
 }
 
