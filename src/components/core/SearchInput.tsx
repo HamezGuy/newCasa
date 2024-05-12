@@ -1,14 +1,12 @@
 "use client";
 
 import { Button, TextInput } from "@mantine/core";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useRef } from "react";
 
 export default function SearchInput({ isLoading }: { isLoading?: boolean }) {
   const searchParams = useSearchParams();
-  const pathname = usePathname();
   const router = useRouter();
-
   const searchInputRef = useRef(null);
 
   function handleSearch() {
@@ -22,7 +20,7 @@ export default function SearchInput({ isLoading }: { isLoading?: boolean }) {
         params.delete("s");
       }
 
-      router.replace(`${pathname}?${params.toString()}`);
+      router.replace(`/search?${params.toString()}`);
     }
   }
 
