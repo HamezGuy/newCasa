@@ -1,5 +1,26 @@
 import PropertyList from "@/components/paragon/PropertyList";
+import { getProperties } from "@/lib/data";
 import Image from "next/image";
+
+export default async function Listings() {
+  const properties53715 = await getProperties("53715");
+  const properties53703 = await getProperties("53703");
+
+  return (
+    <main>
+      <CoverImage title="53715" subtitle="Madison, WI" />
+      <PropertyList
+        className="container mb-16"
+        properties={properties53715.value}
+      />
+      <CoverImage title="53703" subtitle="Madison, WI" />
+      <PropertyList
+        className="container mb-16"
+        properties={properties53703.value}
+      />
+    </main>
+  );
+}
 
 function CoverImage({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -14,17 +35,5 @@ function CoverImage({ title, subtitle }: { title: string; subtitle: string }) {
         style={{ objectFit: "cover" }}
       />
     </div>
-  );
-}
-
-export default function Listings() {
-  //TODO: fetch properties here
-  return (
-    <main>
-      <CoverImage title="53715" subtitle="Madison, WI" />
-      <PropertyList className="container mb-16" />
-      <CoverImage title="53703" subtitle="Madison, WI" />
-      <PropertyList className="container mb-16" />
-    </main>
   );
 }
