@@ -18,12 +18,13 @@ function CoverImage({ title, subtitle }: { title: string; subtitle: string }) {
 }
 
 export default function Listings() {
+  //TODO: fetch properties here
   return (
     <main>
       <CoverImage title="53715" subtitle="Madison, WI" />
       <PropertyList className="container mb-16" />
       <CoverImage title="53703" subtitle="Madison, WI" />
-      <PropertyList className="container mb-16" searchTerm="53703" />
+      <PropertyList className="container mb-16" />
     </main>
   );
 }
