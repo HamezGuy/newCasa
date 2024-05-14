@@ -245,32 +245,28 @@ export class ParagonApiClient {
     return await response.json();
   }
 
-  public async searchByZipCode(zipCode: string): Promise<{
-    "@odata.context": string;
-    "@odata.nextLink": string;
-    value: IParagonProperty[];
-  }> {
+  public async searchByZipCode(
+    zipCode: string,
+    includeMedia: boolean = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${zipCode}')`;
+    const response = await this.get<ParagonPropertyWithMedia>(url);
 
-    const headers: HeadersInit = {};
-    headers["Accept"] = "application/json";
-    headers["Authorization"] = await this.__getAuthHeaderValue();
+    if (response.value && includeMedia) {
+      response.value = await this.getPropertiesWithMedia(response.value);
+    }
 
-    const options: RequestInit = { method: "GET", headers: headers };
-    const response = await fetch(url, options);
-
-    return await response.json();
+    return response;
   }
 
-  public async getAllPropertyWithMedia(top?: number): Promise<any> {
-    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(
-      top
-    );
-
+  public async getPropertiesWithMedia(
+    properties: ParagonPropertyWithMedia[]
+  ): Promise<ParagonPropertyWithMedia[]> {
     let queries = this.generateMediaFilters(
       properties.map((p) => p.ListingKey)
     );
 
+    // console.log("Getting media for:", queries.join(","));
     while (queries.length > 0) {
       // Get the next set of URLs
       const currentQueries = queries.slice(0, this.__maxConcurrentQueries);
@@ -311,6 +307,14 @@ export class ParagonApiClient {
     }
 
     return properties;
+  }
+
+  public async getAllPropertyWithMedia(top?: number): Promise<any> {
+    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(
+      top
+    );
+
+    return await this.getPropertiesWithMedia(properties);
   }
 }
 

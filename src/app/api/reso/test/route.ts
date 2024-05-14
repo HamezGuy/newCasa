@@ -14,9 +14,12 @@ export async function GET(request: Request | NextRequest) {
 
   //const allProperty = await paragonApiClient.getAllProperty(10);
 
-  const allProperty = process.env.MOCK_DATA
+  const foundProperties = process.env.MOCK_DATA
     ? mockData
     : await paragonApiClient.searchByZipCode(searchTerm ?? "");
 
-  return NextResponse.json(allProperty, { status: 200 });
+  // console.log("foundProperties: ", foundProperties.value.length);
+  // console.log("property[0] Media: ", foundProperties.value[0].Media);
+
+  return NextResponse.json(foundProperties, { status: 200 });
 }
