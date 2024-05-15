@@ -6,10 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 //     query: { searchTerm?: string; }
 // }
 
-export async function GET(request: Request | NextRequest) {
-  // TODO: Should be able to use request.query, but it's undefined...
-  const url = new URL(request.url ?? "");
-  const searchParams = url.searchParams;
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
   const searchTerm = searchParams.get("searchTerm");
 
   //const allProperty = await paragonApiClient.getAllProperty(10);
