@@ -17,7 +17,7 @@ interface ILocalToken {
   tokenExpiration: Date;
 }
 
-interface IOdataResponse<T> {
+export interface IOdataResponse<T> {
   "@odata.context": string;
   "@odata.nextLink"?: string;
   "@odata.count"?: number;
@@ -57,7 +57,7 @@ export class ParagonApiClient {
     );
 
     if (existsSync(filepath)) {
-      console.log("Token file found!");
+      // console.log("Token file found!");
 
       fs.readFile(filepath).then((data) => {
         const token = JSON.parse(data.toString()) as ILocalToken;
@@ -137,7 +137,7 @@ export class ParagonApiClient {
   private async get<T>(url: string): Promise<IOdataResponse<T>> {
     const headers: HeadersInit = {};
     headers["Authorization"] = await this.__getAuthHeaderValue();
-
+    // console.log(`Fetching from Paragon API: ${url}`);
     const options: RequestInit = { method: "GET", headers: headers };
     const response = await fetch(url, options);
 
@@ -162,31 +162,9 @@ export class ParagonApiClient {
     const topStr = top ? `&$top=${top}` : "";
     const skipStr = skip ? `&$skip=${skip}` : "";
 
-    // This help testing the media endpoint with fewer data
+    // This helps test the media endpoint with less data
     //return `${this.__baseUrl}/Property?$select=ListingKey&$count=true${filterStr}${topStr}${skipStr}`;
     return `${this.__baseUrl}/Property?$count=true${filterStr}${topStr}${skipStr}`;
-  }
-
-  // Just used for testing...
-  public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
-    const url = this.getPropertyUrl(top ? top : this.__maxPageSize);
-    const response = await this.get<IParagonProperty>(url);
-
-    if (!top) {
-      const count = response["@odata.count"];
-
-      if (count && count > this.__maxPageSize) {
-        return response.value.concat(
-          (
-            await this.getFollowNext<IParagonProperty>(
-              this.getPropertyUrl(count, this.__maxPageSize)
-            )
-          ).value
-        );
-      }
-    }
-
-    return response.value;
   }
 
   private getMediaUrl(top: number, skip?: number, filter?: string): string {
@@ -194,9 +172,9 @@ export class ParagonApiClient {
     const skipStr = skip ? `&$skip=${skip}` : "";
     const filterStr = filter ? `&$filter=${filter}` : "";
 
-    // This help testing the media endpoint with fewer data
-    //return `${this.__baseUrl}/Media?$select=ResourceRecordKey,MediaURL&$count=true${topStr}${skipStr}${filterStr}`;
-    return `${this.__baseUrl}/Media?$count=true${topStr}${skipStr}${filterStr}`;
+    // This helps test the media endpoint with less data
+    return `${this.__baseUrl}/Media?$select=ResourceRecordKey,MediaURL&$count=true${topStr}${skipStr}${filterStr}`;
+    // return `${this.__baseUrl}/Media?$count=true${topStr}${skipStr}${filterStr}`;
   }
 
   private generateMediaFilters(listingKeys: string[]): string[] {
@@ -217,6 +195,7 @@ export class ParagonApiClient {
       if (
         getEncodedLength(`${baseURL}${filter}${currentFilter}`) <= maxURLLength
       ) {
+        //TODO: there's a bug here because this filter value is not being returned
         filter += currentFilter;
       } else {
         if (filter !== "" || id === listingKeys[listingKeys.length - 1]) {
@@ -228,45 +207,18 @@ export class ParagonApiClient {
 
     return mediaFilters;
   }
-  public async searchByStreetName(): Promise<{
-    "@odata.context": string;
-    "@odata.nextLink": string;
-    value: IParagonProperty[];
-  }> {
-    const url = `${this.__baseUrl}/Property?$filter=contains(StreetName, 'Kenosha')`;
-
-    const headers: HeadersInit = {};
-    headers["Accept"] = "application/json";
-    headers["Authorization"] = await this.__getAuthHeaderValue();
-
-    const options: RequestInit = { method: "GET", headers: headers };
-    const response = await fetch(url, options);
-
-    return await response.json();
-  }
-
-  public async searchByZipCode(
-    zipCode: string,
-    includeMedia: boolean = true
-  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${zipCode}')`;
-    const response = await this.get<ParagonPropertyWithMedia>(url);
-
-    if (response.value && includeMedia) {
-      response.value = await this.getPropertiesWithMedia(response.value);
-    }
-
-    return response;
-  }
 
   public async getPropertiesWithMedia(
     properties: ParagonPropertyWithMedia[]
   ): Promise<ParagonPropertyWithMedia[]> {
-    let queries = this.generateMediaFilters(
-      properties.map((p) => p.ListingKey)
-    );
+    let queries =
+      properties.length > 1
+        ? this.generateMediaFilters(properties.map((p) => p.ListingKey))
+        : [`ResourceRecordKey eq '${properties[0].ListingKey}'`];
 
-    // console.log("Getting media for:", queries.join(","));
+    // console.log("Getting media for:", JSON.stringify(queries));
+
+    // TODO: use pMap
     while (queries.length > 0) {
       // Get the next set of URLs
       const currentQueries = queries.slice(0, this.__maxConcurrentQueries);
@@ -307,6 +259,73 @@ export class ParagonApiClient {
     }
 
     return properties;
+  }
+
+  public async getPropertyById(
+    id: string,
+    includeMedia: boolean = true
+  ): Promise<IOdataResponse<IParagonProperty>> {
+    const url = `${this.__baseUrl}/Property?$filter=ListingId eq '${id}'`;
+    const response = await this.get<ParagonPropertyWithMedia>(url);
+
+    if (response.value && includeMedia) {
+      response.value = await this.getPropertiesWithMedia(response.value);
+    }
+
+    return response;
+  }
+
+  public async searchByZipCode(
+    zipCode: string,
+    includeMedia: boolean = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${zipCode}')`;
+    const response = await this.get<ParagonPropertyWithMedia>(url);
+
+    if (response.value && includeMedia) {
+      response.value = await this.getPropertiesWithMedia(response.value);
+    }
+
+    return response;
+  }
+
+  public async searchByStreetName(): Promise<{
+    "@odata.context": string;
+    "@odata.nextLink": string;
+    value: IParagonProperty[];
+  }> {
+    const url = `${this.__baseUrl}/Property?$filter=contains(StreetName, 'Kenosha')`;
+
+    const headers: HeadersInit = {};
+    headers["Accept"] = "application/json";
+    headers["Authorization"] = await this.__getAuthHeaderValue();
+
+    const options: RequestInit = { method: "GET", headers: headers };
+    const response = await fetch(url, options);
+
+    return await response.json();
+  }
+
+  // Just used for testing...
+  public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
+    const url = this.getPropertyUrl(top ? top : this.__maxPageSize);
+    const response = await this.get<IParagonProperty>(url);
+
+    if (!top) {
+      const count = response["@odata.count"];
+
+      if (count && count > this.__maxPageSize) {
+        return response.value.concat(
+          (
+            await this.getFollowNext<IParagonProperty>(
+              this.getPropertyUrl(count, this.__maxPageSize)
+            )
+          ).value
+        );
+      }
+    }
+
+    return response.value;
   }
 
   public async getAllPropertyWithMedia(top?: number): Promise<any> {

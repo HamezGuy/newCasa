@@ -1,21 +1,16 @@
-import propertiesJson from "@/../data/properties.json";
 import PropertyDetails from "@/components/property/PropertyDetails";
 import { PropertyImages } from "@/components/property/PropertyImages";
+import { IOdataResponse } from "@/lib/ParagonApiClient";
+import { getPropertyById } from "@/lib/data";
+import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 
 //TODO: temporary. Replace with an env var?
 const baseApiUrl = "http://localhost:3000";
-const useLocalProperties = true; // TODO: remove
-
-interface IPropertyResponse {
-  "@odata.context": string;
-  "@odata.count": number;
-  value: [];
-}
+const generateSataticParams = false; // TODO: remove
 
 // Statically generate routes
-
 export async function generateStaticParams() {
-  if (useLocalProperties) {
+  if (!generateSataticParams) {
     return [];
   }
 
@@ -34,35 +29,27 @@ export default async function PropertyPage({
   params: { id: string };
 }) {
   const { id } = params;
-  let response: Response | void = new Response();
+  let response: IOdataResponse<ParagonPropertyWithMedia>;
 
   // TODO: Redirect to listings
   if (!id) {
     return <span>Redirect to all listings page...</span>;
   }
 
-  if (!useLocalProperties) {
-    try {
-      response = await fetch(`${baseApiUrl}/api/v1/listings?id=${id}`);
-    } catch (e) {
-      console.log(`Could not fetch property`, e);
-    }
-
-    if (response.status >= 400 && response.status < 500) {
-      return <div>Not found</div>;
-    }
+  try {
+    response = await getPropertyById(id);
+  } catch (e) {
+    console.log(`Could not fetch property`, e);
+    return <div>Not found</div>;
   }
-
-  // console.log(response);
-  const property = useLocalProperties
-    ? propertiesJson.value[1]
-    : await response.json();
-
+  // console.log(response.value[0]);
+  // console.log("Media:");
+  // console.log(response.value[0].Media);
   return (
     <main>
-      <PropertyImages property={property} />
+      <PropertyImages property={response.value[0]} />
       <div className="container mx-auto max-w-5xl">
-        <PropertyDetails property={property} />
+        <PropertyDetails property={response.value[0]} />
       </div>
     </main>
   );

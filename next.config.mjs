@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "cdnparap50.paragonrels.com",
+        port: "",
+        pathname: "/ParagonImages/Property/**",
+      },
+    ],
+  },
   publicRuntimeConfig: {
     realtor: {
       name: "Tim Flores",

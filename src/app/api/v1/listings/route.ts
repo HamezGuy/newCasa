@@ -1,4 +1,5 @@
-import propertiesJson from "@/../data/properties.json";
+import mockData from "@/../data/properties.json";
+import paragonApiClient from "@/lib/ParagonApiClient";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: Request | NextRequest) {
@@ -6,14 +7,14 @@ export async function GET(request: Request | NextRequest) {
     const { searchParams } = new URL(request.url ?? "");
     const id = searchParams.get("id");
 
-    //TODO: Do with API call, instead of from proerties.json
-
     if (!id) {
-      // Returns all listings
-      return NextResponse.json(propertiesJson.value, { status: 200 });
+      // TODO: Return all realtor listings
+      return NextResponse.json(mockData.value, { status: 200 });
     }
 
-    const property = propertiesJson.value.find((p) => p["ListingId"] == id);
+    const property = process.env.MOCK_DATA
+      ? mockData.value.find((p) => p["ListingId"] == id)
+      : await paragonApiClient.getPropertyById(id);
 
     if (!property) {
       return new NextResponse(`Could not find property`, {
