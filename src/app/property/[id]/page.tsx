@@ -4,8 +4,6 @@ import { IOdataResponse } from "@/lib/ParagonApiClient";
 import { getPropertyById } from "@/lib/data";
 import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 
-//TODO: temporary. Replace with an env var?
-const baseApiUrl = "http://localhost:3000";
 const generateSataticParams = false; // TODO: remove
 
 // Statically generate routes
@@ -14,9 +12,10 @@ export async function generateStaticParams() {
     return [];
   }
 
-  const listings = await fetch(`${baseApiUrl}/api/v1/listings/`).then(
-    (response) => response.json()
-  );
+  //TODO: Use data/getProperties() or similar
+  const listings = await fetch(
+    `${process.env.BASE_API_URL}/api/v1/listings/`
+  ).then((response) => response.json());
 
   return listings.map((listing: any) => ({
     slug: listing.ListingId,
@@ -42,9 +41,7 @@ export default async function PropertyPage({
     console.log(`Could not fetch property`, e);
     return <div>Not found</div>;
   }
-  // console.log(response.value[0]);
-  // console.log("Media:");
-  // console.log(response.value[0].Media);
+
   return (
     <main>
       <PropertyImages property={response.value[0]} />

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 //     query: { searchTerm?: string; }
 // }
 
+//TODO: Move to /api/v1/search/listings?s=
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const searchTerm = searchParams.get("searchTerm");

@@ -1,13 +1,13 @@
-import IParagonMedia, { ParagonPropertyWithMedia } from '@/types/IParagonMedia';
-import IParagonProperty from '@/types/IParagonProperty';
-import md5 from 'crypto-js/md5';
-import { existsSync } from 'fs';
-import fs from 'node:fs/promises';
-import path from 'path';
-import * as url from 'url';
+import IParagonMedia, { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
+import IParagonProperty from "@/types/IParagonProperty";
+import md5 from "crypto-js/md5";
+import { existsSync } from "fs";
+import fs from "node:fs/promises";
+import path from "path";
+import * as url from "url";
 
 interface ITokenResponse {
-  token_type: 'Bearer';
+  token_type: "Bearer";
   access_token: string;
   expires_in: number;
 }
@@ -18,9 +18,9 @@ interface ILocalToken {
 }
 
 export interface IOdataResponse<T> {
-  '@odata.context': string;
-  '@odata.nextLink'?: string;
-  '@odata.count'?: number;
+  "@odata.context": string;
+  "@odata.nextLink"?: string;
+  "@odata.count"?: number;
   value: T[];
 }
 
@@ -38,7 +38,7 @@ export class ParagonApiClient {
     baseUrl: string,
     tokenUrl: string,
     clientId: string,
-    clientSecret: string,
+    clientSecret: string
   ) {
     this.__baseUrl = baseUrl;
     this.__tokenUrl = tokenUrl;
@@ -53,7 +53,7 @@ export class ParagonApiClient {
   private async initializeToken(): Promise<void> {
     const filepath = path.join(
       process.cwd(),
-      `tokens/.token${md5(this.__clientId)}`,
+      `tokens/.token${md5(this.__clientId)}`
     );
 
     if (existsSync(filepath)) {
@@ -78,7 +78,7 @@ export class ParagonApiClient {
 
     await fs.writeFile(
       filepath,
-      JSON.stringify({ token: token, tokenExpiration: expiration }),
+      JSON.stringify({ token: token, tokenExpiration: expiration })
     );
   }
 
@@ -95,24 +95,24 @@ export class ParagonApiClient {
 
     // Body...
     const body = new url.URLSearchParams();
-    body.append('grant_type', 'client_credentials');
-    body.append('scope', 'OData');
+    body.append("grant_type", "client_credentials");
+    body.append("scope", "OData");
 
     // Headers...
     const token = Buffer.from(
-      `${this.__clientId}:${this.__clientSecret}`,
-    ).toString('base64');
+      `${this.__clientId}:${this.__clientSecret}`
+    ).toString("base64");
     const headers: HeadersInit = {};
-    headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    headers['Accept'] = 'application/json';
-    headers['Authorization'] = `Basic ${token}`;
+    headers["Content-Type"] = "application/x-www-form-urlencoded";
+    headers["Accept"] = "application/json";
+    headers["Authorization"] = `Basic ${token}`;
 
     // Make the request and return the JSON...
     const options: RequestInit = {
-      method: 'POST',
+      method: "POST",
       headers: headers,
       body: body,
-      cache: 'no-store',
+      cache: "no-store",
     };
     const response = await fetch(this.__tokenUrl, options);
     const tokenResponse = (await response.json()) as ITokenResponse;
@@ -120,7 +120,7 @@ export class ParagonApiClient {
     // Save the token and expiration date...
     this.__accessToken = tokenResponse.access_token;
     this.__tokenExpiration = new Date(
-      new Date().getTime() + tokenResponse.expires_in * 1000,
+      new Date().getTime() + tokenResponse.expires_in * 1000
     );
     await this.saveToken(this.__accessToken, this.__tokenExpiration);
 
@@ -136,9 +136,9 @@ export class ParagonApiClient {
 
   private async get<T>(url: string): Promise<IOdataResponse<T>> {
     const headers: HeadersInit = {};
-    headers['Authorization'] = await this.__getAuthHeaderValue();
+    headers["Authorization"] = await this.__getAuthHeaderValue();
     // console.log(`Fetching from Paragon API: ${url}`);
-    const options: RequestInit = { method: 'GET', headers: headers };
+    const options: RequestInit = { method: "GET", headers: headers };
     const response = await fetch(url, options);
 
     return (await response.json()) as IOdataResponse<T>;
@@ -147,11 +147,11 @@ export class ParagonApiClient {
   private async getFollowNext<T>(url: string): Promise<IOdataResponse<T>> {
     const response = await this.get<T>(url);
 
-    if (response['@odata.nextLink']) {
+    if (response["@odata.nextLink"]) {
       response.value = response.value.concat(
-        (await this.getFollowNext<T>(response['@odata.nextLink'])).value,
+        (await this.getFollowNext<T>(response["@odata.nextLink"])).value
       );
-      delete response['@odata.nextLink'];
+      delete response["@odata.nextLink"];
     }
 
     return response;
@@ -159,8 +159,8 @@ export class ParagonApiClient {
 
   private getPropertyUrl(top: number, skip?: number): string {
     const filterStr = `&$filter=StandardStatus eq 'Active'`;
-    const topStr = top ? `&$top=${top}` : '';
-    const skipStr = skip ? `&$skip=${skip}` : '';
+    const topStr = top ? `&$top=${top}` : "";
+    const skipStr = skip ? `&$skip=${skip}` : "";
 
     // This helps test the media endpoint with less data
     //return `${this.__baseUrl}/Property?$select=ListingKey&$count=true${filterStr}${topStr}${skipStr}`;
@@ -168,9 +168,9 @@ export class ParagonApiClient {
   }
 
   private getMediaUrl(top: number, skip?: number, filter?: string): string {
-    const topStr = top ? `&$top=${top}` : '';
-    const skipStr = skip ? `&$skip=${skip}` : '';
-    const filterStr = filter ? `&$filter=${filter}` : '';
+    const topStr = top ? `&$top=${top}` : "";
+    const skipStr = skip ? `&$skip=${skip}` : "";
+    const filterStr = filter ? `&$filter=${filter}` : "";
 
     // This helps test the media endpoint with less data
     return `${this.__baseUrl}/Media?$select=ResourceRecordKey,MediaURL,Order&$count=true${topStr}${skipStr}${filterStr}`;
@@ -179,28 +179,28 @@ export class ParagonApiClient {
 
   // Generate filter strings for media requests to avoid URL length issues
   private generateMediaFilters(listingKeys: string[]): string[] {
-    const baseURL = this.getMediaUrl(9999999, 9999999, '1');
+    const baseURL = this.getMediaUrl(9999999, 9999999, "1");
     const maxURLLength = 2048;
 
     let mediaFilters: string[] = [];
-    let accFilter = '';
+    let accFilter = "";
 
     const getEncodedLength = (str: string) =>
       url.format(url.parse(str, true)).length;
 
     const generateFilter = (id: string, isFirst: boolean = false) => {
-      const prefix = isFirst ? '' : ' or ';
+      const prefix = isFirst ? "" : " or ";
       return `${prefix}ResourceRecordKey eq '${id}'`;
     };
 
     const pushNewFilter = (filter: string) => {
-      if (filter !== '') {
+      if (filter !== "") {
         mediaFilters.push(filter);
       }
     };
 
     for (const id of listingKeys) {
-      const currentFilter = generateFilter(id, accFilter === '');
+      const currentFilter = generateFilter(id, accFilter === "");
       const currentURL = `${baseURL}${accFilter}${currentFilter}`;
 
       if (getEncodedLength(currentURL) <= maxURLLength) {
@@ -219,9 +219,11 @@ export class ParagonApiClient {
   }
 
   public async getPropertiesWithMedia(
-    properties: ParagonPropertyWithMedia[],
+    properties: ParagonPropertyWithMedia[]
   ): Promise<ParagonPropertyWithMedia[]> {
-    let queries = this.generateMediaFilters(properties.map((p) => p.ListingKey));
+    let queries = this.generateMediaFilters(
+      properties.map((p) => p.ListingKey)
+    );
 
     // console.log("Getting media for:", JSON.stringify(queries));
 
@@ -235,21 +237,21 @@ export class ParagonApiClient {
         currentQueries.map(async (filter) => {
           const url = this.getMediaUrl(this.__maxPageSize, undefined, filter);
           const response = await this.get<IParagonMedia>(url);
-          const count = response['@odata.count'];
+          const count = response["@odata.count"];
 
           if (count && count > this.__maxPageSize) {
             response.value = response.value.concat(
               (
                 await this.getFollowNext<IParagonMedia>(
-                  this.getMediaUrl(count, this.__maxPageSize, filter),
+                  this.getMediaUrl(count, this.__maxPageSize, filter)
                 )
-              ).value,
+              ).value
             );
           }
 
           response.value.map((media) => {
             const property = properties.find(
-              (p) => p.ListingKey === media.ResourceRecordKey,
+              (p) => p.ListingKey === media.ResourceRecordKey
             );
             if (property) {
               if (!property.Media) {
@@ -258,7 +260,7 @@ export class ParagonApiClient {
               property.Media.push(media);
             }
           });
-        }),
+        })
       );
 
       // Remove the URLs that have been processed
@@ -270,7 +272,7 @@ export class ParagonApiClient {
 
   public async getPropertyById(
     id: string,
-    includeMedia: boolean = true,
+    includeMedia: boolean = true
   ): Promise<IOdataResponse<IParagonProperty>> {
     const url = `${this.__baseUrl}/Property?$filter=ListingId eq '${id}'`;
     const response = await this.get<ParagonPropertyWithMedia>(url);
@@ -284,7 +286,7 @@ export class ParagonApiClient {
 
   public async searchByZipCode(
     zipCode: string,
-    includeMedia: boolean = true,
+    includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${zipCode}')`;
     const response = await this.get<ParagonPropertyWithMedia>(url);
@@ -297,37 +299,38 @@ export class ParagonApiClient {
   }
 
   public async searchByStreetName(): Promise<{
-    '@odata.context': string;
-    '@odata.nextLink': string;
+    "@odata.context": string;
+    "@odata.nextLink": string;
     value: IParagonProperty[];
   }> {
     const url = `${this.__baseUrl}/Property?$filter=contains(StreetName, 'Kenosha')`;
 
     const headers: HeadersInit = {};
-    headers['Accept'] = 'application/json';
-    headers['Authorization'] = await this.__getAuthHeaderValue();
+    headers["Accept"] = "application/json";
+    headers["Authorization"] = await this.__getAuthHeaderValue();
 
-    const options: RequestInit = { method: 'GET', headers: headers };
+    const options: RequestInit = { method: "GET", headers: headers };
     const response = await fetch(url, options);
 
     return await response.json();
   }
 
-  // Just used for testing...
+  // Just used for testing right now.
+  // TODO: Adapt to use config value to limit properties for specific realtor
   public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
     const url = this.getPropertyUrl(top ? top : this.__maxPageSize);
     const response = await this.get<IParagonProperty>(url);
 
     if (!top) {
-      const count = response['@odata.count'];
+      const count = response["@odata.count"];
 
       if (count && count > this.__maxPageSize) {
         return response.value.concat(
           (
             await this.getFollowNext<IParagonProperty>(
-              this.getPropertyUrl(count, this.__maxPageSize),
+              this.getPropertyUrl(count, this.__maxPageSize)
             )
-          ).value,
+          ).value
         );
       }
     }
@@ -337,23 +340,23 @@ export class ParagonApiClient {
 
   public async getAllPropertyWithMedia(top?: number): Promise<any> {
     const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(
-      top,
+      top
     );
 
     return await this.getPropertiesWithMedia(properties);
   }
 }
 
-const RESO_BASE_URL = process.env.RESO_BASE_URL ?? '';
-const RESO_TOKEN_URL = process.env.RESO_TOKEN_URL ?? '';
-const RESO_CLIENT_ID = process.env.RESO_CLIENT_ID ?? '';
-const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? '';
+const RESO_BASE_URL = process.env.RESO_BASE_URL ?? "";
+const RESO_TOKEN_URL = process.env.RESO_TOKEN_URL ?? "";
+const RESO_CLIENT_ID = process.env.RESO_CLIENT_ID ?? "";
+const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? "";
 
 const paragonApiClient = new ParagonApiClient(
   RESO_BASE_URL,
   RESO_TOKEN_URL,
   RESO_CLIENT_ID,
-  RESO_CLIENT_SECRET,
+  RESO_CLIENT_SECRET
 );
 
 export default paragonApiClient;

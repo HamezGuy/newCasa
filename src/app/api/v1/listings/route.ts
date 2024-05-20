@@ -8,7 +8,7 @@ export async function GET(request: Request | NextRequest) {
     const id = searchParams.get("id");
 
     if (!id) {
-      // TODO: Return all realtor listings
+      // TODO: Return all realtor listings to generateStaticParams
       return NextResponse.json(mockData.value, { status: 200 });
     }
 

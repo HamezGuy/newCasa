@@ -4,7 +4,7 @@ import Image from "next/image";
 
 export default async function Listings() {
   const properties53715 = await getProperties("53715");
-  // const properties53703 = await getProperties("53703");
+  const properties53703 = await getProperties("53703");
 
   return (
     <main>
@@ -13,11 +13,11 @@ export default async function Listings() {
         className="container mb-16"
         properties={properties53715.value}
       />
-      {/* <CoverImage title="53703" subtitle="Madison, WI" />
+      <CoverImage title="53703" subtitle="Madison, WI" />
       <PropertyList
         className="container mb-16"
         properties={properties53703.value}
-      /> */}
+      />
     </main>
   );
 }
