@@ -174,7 +174,7 @@ function PropertySummary({ property }: IPropertySummaryProps) {
         />
         <LabelValueTextDisplay
           label="Style: "
-          value={property.ArchitecturalStyle.join(", ")}
+          value={property.ArchitecturalStyle?.join(", ")}
         />
       </SimpleGrid>
     </>
@@ -292,29 +292,29 @@ function PropertyFeatures({ property }: { property: IParagonProperty }) {
           {/* <LabelValueTextDisplay label="Exterior " value={"Vinyl"} /> */}
           <LabelValueTextDisplay
             label="Exterior Features:"
-            value={property.ExteriorFeatures.join(",")}
+            value={property.ExteriorFeatures?.join(",")}
           />
           <DetailsSubtitle>Garage / Parking</DetailsSubtitle>
           <LabelValueTextDisplay
             label="Driveway:"
             value={
-              property.ParkingFeatures.includes("Paved") ? "Paved" : "Unpaved"
+              property.ParkingFeatures?.includes("Paved") ? "Paved" : "Unpaved"
             }
           />
           <LabelValueTextDisplay
             label="Parking Features:"
-            value={property.ParkingFeatures.join(", ")}
+            value={property.ParkingFeatures?.join(", ")}
           />
           <DetailsSubtitle>Utilities</DetailsSubtitle>
           <LabelValueTextDisplay
             label="Fuel:"
             value={
-              property.Heating.includes("Natural Gas") ? "Natural Gas" : ""
+              property.Heating?.includes("Natural Gas") ? "Natural Gas" : ""
             }
           />
           <LabelValueTextDisplay
             label="Heating Cooling:"
-            value={property.Heating.join(",")}
+            value={property.Heating?.join(",")}
           />
           {/* <LabelValueTextDisplay label="Water Waste:" value={property} /> */}
           <DetailsSubtitle>Tax Info</DetailsSubtitle>

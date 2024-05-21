@@ -1,52 +1,46 @@
-import PropertyDetails from "@/components/property/PropertyDetails";
-import { PropertyImages } from "@/components/property/PropertyImages";
-import { IOdataResponse } from "@/lib/ParagonApiClient";
-import { getPropertyById } from "@/lib/data";
-import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
+import PropertyDetails from '@/components/property/PropertyDetails';
+import { PropertyImages } from '@/components/property/PropertyImages';
+import { getPropertiesV2, getPropertyById, getPropertyByIdV2 } from '@/lib/data';
+import { ParagonPropertyWithMedia } from '@/types/IParagonMedia';
 
-const generateSataticParams = false; // TODO: remove
+const dynamicParams = false;
 
 // Statically generate routes
 export async function generateStaticParams() {
-  if (!generateSataticParams) {
-    return [];
-  }
+  const listings = await getPropertiesV2();
 
-  //TODO: Use data/getProperties() or similar
-  const listings = await fetch(
-    `${process.env.BASE_API_URL}/api/v1/listings/`
-  ).then((response) => response.json());
+  console.log(`Generating ${listings.length} property pages...`);
 
-  return listings.map((listing: any) => ({
-    slug: listing.ListingId,
+  return listings.map((listing: ParagonPropertyWithMedia) => ({
+    id: listing.ListingId,
   }));
 }
 
 export default async function PropertyPage({
-  params,
-}: {
+                                             params,
+                                           }: {
   params: { id: string };
 }) {
   const { id } = params;
-  let response: IOdataResponse<ParagonPropertyWithMedia>;
+  let response: ParagonPropertyWithMedia;
+
+  try {
+    response = await getPropertyByIdV2(id);
+  } catch (e) {
+    console.log(`Could not fetch property`, e);
+    return <div>Not found</div>;
+  }
 
   // TODO: Redirect to listings
   if (!id) {
     return <span>Redirect to all listings page...</span>;
   }
 
-  try {
-    response = await getPropertyById(id);
-  } catch (e) {
-    console.log(`Could not fetch property`, e);
-    return <div>Not found</div>;
-  }
-
   return (
     <main>
-      <PropertyImages property={response.value[0]} />
+      <PropertyImages property={response} />
       <div className="container mx-auto max-w-5xl">
-        <PropertyDetails property={response.value[0]} />
+        <PropertyDetails property={response} />
       </div>
     </main>
   );

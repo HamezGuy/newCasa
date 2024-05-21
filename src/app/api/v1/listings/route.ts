@@ -6,6 +6,35 @@ export async function GET(request: Request | NextRequest) {
   try {
     const { searchParams } = new URL(request.url ?? "");
     const id = searchParams.get("id");
+    let properties: any;
+
+    if (!id){
+      // TODO: Remove limit or add proper way to get the primary photo
+      properties= await paragonApiClient.getAllPropertyWithMedia(undefined, 1);
+    } else {
+      properties = [await paragonApiClient.getPropertyById(id)];
+    }
+
+    if (!properties || properties.length === 0) {
+      return new NextResponse(`Could not find property`, {
+        status: 404,
+      });
+    }
+
+    return NextResponse.json(properties, { status: 200 });
+  } catch (e: any) {
+    console.log(`${e.message}`);
+    return new NextResponse(`Failed to fetch listings`, {
+      status: 500,
+    });
+  }
+}
+
+
+export async function GET2(request: Request | NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url ?? "");
+    const id = searchParams.get("id");
 
     if (!id) {
       // TODO: Return all realtor listings to generateStaticParams
