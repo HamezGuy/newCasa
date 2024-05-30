@@ -2,6 +2,7 @@
 
 import { Text, Title } from "@mantine/core";
 import Image from "next/image";
+import { Suspense } from "react";
 import styles from "./HeroSearch.module.css";
 import SearchInput from "./SearchInput";
 
@@ -27,7 +28,9 @@ export default function HeroSearch() {
         Find your next home
       </Title>
       <div className="flex flex-row gap-3 w-full max-w-xl">
-        <SearchInput />
+        <Suspense>
+          <SearchInput />
+        </Suspense>
       </div>
       <Text size="sm">(Only Zip Code search works right now)</Text>
     </div>
