@@ -1,15 +1,10 @@
-import { getProperties } from "@/lib/data";
-import IParagonProperty from "@/types/IParagonProperty";
+import { getPropertiesBySearchTerm } from "@/lib/data";
 import PropertyList from "../paragon/PropertyList";
 
 export async function SearchResults({ query }: { query: string }) {
-  let properties: IParagonProperty[] | null = null;
+  const properties = await getPropertiesBySearchTerm(query);
 
-  const searchResult = await getProperties(query);
-
-  if (!searchResult.value) return <div>Nothing found</div>;
-
-  properties = searchResult.value;
+  if (!properties) return <div>Nothing found</div>;
 
   return <PropertyList properties={properties} />;
 }

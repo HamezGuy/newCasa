@@ -1,13 +1,11 @@
-import PropertyDetails from '@/components/property/PropertyDetails';
-import { PropertyImages } from '@/components/property/PropertyImages';
-import { getPropertiesV2, getPropertyById, getPropertyByIdV2 } from '@/lib/data';
-import { ParagonPropertyWithMedia } from '@/types/IParagonMedia';
+import PropertyDetails from "@/components/property/PropertyDetails";
+import { PropertyImages } from "@/components/property/PropertyImages";
+import { getProperties, getPropertyById } from "@/lib/data";
+import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 
-const dynamicParams = false;
-
-// Statically generate routes
+// Statically generate routes to listings
 export async function generateStaticParams() {
-  const listings = await getPropertiesV2();
+  const listings = await getProperties();
 
   console.log(`Generating ${listings.length} property pages...`);
 
@@ -17,15 +15,15 @@ export async function generateStaticParams() {
 }
 
 export default async function PropertyPage({
-                                             params,
-                                           }: {
+  params,
+}: {
   params: { id: string };
 }) {
   const { id } = params;
   let response: ParagonPropertyWithMedia;
 
   try {
-    response = await getPropertyByIdV2(id);
+    response = await getPropertyById(id);
   } catch (e) {
     console.log(`Could not fetch property`, e);
     return <div>Not found</div>;
