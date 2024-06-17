@@ -38,6 +38,7 @@ export default function SearchInput({ isLoading }: { isLoading?: boolean }) {
       rightSection={
         <Button
           variant="filled"
+          color="indigo"
           loading={isLoading}
           onClick={handleSearch}
           size="md"

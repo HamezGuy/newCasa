@@ -8,7 +8,7 @@ export default function Header() {
         <Logo link="/" />
       </div>
       <div className="main-nav">
-        <ul className="flex gap-4">
+        <ul className="flex gap-4 list-none">
           <li>
             <Link href="/listings">Listings</Link>
           </li>
