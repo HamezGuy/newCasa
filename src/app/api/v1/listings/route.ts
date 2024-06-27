@@ -4,15 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   try {
     // Fetches all properties to build cache.
-    // Specific property queries are performed on the client (?)
-    // TODO: Remove limit or add proper way to get the primary photo
+    // TODO: Get the primary photo properly or remove limit
     const properties = await paragonApiClient.getAllPropertyWithMedia(
       undefined,
       1
     );
 
     if (!properties || properties.length === 0) {
-      return new NextResponse(`Could not find property`, {
+      return new NextResponse(`Did not find any properties`, {
         status: 404,
       });
     }
@@ -20,7 +19,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(properties, { status: 200 });
   } catch (e: any) {
     console.log(`${e.message}`);
-    return new NextResponse(`Failed to fetch listings`, {
+    return new NextResponse(`Failed to fetch properties from API`, {
       status: 500,
     });
   }

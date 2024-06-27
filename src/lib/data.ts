@@ -4,21 +4,20 @@ import IParagonProperty from "@/types/IParagonProperty";
 export async function getPropertyById(
   id: string
 ): Promise<ParagonPropertyWithMedia> {
-  const properties = await getProperties();
-  const property =
-    properties.find((property) => property.ListingId === id) ?? null;
+  const url = `${process.env.BASE_API_URL}/api/v1/listings/${id}`;
+  const res = await fetch(url);
 
-  if (!property) {
+  if (!res.ok) {
     throw new Error(`Failed to get property (ListingId): ${id}`);
   }
 
-  return property;
+  return res.json();
 }
 
 export async function getPropertiesBySearchTerm(
   searchTerm: string
 ): Promise<IParagonProperty[]> {
-  const properties = await getProperties();
+  const properties = await getProperties(); // uses cache
 
   // TODO: Improve search
   return properties.filter(
@@ -44,7 +43,7 @@ export async function getPropertiesByZipCode(): Promise<
     properties: IParagonProperty[];
   }[]
 > {
-  const properties = await getProperties();
+  const properties = await getProperties(); // uses cache
 
   const propertiesByZipCode: Record<
     string,
