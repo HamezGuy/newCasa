@@ -1,18 +1,23 @@
 import PropertyDetails from "@/components/property/PropertyDetails";
 import { PropertyImages } from "@/components/property/PropertyImages";
-import { getPropertyById } from "@/lib/data";
+import { getProperties, getPropertyById } from "@/lib/data";
+import { isProduction } from "@/lib/utils/config";
 import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 
 // Statically generate routes to listings
-// export async function generateStaticParams() {
-//   const listings = await getProperties();
+export async function generateStaticParams() {
+  if (!isProduction) {
+    return [];
+  }
 
-//   console.log(`Generating ${listings.length} property pages...`);
+  const listings = await getProperties();
 
-//   return listings.map((listing: ParagonPropertyWithMedia) => ({
-//     id: listing.ListingId,
-//   }));
-// }
+  console.log(`Generating ${listings.length} property pages...`);
+
+  return listings.map((listing: ParagonPropertyWithMedia) => ({
+    id: listing.ListingId,
+  }));
+}
 
 export default async function PropertyPage({
   params,
