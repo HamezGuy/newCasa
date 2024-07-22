@@ -1,17 +1,18 @@
 import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 import IParagonProperty from "@/types/IParagonProperty";
+import paragonApiClient from "./ParagonApiClient";
 
 export async function getPropertyById(
   id: string
 ): Promise<ParagonPropertyWithMedia> {
-  const url = `${process.env.BASE_API_URL}/api/v1/listings/${id}`;
-  const res = await fetch(url);
+  // TODO: Get the primary photo properly
+  const property = await paragonApiClient.getPropertyById(id);
 
-  if (!res.ok) {
+  if (!property) {
     throw new Error(`Failed to get property (ListingId): ${id}`);
   }
 
-  return res.json();
+  return property;
 }
 
 export async function getPropertiesBySearchTerm(
@@ -43,7 +44,7 @@ export async function getPropertiesByZipCode(): Promise<
     properties: IParagonProperty[];
   }[]
 > {
-  const properties = await getProperties(); // uses cache
+  const properties = await getProperties(); // uses cache ?
 
   const propertiesByZipCode: Record<
     string,
@@ -69,12 +70,16 @@ export async function getPropertiesByZipCode(): Promise<
 }
 
 export async function getProperties(): Promise<IParagonProperty[]> {
-  const url = `${process.env.BASE_API_URL}/api/v1/listings`;
-  const res = await fetch(url);
+  // TODO: Get the primary photo properly or remove limit
+  const properties = await paragonApiClient.getAllPropertyWithMedia(
+    undefined,
+    1
+  );
 
-  if (!res.ok) {
-    throw new Error(`Failed to get properties`);
+  if (!properties || properties.length === 0) {
+    console.log(`Did not find any properties`);
+    return [];
   }
 
-  return res.json();
+  return properties;
 }
