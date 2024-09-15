@@ -1,6 +1,6 @@
-import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
-import { Box } from "@mantine/core";
-import Image from "next/image";
+import { ParagonPropertyWithMedia } from '@/types/IParagonMedia';
+import { Box } from '@mantine/core';
+import Image from 'next/image';
 
 export function PropertyImages({
   property,
@@ -17,20 +17,24 @@ export function PropertyImages({
     <Box className="w-full overflow-x-scroll">
       <Box
         className="flex flex-col flex-wrap gap-1"
-        style={{ height: "24.25rem" }}
+        style={{ height: '24.25rem' }}
       >
         {images.map((image, i) => (
           <Box
             key={i}
             className={`relative overflow-hidden ${
-              i == 0 ? "w-96 h-full" : "w-56 h-48"
+              i == 0 ? 'w-96 h-full' : 'w-56 h-48'
             }`}
           >
             <Image
               fill={true}
-              src={`https:${image.MediaURL}`}
+              src={
+                image.MediaURL.startsWith('http')
+                  ? image.MediaURL
+                  : `https:${image.MediaURL}`
+              }
               alt=""
-              style={{ objectFit: "cover" }}
+              style={{ objectFit: 'cover' }}
             />
           </Box>
         ))}
