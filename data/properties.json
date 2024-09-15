@@ -406,16 +406,16 @@
       "Pets_Allowed": [],
       "Family_Room_Dim_258": null,
       "Media": [
-        { "MediaURL": "/img/property/0.jpg" },
-        { "MediaURL": "/img/property/1.jpg" },
-        { "MediaURL": "/img/property/3.jpg" },
-        { "MediaURL": "/img/property/4.jpg" },
-        { "MediaURL": "/img/property/5.jpg" },
-        { "MediaURL": "/img/property/6.jpg" },
-        { "MediaURL": "/img/property/7.jpg" },
-        { "MediaURL": "/img/property/8.jpg" },
-        { "MediaURL": "/img/property/9.jpg" },
-        { "MediaURL": "/img/property/10.jpg" }
+        { "MediaURL": "http://localhost:3000/img/property/0.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/1.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/3.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/4.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/5.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/6.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/7.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/8.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/9.jpg" },
+        { "MediaURL": "http://localhost:3000/img/property/10.jpg" }
       ]
     },
     {

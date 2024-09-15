@@ -9,6 +9,9 @@ const nextConfig = {
         port: '',
         pathname: '/ParagonImages/Property/**',
       },
+      {
+        hostname: 'localhost',
+      },
     ],
   },
   publicRuntimeConfig: {

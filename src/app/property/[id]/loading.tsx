@@ -2,9 +2,9 @@ import { Box, Group, Skeleton, Stack } from '@mantine/core';
 
 export default function Loading() {
   return (
-    <>
+    <main>
       <Skeleton height={388} mb="xl" />
-      <Box className="container mx-auto max-w-5xl px-6">
+      <Box className="container max-w-5xl">
         <Box>
           <Group justify="space-between">
             <Stack gap={0}>
@@ -23,6 +23,6 @@ export default function Loading() {
           <Skeleton h={10} w={'70%'} mb="md" />
         </Box>
       </Box>
-    </>
+    </main>
   );
 }
