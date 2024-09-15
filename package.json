@@ -2,7 +2,7 @@
   "name": "new-casa",
   "version": "0.1.0",
   "private": true,
-  "author": "Eric Morgan",
+  "author": "NewCasa",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
