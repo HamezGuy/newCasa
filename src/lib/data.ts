@@ -5,6 +5,13 @@ import paragonApiClient from "./ParagonApiClient";
 export async function getPropertyById(
   id: string
 ): Promise<ParagonPropertyWithMedia> {
+  if (process.env.MOCK_DATA) {
+    const properties_mock = require("../../data/properties.json");
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    return properties_mock.value[0];
+  }
+
   // TODO: Get the primary photo properly
   const property = await paragonApiClient.getPropertyById(id);
 
@@ -18,6 +25,7 @@ export async function getPropertyById(
 export async function getPropertiesBySearchTerm(
   searchTerm: string
 ): Promise<IParagonProperty[]> {
+  console.log("call getProperties() from getPropertiesBySearchTerm");
   const properties = await getProperties(); // uses cache
 
   // TODO: Improve search
@@ -44,6 +52,7 @@ export async function getPropertiesByZipCode(): Promise<
     properties: IParagonProperty[];
   }[]
 > {
+  console.log("call getProperties() from getPropertiesByZipCode");
   const properties = await getProperties(); // uses cache ?
 
   const propertiesByZipCode: Record<
@@ -70,6 +79,13 @@ export async function getPropertiesByZipCode(): Promise<
 }
 
 export async function getProperties(): Promise<IParagonProperty[]> {
+  if (process.env.MOCK_DATA) {
+    const properties_mock = require("../../data/properties.json");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    return properties_mock.value;
+  }
+
   // TODO: Get the primary photo properly or remove limit
   const properties = await paragonApiClient.getAllPropertyWithMedia(
     undefined,
