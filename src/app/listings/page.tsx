@@ -1,27 +1,27 @@
 import PropertyList from '@/components/paragon/PropertyList';
-import Image from 'next/image';
 import { getPropertiesByZipCode } from '@/lib/data';
+import Image from 'next/image';
 
 export default async function Listings() {
   const propertiesByZipCode = await getPropertiesByZipCode();
 
   return (
-    <main>
-      {propertiesByZipCode.map(zipCodeObj => {
-        return (
-          <>
-            <CoverImage title={zipCodeObj.zipCode.toString()} subtitle={zipCodeObj.zipCodeTitle} />
-            <PropertyList
-              className="container mb-16"
-              properties={zipCodeObj.properties}
-            />
-          </>
-        );
-      })}
+    <main className="container mx-auto px-4">
+      {propertiesByZipCode.map((zipCodeObj) => (
+        <div key={zipCodeObj.zipCode}>
+          <CoverImage 
+            title={zipCodeObj.zipCode.toString()} 
+            subtitle={zipCodeObj.zipCodeTitle} 
+          />
+          <PropertyList
+            className="container mb-16"
+            properties={zipCodeObj.properties}
+          />
+        </div>
+      ))}
     </main>
   );
 }
-
 
 function CoverImage({ title, subtitle }: { title: string; subtitle: string }) {
   return (
