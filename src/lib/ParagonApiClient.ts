@@ -171,14 +171,19 @@ export class ParagonApiClient {
   }
 
   private getPropertyUrl(top: number, skip?: number): string {
-    const filterStr = `&$filter=StandardStatus eq 'Active' and (${this.getRealtorFilters()})`;
+    const filterStr = `$filter=StandardStatus eq 'Active' and (${this.getRealtorFilters()})`;
     const topStr = top ? `&$top=${top}` : "";
     const skipStr = skip ? `&$skip=${skip}` : "";
-
-    // This helps test the media endpoint with less data
-    //return `${this.__baseUrl}/Property?$select=ListingKey&$count=true${filterStr}${topStr}${skipStr}`;
-    return `${this.__baseUrl}/Property?$count=true${filterStr}${topStr}${skipStr}`;
+  
+    // Ensure the URL is properly encoded
+    const encodedFilterStr = encodeURIComponent(filterStr);
+    const encodedTopStr = encodeURIComponent(topStr);
+    const encodedSkipStr = encodeURIComponent(skipStr);
+  
+    // Construct and return the final encoded URL
+    return `${this.__baseUrl}/Property?$count=true&${encodedFilterStr}${encodedTopStr}${encodedSkipStr}`;
   }
+  
 
   private getMediaUrl(top: number, skip?: number, filter?: string): string {
     const topStr = top ? `&$top=${top}` : "";
@@ -235,24 +240,31 @@ export class ParagonApiClient {
     properties: ParagonPropertyWithMedia[],
     limit: number = 0
   ): Promise<ParagonPropertyWithMedia[]> {
+    // Ensure properties is a valid array
+    if (!Array.isArray(properties) || properties.length === 0) {
+      console.error("Invalid properties data:", properties);
+      return [];
+    }
+  
     let queries = this.generateMediaFilters(
-      properties.map((p) => p.ListingKey)
+      properties.map((p) => {
+        if (!p.ListingKey) {
+          console.error("Property is missing ListingKey:", p);
+        }
+        return p.ListingKey;
+      })
     );
-
-    // console.log("Getting media for:", JSON.stringify(queries));
-
-    // TODO: use pMap
+  
+    // Process the queries and fetch media
     while (queries.length > 0) {
-      // Get the next set of URLs
       const currentQueries = queries.slice(0, this.__maxConcurrentQueries);
-
-      // Send requests to all URLs in the current set
+  
       await Promise.all(
         currentQueries.map(async (filter) => {
           const url = this.getMediaUrl(this.__maxPageSize, undefined, filter);
           const response = await this.get<IParagonMedia>(url);
           const count = response["@odata.count"];
-
+  
           if (count && count > this.__maxPageSize) {
             response.value = response.value.concat(
               (
@@ -262,7 +274,7 @@ export class ParagonApiClient {
               ).value
             );
           }
-
+  
           response.value.map((media) => {
             const property = properties.find(
               (p) => p.ListingKey === media.ResourceRecordKey
@@ -271,7 +283,7 @@ export class ParagonApiClient {
               if (!property.Media) {
                 property.Media = [];
               }
-
+  
               if (limit === 0 || property.Media.length < limit) {
                 property.Media.push(media);
               }
@@ -279,13 +291,13 @@ export class ParagonApiClient {
           });
         })
       );
-
-      // Remove the URLs that have been processed
+  
       queries = queries.slice(this.__maxConcurrentQueries);
     }
-
+  
     return properties;
   }
+  
 
   public async getPropertyById(
     id: string,
@@ -305,16 +317,19 @@ export class ParagonApiClient {
     zipCode: string,
     includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${zipCode}')`;
-    const response = await this.get<ParagonPropertyWithMedia>(url);
 
+    const encodedZipCode = encodeURIComponent(zipCode);
+    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${encodedZipCode}')`;
+    
+    const response = await this.get<ParagonPropertyWithMedia>(url);
+  
     if (response.value && includeMedia) {
       response.value = await this.populatePropertyMedia(response.value);
     }
-
+  
     return response;
   }
-
+  
   public async searchByStreetName(): Promise<{
     "@odata.context": string;
     "@odata.nextLink": string;

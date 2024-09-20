@@ -1,3 +1,5 @@
+// src/components/Header.tsx
+
 import Link from "next/link";
 import Logo from "../core/Logo";
 
@@ -14,6 +16,9 @@ export default function Header() {
           </li>
           <li>
             <Link href="/about">About</Link>
+          </li>
+          <li>
+            <Link href="/login">Login</Link> 
           </li>
         </ul>
       </div>
