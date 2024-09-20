@@ -1,6 +1,6 @@
 "use client"; // Ensure this is a Client Component
 
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { auth } from "../../config/firebase"; // Ensure this path is correct
@@ -16,6 +16,15 @@ export default function Header() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // You can add additional logic here after logout, if needed
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
 
   return (
     <div className="flex justify-between items-center py-4 px-8">
@@ -41,6 +50,11 @@ export default function Header() {
               </li>
               <li>
                 <Link href="/profile">Profile</Link>
+              </li>
+              <li>
+                <button onClick={handleLogout} className="text-blue-500 hover:underline">
+                  Logout
+                </button>
               </li>
             </>
           )}

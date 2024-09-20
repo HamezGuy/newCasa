@@ -40,57 +40,67 @@ const Login = (): JSX.Element => {
   };
 
   // Handle Email login
-  const handleEmailLogin = async (event: MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    setLoading(true);
-    try {
-      const result: UserCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      const userRole = await getUserRole(user.uid);
+const handleEmailLogin = async (event: MouseEvent<HTMLButtonElement>) => {
+  event.preventDefault();
+  setLoading(true);
+  setError(null); // Clear any previous errors
+  try {
+    const result: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = result.user;
+    const userRole = await getUserRole(user.uid);
+    if (userRole) {
       redirectBasedOnRole(userRole);
-    } catch (error: any) {
-      if (error.code === "auth/wrong-password") {
-        setError("Incorrect password. Please try again.");
-      } else if (error.code === "auth/user-not-found") {
-        setError("No user found with this email. Please sign up first.");
-      } else {
-        setError("Failed to sign in. Please try again.");
-      }
-    } finally {
-      setLoading(false);
+    } else {
+      setError("Failed to retrieve user role. Please try again.");
     }
-  };
+  } catch (error: any) {
+    if (error.code === "auth/wrong-password") {
+      setError("Incorrect password. Please try again.");
+    } else if (error.code === "auth/user-not-found") {
+      setError("No user found with this email. Please sign up first.");
+    } else {
+      setError("Failed to sign in. Please try again.");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Handle Registration with Role selection
-  const handleRegister = async (event: MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const result: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = result.user;
-      await updateProfile(user, { displayName: name });
+const handleRegister = async (event: MouseEvent<HTMLButtonElement>) => {
+  event.preventDefault();
+  setLoading(true);
+  setError(null);
+  setSuccess(null);
+  try {
+    const result: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = result.user;
+    await updateProfile(user, { displayName: name });
 
-      // Save role to Firestore
-      await setDoc(doc(db, "users", user.uid), { role });
+    // Save role to Firestore
+    await setDoc(doc(db, "users", user.uid), { role });
 
-      setSuccess("Account created successfully!");
-      setTimeout(() => {
-        redirectBasedOnRole(role);
-      }, 1000);
-    } catch (error: any) {
-      if (error?.code === "auth/email-already-in-use") {
-        setError("This email is already in use. Please use a different email.");
-      } else if (error?.code === "auth/weak-password") {
-        setError("Password is too weak. Please use a stronger password.");
-      } else {
-        setError("Failed to create account. Please try again.");
-      }
-    } finally {
-      setLoading(false);
+    setSuccess("Account created successfully!");
+    
+    // Clear loading before redirecting
+    setLoading(false);
+
+    setTimeout(() => {
+      redirectBasedOnRole(role);
+    }, 1000);
+  } catch (error: any) {
+    setLoading(false); // Ensure loading is reset on error
+    if (error?.code === "auth/email-already-in-use") {
+      setError("This email is already in use. Please use a different email.");
+    } else if (error?.code === "auth/weak-password") {
+      setError("Password is too weak. Please use a stronger password.");
+    } else {
+      setError("Failed to create account. Please try again.");
     }
-  };
+  }
+};
+
 
   // Get user role from Firestore
   const getUserRole = async (uid: string): Promise<string | null> => {

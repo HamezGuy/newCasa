@@ -10,29 +10,44 @@ import { useEffect, useState } from "react";
 
 export default function PropertyPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const [message, setMessage] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [property, setProperty] = useState<ParagonPropertyWithMedia | null>(null);
+  const [message, setMessage] = useState<string>(""); // Message state
+  const [error, setError] = useState<string | null>(null); // Error state
+  const [success, setSuccess] = useState<string | null>(null); // Success state
+  const [property, setProperty] = useState<ParagonPropertyWithMedia | null>(null); // Property state
+  const [loading, setLoading] = useState<boolean>(true); // Loading state
 
   // Fetch the property asynchronously
   useEffect(() => {
     const fetchProperty = async () => {
       try {
         const response = await getPropertyById(id);
-        setProperty(response);
+        console.log("Fetched property:", response); // Debugging statement
+        if (!response) {
+          setError("Property not found");
+        } else {
+          setProperty(response);
+        }
       } catch (e) {
-        console.log(`Could not fetch property`, e);
-        setError("Property not found");
+        console.error(`Could not fetch property`, e);
+        setError("Error loading property");
+      } finally {
+        setLoading(false);
       }
     };
-
+  
     fetchProperty();
   }, [id]);
+  
 
   // Handle sending message
   const handleSendMessage = async () => {
-    if (!message.trim()) return;
+    setError(null);
+    setSuccess(null);
+
+    if (!message.trim()) {
+      setError("Please enter a message.");
+      return;
+    }
 
     const user = auth.currentUser;
     if (!user) {
@@ -40,10 +55,15 @@ export default function PropertyPage({ params }: { params: { id: string } }) {
       return;
     }
 
+    if (!property?.ListAgentEmail) {
+      setError("Realtor email not available.");
+      return;
+    }
+
     try {
       await sendMessageToRealtor({
         propertyId: id,
-        realtorEmail: property?.ListAgentEmail || "", // Use ListAgentEmail
+        realtorEmail: property.ListAgentEmail, // Ensure ListAgentEmail exists
         message,
         clientId: user.uid,
         clientEmail: user.email!,
@@ -55,8 +75,12 @@ export default function PropertyPage({ params }: { params: { id: string } }) {
     }
   };
 
+  if (loading) {
+    return <div>Loading...</div>; // Display loading indicator
+  }
+
   if (error) {
-    return <div>{error}</div>;
+    return <div>{error}</div>; // Display error message
   }
 
   return (
@@ -91,7 +115,7 @@ export default function PropertyPage({ params }: { params: { id: string } }) {
           </div>
         </>
       ) : (
-        <p>Loading...</p>
+        <p>Property not found</p>
       )}
     </main>
   );
