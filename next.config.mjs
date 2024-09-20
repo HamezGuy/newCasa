@@ -33,7 +33,7 @@ const nextConfig = {
     },
   },
   serverRuntimeConfig: {
-    zipCodes: [53715, 53703],
+    zipCodes: [53715, 53703], //if added here, must manually update code in data.ts 
   },
 };
 
