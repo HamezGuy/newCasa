@@ -163,25 +163,18 @@ export class ParagonApiClient {
   }
 
   private getRealtorFilters(): string {
-    const filter = this.__zipCodes?.map((zipCode) => {
-      return `PostalCode eq '${zipCode}'`;
-    });
-
-    return filter?.join(" or ") ?? "";
+    return this.__zipCodes.map((zipCode) => `PostalCode eq '${zipCode}'`).join(' or ');
   }
+  
 
   private getPropertyUrl(top: number, skip?: number): string {
-    const filterStr = `$filter=StandardStatus eq 'Active' and (${this.getRealtorFilters()})`;
+    const realtorFilters = this.getRealtorFilters();
+    const filterStr = `$filter=StandardStatus eq 'Active' and (${realtorFilters})`;
+  
     const topStr = top ? `&$top=${top}` : "";
     const skipStr = skip ? `&$skip=${skip}` : "";
   
-    // Ensure the URL is properly encoded
-    const encodedFilterStr = encodeURIComponent(filterStr);
-    const encodedTopStr = encodeURIComponent(topStr);
-    const encodedSkipStr = encodeURIComponent(skipStr);
-  
-    // Construct and return the final encoded URL
-    return `${this.__baseUrl}/Property?$count=true&${encodedFilterStr}${encodedTopStr}${encodedSkipStr}`;
+    return `${this.__baseUrl}/Property?$count=true&${filterStr}${topStr}${skipStr}`;
   }
   
 
