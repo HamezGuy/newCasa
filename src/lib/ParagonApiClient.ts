@@ -1,9 +1,7 @@
 import IParagonMedia, { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 import IParagonProperty from "@/types/IParagonProperty";
 import md5 from "crypto-js/md5";
-import { existsSync } from "fs";
 import getConfig from "next/config";
-import fs from "node:fs/promises";
 import path from "path";
 import * as url from "url";
 
@@ -38,81 +36,63 @@ export class ParagonApiClient {
   private __maxConcurrentQueries = 120;
   private __zipCodes = [];
 
-  constructor(
-    baseUrl: string,
-    tokenUrl: string,
-    clientId: string,
-    clientSecret: string
-  ) {
+  constructor(baseUrl: string, tokenUrl: string, clientId: string, clientSecret: string) {
     this.__baseUrl = baseUrl;
     this.__tokenUrl = tokenUrl;
     this.__clientId = clientId;
     this.__clientSecret = clientSecret;
     this.__zipCodes = serverRuntimeConfig.zipCodes ?? [];
-
-    // Storing token locally for now...
-    this.initializeToken().then();
   }
 
-  // Get the token and expiration date from a local file...
-  private async initializeToken(): Promise<void> {
-    const filepath = path.join(
-      process.cwd(),
-      `tokens/.token${md5(this.__clientId)}`
-    );
+  // Server-side only token initialization logic
+  public async initializeToken(): Promise<void> {
+    // In Next.js, fs operations need to be on the server side
+    if (typeof window === 'undefined') {
+      const fs = await import('fs/promises'); // Dynamically import fs on the server-side
+      const filepath = path.join(process.cwd(), `tokens/.token${md5(this.__clientId)}`);
 
-    if (existsSync(filepath)) {
-      // console.log("Token file found!");
-
-      fs.readFile(filepath).then((data) => {
+      try {
+        const data = await fs.readFile(filepath);
         const token = JSON.parse(data.toString()) as ILocalToken;
         this.__accessToken = token.token;
         this.__tokenExpiration = new Date(token.tokenExpiration);
-      });
+      } catch (err) {
+        console.log('Token file not found or could not be read');
+      }
     }
   }
 
-  // Store token locally
-  private async saveToken(token: string, expiration: Date): Promise<void> {
-    const dirpath = path.join(process.cwd(), `tokens`);
-    const filepath = path.join(dirpath, `/.token${md5(this.__clientId)}`);
+  public async saveToken(token: string, expiration: Date): Promise<void> {
+    if (typeof window === 'undefined') {
+      const fs = await import('fs/promises'); // Dynamically import fs on the server-side
+      const dirpath = path.join(process.cwd(), `tokens`);
+      const filepath = path.join(dirpath, `/.token${md5(this.__clientId)}`);
 
-    if (!existsSync(dirpath)) {
-      await fs.mkdir(dirpath);
+      try {
+        await fs.mkdir(dirpath, { recursive: true });
+        await fs.writeFile(filepath, JSON.stringify({ token: token, tokenExpiration: expiration }));
+      } catch (err) {
+        console.error('Error saving token', err);
+      }
     }
-
-    await fs.writeFile(
-      filepath,
-      JSON.stringify({ token: token, tokenExpiration: expiration })
-    );
   }
 
-  // Initialize with a client secret. Will get an access token from the token server...
-  private async forClientSecret(): Promise<ParagonApiClient> {
-    // Early return if we already have a valid token...
-    if (
-      this.__accessToken &&
-      this.__tokenExpiration &&
-      new Date() < this.__tokenExpiration
-    ) {
+  public async forClientSecret(): Promise<ParagonApiClient> {
+    if (this.__accessToken && this.__tokenExpiration && new Date() < this.__tokenExpiration) {
       return this;
     }
 
-    // Body...
     const body = new url.URLSearchParams();
     body.append("grant_type", "client_credentials");
     body.append("scope", "OData");
 
-    // Headers...
-    const token = Buffer.from(
-      `${this.__clientId}:${this.__clientSecret}`
-    ).toString("base64");
-    const headers: HeadersInit = {};
-    headers["Content-Type"] = "application/x-www-form-urlencoded";
-    headers["Accept"] = "application/json";
-    headers["Authorization"] = `Basic ${token}`;
+    const token = Buffer.from(`${this.__clientId}:${this.__clientSecret}`).toString("base64");
+    const headers: HeadersInit = {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json",
+      "Authorization": `Basic ${token}`,
+    };
 
-    // Make the request and return the JSON...
     const options: RequestInit = {
       method: "POST",
       headers: headers,
@@ -122,30 +102,24 @@ export class ParagonApiClient {
     const response = await fetch(this.__tokenUrl, options);
     const tokenResponse = (await response.json()) as ITokenResponse;
 
-    // Save the token and expiration date...
     this.__accessToken = tokenResponse.access_token;
-    this.__tokenExpiration = new Date(
-      new Date().getTime() + tokenResponse.expires_in * 1000
-    );
+    this.__tokenExpiration = new Date(new Date().getTime() + tokenResponse.expires_in * 1000);
     await this.saveToken(this.__accessToken, this.__tokenExpiration);
 
     return this;
   }
 
-  // Get the value to be used as the "Authorization" header...
   private async __getAuthHeaderValue(): Promise<string> {
     await this.forClientSecret();
-
     return `Bearer ${this.__accessToken}`;
   }
 
   private async get<T>(url: string): Promise<IOdataResponse<T>> {
-    const headers: HeadersInit = {};
-    headers["Authorization"] = await this.__getAuthHeaderValue();
-    // console.log(`Fetching from Paragon API: ${url}`);
+    const headers: HeadersInit = {
+      Authorization: await this.__getAuthHeaderValue(),
+    };
     const options: RequestInit = { method: "GET", headers: headers };
     const response = await fetch(url, options);
-
     return (await response.json()) as IOdataResponse<T>;
   }
 
@@ -163,29 +137,25 @@ export class ParagonApiClient {
   }
 
   private getRealtorFilters(): string {
-    return this.__zipCodes.map((zipCode) => `PostalCode eq '${zipCode}'`).join(' or ');
+    return this.__zipCodes.map((zipCode) => `PostalCode eq '${zipCode}'`).join(" or ");
   }
-  
 
   private getPropertyUrl(top: number, skip?: number): string {
     const realtorFilters = this.getRealtorFilters();
     const filterStr = `$filter=StandardStatus eq 'Active' and (${realtorFilters})`;
-  
+
     const topStr = top ? `&$top=${top}` : "";
     const skipStr = skip ? `&$skip=${skip}` : "";
-  
+
     return `${this.__baseUrl}/Property?$count=true&${filterStr}${topStr}${skipStr}`;
   }
-  
 
   private getMediaUrl(top: number, skip?: number, filter?: string): string {
     const topStr = top ? `&$top=${top}` : "";
     const skipStr = skip ? `&$skip=${skip}` : "";
     const filterStr = filter ? `&$filter=${filter}` : "";
 
-    // This helps test the media endpoint with less data
     return `${this.__baseUrl}/Media?$select=ResourceRecordKey,MediaURL,Order&$count=true${topStr}${skipStr}${filterStr}`;
-    // return `${this.__baseUrl}/Media?$count=true${topStr}${skipStr}${filterStr}`;
   }
 
   // Generate filter strings for media requests to avoid URL length issues
@@ -196,8 +166,7 @@ export class ParagonApiClient {
     let mediaFilters: string[] = [];
     let accFilter = "";
 
-    const getEncodedLength = (str: string) =>
-      url.format(url.parse(str, true)).length;
+    const getEncodedLength = (str: string) => url.format(url.parse(str, true)).length;
 
     const generateFilter = (id: string, isFirst: boolean = false) => {
       const prefix = isFirst ? "" : " or ";
@@ -218,8 +187,6 @@ export class ParagonApiClient {
         accFilter += currentFilter;
       } else {
         pushNewFilter(accFilter);
-
-        // Reset the accumulator
         accFilter = generateFilter(id, true);
       }
     }
@@ -233,12 +200,11 @@ export class ParagonApiClient {
     properties: ParagonPropertyWithMedia[],
     limit: number = 0
   ): Promise<ParagonPropertyWithMedia[]> {
-    // Ensure properties is a valid array
     if (!Array.isArray(properties) || properties.length === 0) {
       console.error("Invalid properties data:", properties);
       return [];
     }
-  
+
     let queries = this.generateMediaFilters(
       properties.map((p) => {
         if (!p.ListingKey) {
@@ -247,17 +213,16 @@ export class ParagonApiClient {
         return p.ListingKey;
       })
     );
-  
-    // Process the queries and fetch media
+
     while (queries.length > 0) {
       const currentQueries = queries.slice(0, this.__maxConcurrentQueries);
-  
+
       await Promise.all(
         currentQueries.map(async (filter) => {
           const url = this.getMediaUrl(this.__maxPageSize, undefined, filter);
           const response = await this.get<IParagonMedia>(url);
           const count = response["@odata.count"];
-  
+
           if (count && count > this.__maxPageSize) {
             response.value = response.value.concat(
               (
@@ -267,16 +232,14 @@ export class ParagonApiClient {
               ).value
             );
           }
-  
+
           response.value.map((media) => {
-            const property = properties.find(
-              (p) => p.ListingKey === media.ResourceRecordKey
-            );
+            const property = properties.find((p) => p.ListingKey === media.ResourceRecordKey);
             if (property) {
               if (!property.Media) {
                 property.Media = [];
               }
-  
+
               if (limit === 0 || property.Media.length < limit) {
                 property.Media.push(media);
               }
@@ -284,18 +247,14 @@ export class ParagonApiClient {
           });
         })
       );
-  
+
       queries = queries.slice(this.__maxConcurrentQueries);
     }
-  
+
     return properties;
   }
-  
 
-  public async getPropertyById(
-    id: string,
-    includeMedia: boolean = true
-  ): Promise<IParagonProperty> {
+  public async getPropertyById(id: string, includeMedia: boolean = true): Promise<IParagonProperty> {
     const url = `${this.__baseUrl}/Property?$filter=ListingId eq '${id}'`;
     const response = await this.get<ParagonPropertyWithMedia>(url);
 
@@ -310,19 +269,18 @@ export class ParagonApiClient {
     zipCode: string,
     includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-
     const encodedZipCode = encodeURIComponent(zipCode);
     const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${encodedZipCode}')`;
-    
+
     const response = await this.get<ParagonPropertyWithMedia>(url);
-  
+
     if (response.value && includeMedia) {
       response.value = await this.populatePropertyMedia(response.value);
     }
-  
+
     return response;
   }
-  
+
   public async searchByStreetName(): Promise<{
     "@odata.context": string;
     "@odata.nextLink": string;
@@ -340,8 +298,6 @@ export class ParagonApiClient {
     return await response.json();
   }
 
-  // Just used for testing right now.
-  // TODO: Adapt to use config value to limit properties for specific realtor
   public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
     const url = this.getPropertyUrl(top ? top : this.__maxPageSize);
     console.log("Called getAllProperty. URL:", url);
@@ -369,10 +325,7 @@ export class ParagonApiClient {
     top?: number,
     limit: number = 0
   ): Promise<any> {
-    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(
-      top
-    );
-
+    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(top);
     return await this.populatePropertyMedia(properties, limit);
   }
 }
