@@ -7,7 +7,7 @@ import {
   updateProfile,
   UserCredential,
 } from "firebase/auth";
-import { doc, DocumentData, DocumentSnapshot, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, MouseEvent, useState } from "react";
 import { auth, db, googleProvider } from "../../config/firebase";
@@ -40,71 +40,51 @@ const Login = (): JSX.Element => {
   };
 
   // Handle Email login
-const handleEmailLogin = async (event: MouseEvent<HTMLButtonElement>) => {
-  event.preventDefault();
-  setLoading(true);
-  setError(null); // Clear any previous errors
-  try {
-    const result: UserCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = result.user;
-    const userRole = await getUserRole(user.uid);
-    if (userRole) {
+  const handleEmailLogin = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const result: UserCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = result.user;
+      const userRole = await getUserRole(user.uid);
       redirectBasedOnRole(userRole);
-    } else {
-      setError("Failed to retrieve user role. Please try again.");
-    }
-  } catch (error: any) {
-    if (error.code === "auth/wrong-password") {
-      setError("Incorrect password. Please try again.");
-    } else if (error.code === "auth/user-not-found") {
-      setError("No user found with this email. Please sign up first.");
-    } else {
+    } catch (error: any) {
       setError("Failed to sign in. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   // Handle Registration with Role selection
-const handleRegister = async (event: MouseEvent<HTMLButtonElement>) => {
-  event.preventDefault();
-  setLoading(true);
-  setError(null);
-  setSuccess(null);
-  try {
-    const result: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = result.user;
-    await updateProfile(user, { displayName: name });
+  const handleRegister = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const result: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = result.user;
+      await updateProfile(user, { displayName: name });
 
-    // Save role to Firestore
-    await setDoc(doc(db, "users", user.uid), { role });
+      // Save role to Firestore
+      await setDoc(doc(db, "users", user.uid), { role });
 
-    setSuccess("Account created successfully!");
-    
-    // Clear loading before redirecting
-    setLoading(false);
+      setSuccess("Account created successfully!");
+      setLoading(false);
 
-    setTimeout(() => {
-      redirectBasedOnRole(role);
-    }, 1000);
-  } catch (error: any) {
-    setLoading(false); // Ensure loading is reset on error
-    if (error?.code === "auth/email-already-in-use") {
-      setError("This email is already in use. Please use a different email.");
-    } else if (error?.code === "auth/weak-password") {
-      setError("Password is too weak. Please use a stronger password.");
-    } else {
+      setTimeout(() => {
+        redirectBasedOnRole(role);
+      }, 1000);
+    } catch (error: any) {
+      setLoading(false);
       setError("Failed to create account. Please try again.");
     }
-  }
-};
-
+  };
 
   // Get user role from Firestore
   const getUserRole = async (uid: string): Promise<string | null> => {
-    const userDoc: DocumentSnapshot<DocumentData> = await getDoc(doc(db, "users", uid));
+    const userDoc = await getDoc(doc(db, "users", uid));
     if (userDoc.exists()) {
       return userDoc.data()?.role ?? "user";
     }
@@ -218,18 +198,12 @@ const handleRegister = async (event: MouseEvent<HTMLButtonElement>) => {
               loading ? "opacity-50 cursor-not-allowed" : "hover:bg-red-600"
             } focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2`}
           >
-            {loading
-              ? "Processing..."
-              : isRegistering
-              ? "Register with Google"
-              : "Login with Google"}
+            {loading ? "Processing..." : isRegistering ? "Register with Google" : "Login with Google"}
           </button>
         </div>
 
         <p className="text-center text-gray-600">
-          {isRegistering
-            ? "Already have an account? "
-            : "Don't have an account? "}
+          {isRegistering ? "Already have an account? " : "Don't have an account? "}
           <button
             onClick={() => setIsRegistering(!isRegistering)}
             className="font-medium text-blue-600 hover:underline"

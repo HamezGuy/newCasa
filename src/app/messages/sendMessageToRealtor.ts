@@ -15,5 +15,11 @@ export async function sendMessageToRealtor({
   clientEmail: string;
 }) {
   const sendMessage = httpsCallable(functions, "sendMessageToRealtor");
-  return sendMessage({ realtorEmail, message, clientEmail });
+  return sendMessage({
+    propertyId,
+    realtorEmail,
+    message,
+    clientId,
+    clientEmail,
+  });
 }

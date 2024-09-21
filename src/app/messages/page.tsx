@@ -1,4 +1,6 @@
-import { auth, db } from "@/config/firebase";
+"use client";
+
+import { auth, db } from "@/config/firebase"; // Ensure db is imported
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
@@ -26,12 +28,12 @@ export default function MessagesPage() {
   }, [user]);
 
   return (
-    <div className="container">
-      <h2>Your Messages</h2>
+    <div className="container mx-auto mt-10">
+      <h2 className="text-2xl font-bold">Your Messages</h2>
       {messages.length === 0 ? (
         <p>No messages yet.</p>
       ) : (
-        <ul>
+        <ul className="list-disc pl-5">
           {messages.map((msg) => (
             <li key={msg.id}>
               <strong>{msg.realtorName}:</strong> {msg.message}
