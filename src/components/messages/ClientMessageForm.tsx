@@ -4,7 +4,7 @@ import { sendMessageToRealtor } from "@/app/messages/sendMessageToRealtor";
 import { auth } from "@/config/firebase"; // Firebase auth
 import { useState } from "react";
 
-const ClientMessageForm = ({ propertyId }: { propertyId: string }) => {
+const ClientMessageForm = ({ propertyId, realtorEmail, realtorPhoneNumber }: { propertyId: string; realtorEmail: string; realtorPhoneNumber: string; }) => {
   const [message, setMessage] = useState<string>(""); // Message state
   const [error, setError] = useState<string | null>(null); // Error state
   const [success, setSuccess] = useState<string | null>(null); // Success state
@@ -27,7 +27,8 @@ const ClientMessageForm = ({ propertyId }: { propertyId: string }) => {
     try {
       await sendMessageToRealtor({
         propertyId,
-        realtorEmail: "realtor@example.com", // Replace with actual realtor's email
+        realtorEmail,
+        realtorPhoneNumber, 
         message,
         clientId: user.uid,
         clientEmail: user.email!,
