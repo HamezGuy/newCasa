@@ -1,8 +1,9 @@
 import { FirebaseApp, initializeApp } from "firebase/app";
-import { Auth, getAuth, GoogleAuthProvider } from "firebase/auth"; // Keep this as is
-import { Firestore, getFirestore } from "firebase/firestore"; // Keep this as is
-import { Functions, getFunctions } from "firebase/functions"; // Add this
+import { Auth, getAuth, GoogleAuthProvider } from "firebase/auth";
+import { Firestore, getFirestore } from "firebase/firestore";
+import { Functions, getFunctions } from "firebase/functions";
 
+// Firebase configuration (from environment variables)
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -12,13 +13,15 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Initialize Firebase App
 const app: FirebaseApp = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
-const auth: Auth = getAuth(app);
-const googleProvider: GoogleAuthProvider = new GoogleAuthProvider();
-const db: Firestore = getFirestore(app);
-const functions: Functions = getFunctions(app); // Initialize Firebase Functions
+const auth: Auth = getAuth(app); // Authentication
+const googleProvider: GoogleAuthProvider = new GoogleAuthProvider(); // Google Auth Provider
+const db: Firestore = getFirestore(app); // Firestore database
+const functions: Functions = getFunctions(app); // Cloud Functions
 
-export { auth, db, functions, googleProvider }; // Export functions as well
+// Export the initialized Firebase services
+export { auth, db, functions, googleProvider };
 

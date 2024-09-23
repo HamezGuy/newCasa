@@ -1,15 +1,32 @@
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../config/firebase"; // Ensure this is the correct path to your Firebase config
+import { doc, getDoc } from "firebase/firestore"; // Import Firestore functions
+import { db } from "../../config/firebase"; // Adjust this path based on your project structure
 
-/**
- * Get the user role from Firestore using the user's UID.
- * @param uid - The Firebase user ID
- * @returns The role of the user (e.g., 'realtor' or 'user')
- */
 export const getUserRole = async (uid: string): Promise<string> => {
-  const userDoc = await getDoc(doc(db, "users", uid));
-  if (userDoc.exists()) {
-    return userDoc.data()?.role || "user";
+  const retryLimit = 3; // Maximum number of retries
+  let retryCount = 0;
+  let userDoc;
+
+  while (retryCount < retryLimit) {
+    try {
+      userDoc = await getDoc(doc(db, "users", uid));
+
+      if (userDoc.exists()) {
+        const role = userDoc.data()?.role || "user";
+        console.log(`User role retrieved: ${role}`);
+        return role;
+      } else {
+        console.warn(`User document for UID ${uid} does not exist. Retrying...`);
+      }
+
+      retryCount++;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } catch (error) {
+      console.error(`Error fetching user role for UID ${uid}:`, error);
+      retryCount++;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
   }
-  return "user"; 
+
+  console.error(`Failed to retrieve user role for UID ${uid} after ${retryLimit} attempts.`);
+  return "user"; // Default to "user" if the document is still not found after retries
 };
