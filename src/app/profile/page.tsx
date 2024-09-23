@@ -2,23 +2,34 @@
 
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { useRouter } from "next/navigation"; // Import useRouter
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { auth, db } from "../../config/firebase"; // Adjust path as needed
+import { auth, db } from "../../config/firebase";
 
 export default function Profile() {
   const [user, setUser] = useState<any>(null);
-  const [role, setRole] = useState<string | null>(null);
-  const router = useRouter(); // Initialize router
+  const [role, setRole] = useState<string | null>("user"); // Default role to 'user'
+  const [loading, setLoading] = useState<boolean>(true); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error state
+  const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        // Fetch the user's role from Firestore
-        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-        if (userDoc.exists()) {
-          setRole(userDoc.data()?.role || "No role assigned");
+        try {
+          // Fetch the user's role from Firestore
+          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          if (userDoc.exists()) {
+            setRole(userDoc.data()?.role || "No role assigned");
+          } else {
+            setRole("No role assigned");
+          }
+        } catch (error) {
+          console.error("Error fetching user role:", error);
+          setError("Failed to fetch role. The client might be offline.");
+        } finally {
+          setLoading(false); // End loading after fetching data
         }
       } else {
         router.push("/login"); // Redirect to login if not authenticated
@@ -26,10 +37,16 @@ export default function Profile() {
     });
 
     return () => unsubscribe();
-  }, [router]); // Add router to dependency array
+  }, [router]);
 
-  if (!user) {
-    return <div>Loading...</div>; // Fallback in case loading is slow
+  // Show a loading state while fetching the user data
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  // Show error message if fetching the user role fails
+  if (error) {
+    return <div className="text-red-500">{error}</div>;
   }
 
   return (

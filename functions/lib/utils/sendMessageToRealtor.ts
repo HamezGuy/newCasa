@@ -5,46 +5,55 @@ import twilio from "twilio";
 
 admin.initializeApp();
 
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID!, process.env.TWILIO_AUTH_TOKEN!);
+// Hardcoded Twilio credentials
+const TWILIO_ACCOUNT_SID = "ACdc1190df1a7b2db6f6788f9de0d5d886";
+const TWILIO_AUTH_TOKEN = "f4ca928a58c85598bfe344f859231e63";
+const TWILIO_PHONE_NUMBER = "+18556213149"; // Your Twilio number
+
+const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+
+// Hardcoded email credentials
+const EMAIL_USER = "jamesgui111@gmail.com";
+const EMAIL_PASS = "Jmesgui111"; // Your email password
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER!,
-    pass: process.env.EMAIL_PASS!,
+    user: EMAIL_USER,
+    pass: EMAIL_PASS,
   },
 });
 
 // Define the type for incoming data
 interface MessageData {
-  realtorEmail: string;
-  realtorPhoneNumber: string;
-  message: string;
+  message: string; // Only keep the message for input
   clientEmail: string;
-  clientPhoneNumber: string; // Add this if you want to send back to the user
 }
 
-// Update the function signature
 export const sendMessageToRealtor = functions.https.onCall(async (data: functions.https.CallableRequest) => {
-  const validatedData = data.data as MessageData; // Type assertion
+  const validatedData = data.data as MessageData;
 
-  const { realtorEmail, realtorPhoneNumber, message, clientEmail, clientPhoneNumber } = validatedData;
+  const { message, clientEmail } = validatedData;
 
-  // Send SMS to realtor
+  // Hardcoded values for recipient
+  const hardcodedRealtorEmail = "jamesgui111@gmail.com"; // Replace with your email
+  const hardcodedRealtorPhoneNumber = "+17153050360"; // Replace with your phone number
+
+  // Send SMS to hardcoded phone number
   try {
     await twilioClient.messages.create({
       body: message,
-      from: "YOUR_TWILIO_PHONE_NUMBER",
-      to: realtorPhoneNumber,
+      from: TWILIO_PHONE_NUMBER,
+      to: hardcodedRealtorPhoneNumber,
     });
   } catch (error) {
     console.error("Failed to send SMS:", error);
   }
 
-  // Send Email to realtor
+  // Send Email to hardcoded email address
   const mailOptions = {
-    from: "YOUR_EMAIL@gmail.com",
-    to: realtorEmail,
+    from: EMAIL_USER,
+    to: hardcodedRealtorEmail,
     subject: `New Message from ${clientEmail}`,
     text: message,
   };
@@ -53,24 +62,6 @@ export const sendMessageToRealtor = functions.https.onCall(async (data: function
     await transporter.sendMail(mailOptions);
   } catch (error) {
     console.error("Failed to send email:", error);
-  }
-
-  // Optionally send a confirmation message back to the client
-  try {
-    await transporter.sendMail({
-      from: "YOUR_EMAIL@gmail.com",
-      to: clientEmail,
-      subject: "Your message was sent!",
-      text: `Your message to the realtor has been sent successfully: "${message}"`,
-    });
-
-    await twilioClient.messages.create({
-      body: `Your message has been sent: "${message}"`,
-      from: "YOUR_TWILIO_PHONE_NUMBER",
-      to: clientPhoneNumber, // Send back to user's phone number
-    });
-  } catch (error) {
-    console.error("Failed to send confirmation to client:", error);
   }
 
   return { success: true };

@@ -30,6 +30,10 @@ const Login = (): JSX.Element => {
     try {
       const result: UserCredential = await signInWithPopup(auth, googleProvider);
       const user = result.user;
+
+      // Save user information in Firestore if not already present
+      await saveUserToFirestore(user.uid, user.displayName, "user");
+
       const userRole = await getUserRole(user.uid);
       redirectBasedOnRole(userRole);
     } catch (error) {
@@ -47,6 +51,7 @@ const Login = (): JSX.Element => {
     try {
       const result: UserCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = result.user;
+
       const userRole = await getUserRole(user.uid);
       redirectBasedOnRole(userRole);
     } catch (error: any) {
@@ -65,10 +70,15 @@ const Login = (): JSX.Element => {
     try {
       const result: UserCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = result.user;
+      
+      // Reload the user authentication state to ensure Firebase has fully registered the user
+      await auth.currentUser?.reload();
+
+      // After reloading, update the user profile with their name
       await updateProfile(user, { displayName: name });
 
-      // Save role to Firestore
-      await setDoc(doc(db, "users", user.uid), { role });
+      // Save user information and role to Firestore
+      await saveUserToFirestore(user.uid, name, role);
 
       setSuccess("Account created successfully!");
       setLoading(false);
@@ -79,6 +89,21 @@ const Login = (): JSX.Element => {
     } catch (error: any) {
       setLoading(false);
       setError("Failed to create account. Please try again.");
+    }
+  };
+
+  // Save user data to Firestore (including role)
+  const saveUserToFirestore = async (uid: string, displayName: string | null, role: string) => {
+    try {
+      // Save the user document in Firestore
+      await setDoc(doc(db, "users", uid), {
+        displayName: displayName || "No Name",
+        role: role,
+        email: auth.currentUser?.email, // Store email for additional reference
+        createdAt: new Date(), // Optional: Timestamp for when the user was created
+      });
+    } catch (error) {
+      console.error("Error saving user to Firestore:", error);
     }
   };
 
