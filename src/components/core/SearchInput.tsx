@@ -12,7 +12,9 @@ export default function SearchInput({ isLoading }: { isLoading?: boolean }) {
   function handleSearch() {
     if (searchInputRef.current) {
       const input = searchInputRef.current as HTMLInputElement;
-      const params = new URLSearchParams(searchParams);
+
+      // Convert ReadonlyURLSearchParams to a string before passing to URLSearchParams
+      const params = new URLSearchParams(searchParams.toString());
 
       if (input.value) {
         params.set("s", input.value);

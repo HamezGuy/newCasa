@@ -96,7 +96,7 @@ export class ParagonApiClient {
     const options: RequestInit = {
       method: "POST",
       headers: headers,
-      body: body,
+      body: body.toString(), 
       cache: "no-store",
     };
     const response = await fetch(this.__tokenUrl, options);

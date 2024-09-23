@@ -12,6 +12,7 @@ export async function generateStaticParams() {
   }
 
   const listings = await getProperties();
+
   console.log(`Generating ${listings.length} property pages...`);
 
   return listings.map((listing: ParagonPropertyWithMedia) => ({
@@ -31,27 +32,33 @@ export default async function PropertyPage({
     response = await getPropertyById(id);
   } catch (e) {
     console.log(`Could not fetch property`, e);
-    return <div className="text-center">Not found</div>;
+    return <div>Not found</div>;
   }
 
+  // TODO: Redirect to listings
+  if (!id) {
+    return <span>Redirect to all listings page...</span>;
+  }
+
+  const realtorEmail = response?.ListAgentEmail || "realtor@example.com";
+  const realtorPhoneNumber =
+    response?.ListAgentPreferredPhone || "123-456-7890";
+
   return (
-    <main className="bg-gray-100 py-8">
-      <div className="container mx-auto max-w-5xl bg-white rounded-lg shadow-lg p-6">
-        {/* Property Images */}
-        <PropertyImages property={response} />
-
-        {/* Property Details */}
-        <div className="mt-6 border-t pt-6">
-          <h2 className="text-2xl font-bold mb-4">Property Details</h2>
-          <PropertyDetails property={response} />
-        </div>
-
-        {/* Client Message Form */}
-        <div className="mt-8 border-t pt-6">
-          <h3 className="text-xl font-semibold mb-4">Contact Realtor</h3>
-          <ClientMessageForm propertyId={id} />
-        </div>
+    <main>
+      <PropertyImages property={response} />
+      <div className="container mx-auto max-w-5xl">
+        <PropertyDetails property={response} />
+      </div>      
+      <div className="mt-8 border-t pt-6">
+        <h3 className="text-xl font-semibold mb-4">Contact Realtor</h3>
+        <ClientMessageForm
+          propertyId={response.ListingId}
+          realtorEmail={realtorEmail}
+          realtorPhoneNumber={realtorPhoneNumber}
+        />
       </div>
+      
     </main>
   );
 }
