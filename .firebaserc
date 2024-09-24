@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "newcasa-feecb"
-  }
+    "default": "newcasa-feecb",
+    "dev": "newcasa-feecb"
+  },
+  "targets": {},
+  "etags": {},
+  "dataconnectEmulatorConfig": {}
 }

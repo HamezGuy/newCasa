@@ -1,4 +1,4 @@
-import { FirebaseApp, initializeApp } from "firebase/app";
+import { FirebaseApp, getApps, initializeApp } from "firebase/app";
 import { Auth, getAuth, GoogleAuthProvider } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
 import { Functions, getFunctions } from "firebase/functions";
@@ -13,8 +13,13 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase App
-const app: FirebaseApp = initializeApp(firebaseConfig);
+// Initialize Firebase App if it hasn't been initialized yet
+let app: FirebaseApp;
+if (!getApps().length) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApps()[0]; // Use the already initialized app
+}
 
 // Initialize Firebase services
 const auth: Auth = getAuth(app); // Authentication
@@ -22,8 +27,7 @@ const googleProvider: GoogleAuthProvider = new GoogleAuthProvider(); // Google A
 const db: Firestore = getFirestore(app); // Firestore database
 const functions: Functions = getFunctions(app); // Cloud Functions
 
-// Optionally enable Firestore offline persistence
-// Uncomment this block if you need offline persistence for Firestore.
+// Optionally enable Firestore offline persistence (uncomment if needed)
 // if (process.env.NODE_ENV === 'development') {
 //   enableIndexedDbPersistence(db).catch((error) => {
 //     console.error("Firestore persistence error:", error);

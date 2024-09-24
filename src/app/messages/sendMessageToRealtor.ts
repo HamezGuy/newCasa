@@ -4,8 +4,6 @@ import { httpsCallable } from "firebase/functions";
 // Define the same type for consistency
 interface MessageData {
   propertyId: string;
-  realtorEmail: string;
-  realtorPhoneNumber: string;
   message: string;
   clientId: string;
   clientEmail: string;
@@ -13,17 +11,21 @@ interface MessageData {
 
 export async function sendMessageToRealtor({
   propertyId,
-  realtorEmail,
-  realtorPhoneNumber,
   message,
   clientId,
   clientEmail,
 }: MessageData) {
   const sendMessage = httpsCallable(functions, "sendMessageToRealtor");
+
+  console.log("Sending message data to Firebase function:", {
+    propertyId,
+    message,
+    clientId,
+    clientEmail,
+  });
+
   return sendMessage({
     propertyId,
-    realtorEmail,
-    realtorPhoneNumber,
     message,
     clientId,
     clientEmail,

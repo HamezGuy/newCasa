@@ -4,7 +4,7 @@ import { sendMessageToRealtor } from "@/app/messages/sendMessageToRealtor";
 import { auth } from "@/config/firebase"; // Firebase auth
 import { useState } from "react";
 
-const ClientMessageForm = ({ propertyId }: { propertyId: string; }) => {
+const ClientMessageForm = ({ propertyId }: { propertyId: string }) => {
   const [message, setMessage] = useState<string>(""); // Message state
   const [error, setError] = useState<string | null>(null); // Error state
   const [success, setSuccess] = useState<string | null>(null); // Success state
@@ -24,15 +24,16 @@ const ClientMessageForm = ({ propertyId }: { propertyId: string; }) => {
       return;
     }
 
-    // Hardcoded values
-    const hardcodedRealtorEmail = "jamesgui111@gmail.com"; // Your email
-    const hardcodedRealtorPhoneNumber = "+7153050360"; // Your phone number
-
     try {
+      console.log("Sending message to realtor with the following data:", {
+        propertyId,
+        message,
+        clientId: user.uid,
+        clientEmail: user.email,
+      });
+
       await sendMessageToRealtor({
         propertyId,
-        realtorEmail: hardcodedRealtorEmail,
-        realtorPhoneNumber: hardcodedRealtorPhoneNumber, 
         message,
         clientId: user.uid,
         clientEmail: user.email!,
@@ -40,6 +41,7 @@ const ClientMessageForm = ({ propertyId }: { propertyId: string; }) => {
       setSuccess("Message sent successfully!");
       setMessage(""); // Clear the message box
     } catch (err) {
+      console.error("Failed to send message:", err);
       setError("Failed to send message. Please try again.");
     }
   };
