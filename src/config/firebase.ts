@@ -22,6 +22,14 @@ const googleProvider: GoogleAuthProvider = new GoogleAuthProvider(); // Google A
 const db: Firestore = getFirestore(app); // Firestore database
 const functions: Functions = getFunctions(app); // Cloud Functions
 
+// Optionally enable Firestore offline persistence
+// Uncomment this block if you need offline persistence for Firestore.
+// if (process.env.NODE_ENV === 'development') {
+//   enableIndexedDbPersistence(db).catch((error) => {
+//     console.error("Firestore persistence error:", error);
+//   });
+// }
+
 // Export the initialized Firebase services
 export { auth, db, functions, googleProvider };
 
