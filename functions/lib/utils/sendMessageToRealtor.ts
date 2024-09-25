@@ -40,7 +40,7 @@ export const sendMessageToRealtor = functions.https.onCall(async (data: function
   console.log(`Message: ${message}, Client Email: ${clientEmail}, Property ID: ${propertyId}, Client ID: ${clientId}`);
 
   // Hardcoded values for testing
-  const hardcodedRealtorEmail = "jgui2@gmail.com"; 
+  const hardcodedRealtorEmail = "jgui2@wisc.edu"; 
   const hardcodedRealtorPhoneNumber = "+17153050360"; // Your verified Twilio phone number
 
   // Send SMS

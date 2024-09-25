@@ -7,11 +7,15 @@ import {
   updateProfile,
   UserCredential,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { httpsCallable } from "firebase/functions"; // Import httpsCallable
 import { useRouter } from "next/navigation";
 import { ChangeEvent, MouseEvent, useState } from "react";
-import { auth, db, googleProvider } from "../../config/firebase";
-import { getUserRole } from "../../lib/utils/firebaseUtils"; // Import getUserRole
+import { auth, functions, googleProvider } from "../../config/firebase"; // Import functions
+
+interface AssignUserRoleResponse {
+  success: boolean;
+  message: string;
+}
 
 const Login = (): JSX.Element => {
   const [isRegistering, setIsRegistering] = useState<boolean>(false);
@@ -24,37 +28,34 @@ const Login = (): JSX.Element => {
   const [success, setSuccess] = useState<string | null>(null);
   const router = useRouter();
 
-  // Save user data to Firestore (including role)
+  // Cloud function to save user with role in Firestore
+  const assignUserRole = httpsCallable(functions, "assignUserRole");
+
+  // Call cloud function to assign user role
   const saveUserToFirestore = async (
     uid: string,
     displayName: string | null,
+    email: string | null,
     role: string
   ): Promise<boolean> => {
-    if (!auth.currentUser) {
-      console.error("No authenticated user found.");
-      throw new Error("Failed to save user to Firestore: no authenticated user.");
-    }
-
     try {
-      const userDocRef = doc(db, "users", uid);
-      const userDoc = await getDoc(userDocRef);
-
-      // Check if the user already exists in Firestore
-      if (userDoc.exists()) {
-        console.log(`User ${uid} already exists in Firestore.`);
-        return false;
-      }
-
-      // Write the authenticated user's data to Firestore
-      await setDoc(userDocRef, {
-        displayName: displayName || "No Name",
-        role: role,
-        email: auth.currentUser.email, // Pulls the email from the current authenticated user
-        createdAt: new Date(), // Timestamp for user creation
+      const result = await assignUserRole({
+        uid,
+        displayName,
+        email,
+        role,
       });
 
-      console.log(`User ${uid} saved to Firestore with role: ${role}`);
-      return true;
+      // Cast result.data to the expected type
+      const data = result.data as AssignUserRoleResponse;
+
+      if (data.success) {
+        console.log(`User ${uid} saved to Firestore with role: ${role}`);
+        return true;
+      } else {
+        console.log(data.message);
+        return false;
+      }
     } catch (error) {
       console.error("Error saving user to Firestore:", error);
       throw new Error("Failed to save user to Firestore.");
@@ -71,26 +72,18 @@ const Login = (): JSX.Element => {
   };
 
   // Handle Google login
-  const handleGoogleLogin = async (
-    event: MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleGoogleLogin = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const result: UserCredential = await signInWithPopup(
-        auth,
-        googleProvider
-      );
+      const result: UserCredential = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
       const displayName = user.displayName || "No Name";
+      const email = user.email || "";
 
-      const success = await saveUserToFirestore(
-        user.uid,
-        displayName,
-        "user"
-      );
+      const success = await saveUserToFirestore(user.uid, displayName, email, "user");
 
       if (success) {
         console.log("User data saved in Firestore.");
@@ -98,8 +91,7 @@ const Login = (): JSX.Element => {
         console.log("User already exists in Firestore.");
       }
 
-      const userRole = await getUserRole(user.uid);
-      redirectBasedOnRole(userRole);
+      redirectBasedOnRole("user");
     } catch (error: any) {
       console.error("Google login failed:", error);
       setError(error.message || "Failed to sign in with Google. Please try again.");
@@ -109,22 +101,15 @@ const Login = (): JSX.Element => {
   };
 
   // Handle Email login
-  const handleEmailLogin = async (
-    event: MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleEmailLogin = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const result: UserCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const result: UserCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = result.user;
 
-      const userRole = await getUserRole(user.uid);
-      redirectBasedOnRole(userRole);
+      redirectBasedOnRole("user"); // You might want to fetch the role from Firestore
     } catch (error: any) {
       console.error("Email login failed:", error);
       setError(error.message || "Failed to sign in. Please try again.");
@@ -134,25 +119,19 @@ const Login = (): JSX.Element => {
   };
 
   // Handle Registration with Role selection
-  const handleRegister = async (
-    event: MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleRegister = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const result: UserCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const result: UserCredential = await createUserWithEmailAndPassword(auth, email, password); // Use the email from useState
       const user = result.user;
 
       await updateProfile(user, { displayName: name });
 
-      const success = await saveUserToFirestore(user.uid, name, role);
+      const success = await saveUserToFirestore(user.uid, name, email, role);
 
       if (success) {
         console.log("User data successfully saved in Firestore.");
@@ -162,7 +141,6 @@ const Login = (): JSX.Element => {
           redirectBasedOnRole(role);
         }, 1000);
       } else {
-        console.log("User already exists or an error occurred.");
         setError("User already exists.");
       }
     } catch (error: any) {
@@ -174,9 +152,7 @@ const Login = (): JSX.Element => {
   };
 
   // Handle input changes
-  const handleInputChange = (
-    event: ChangeEvent<HTMLInputElement>
-  ): void => {
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const { name, value } = event.target;
     if (name === "email") setEmail(value);
     if (name === "password") setPassword(value);
@@ -184,9 +160,7 @@ const Login = (): JSX.Element => {
   };
 
   // Handle role change
-  const handleRoleChange = (
-    event: ChangeEvent<HTMLInputElement>
-  ): void => {
+  const handleRoleChange = (event: ChangeEvent<HTMLInputElement>): void => {
     setRole(event.target.value);
   };
 
@@ -198,9 +172,7 @@ const Login = (): JSX.Element => {
         </h2>
 
         {error && <p className="text-red-500 text-center">{error}</p>}
-        {success && (
-          <p className="text-green-500 text-center">{success}</p>
-        )}
+        {success && <p className="text-green-500 text-center">{success}</p>}
 
         {isRegistering && (
           <div className="space-y-4">
@@ -266,39 +238,25 @@ const Login = (): JSX.Element => {
             onClick={isRegistering ? handleRegister : handleEmailLogin}
             disabled={loading}
             className={`w-full px-4 py-2 font-bold text-white bg-blue-600 rounded-md ${
-              loading
-                ? "opacity-50 cursor-not-allowed"
-                : "hover:bg-blue-700"
+              loading ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-700"
             } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
           >
-            {loading
-              ? "Processing..."
-              : isRegistering
-              ? "Register"
-              : "Login"}
+            {loading ? "Processing..." : isRegistering ? "Register" : "Login"}
           </button>
 
           <button
             onClick={handleGoogleLogin}
             disabled={loading}
             className={`w-full px-4 py-2 font-bold text-white bg-red-500 rounded-md ${
-              loading
-                ? "opacity-50 cursor-not-allowed"
-                : "hover:bg-red-600"
+              loading ? "opacity-50 cursor-not-allowed" : "hover:bg-red-600"
             } focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2`}
           >
-            {loading
-              ? "Processing..."
-              : isRegistering
-              ? "Register with Google"
-              : "Login with Google"}
+            {loading ? "Processing..." : isRegistering ? "Register with Google" : "Login with Google"}
           </button>
         </div>
 
         <p className="text-center text-gray-600">
-          {isRegistering
-            ? "Already have an account? "
-            : "Don't have an account? "}
+          {isRegistering ? "Already have an account? " : "Don't have an account? "}
           <button
             onClick={() => setIsRegistering(!isRegistering)}
             className="font-medium text-blue-600 hover:underline"

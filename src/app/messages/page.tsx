@@ -36,7 +36,7 @@ export default function MessagesPage() {
         <ul className="list-disc pl-5">
           {messages.map((msg) => (
             <li key={msg.id}>
-              <strong>{msg.realtorName}:</strong> {msg.message}
+              <strong>{msg.from === 'user' ? 'You' : 'Realtor'}:</strong> {msg.message}
             </li>
           ))}
         </ul>
