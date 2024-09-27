@@ -6,15 +6,15 @@ import twilio from "twilio";
 admin.initializeApp();
 
 // Twilio credentials
-const TWILIO_ACCOUNT_SID = "ACdc1190df1a7b2db6f6788f9de0d5d886";
-const TWILIO_AUTH_TOKEN = "f4ca928a58c85598bfe344f859231e63";
-const TWILIO_PHONE_NUMBER = "+18556213149"; // Your Twilio number
+const TWILIO_ACCOUNT_SID = "";
+const TWILIO_AUTH_TOKEN = "";
+const TWILIO_PHONE_NUMBER = "+"; // Your Twilio number
 
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
 // Gmail App Password setup (updated)
-const EMAIL_USER = "jamesgui111@gmail.com";
-const EMAIL_PASS = "bzhl kxgk ukmw rkvd"; // Your Gmail App Password
+const EMAIL_USER = "";
+const EMAIL_PASS = ""; // Your Gmail App Password
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -40,8 +40,8 @@ export const sendMessageToRealtor = functions.https.onCall(async (data: function
   console.log(`Message: ${message}, Client Email: ${clientEmail}, Property ID: ${propertyId}, Client ID: ${clientId}`);
 
   // Hardcoded values for testing
-  const hardcodedRealtorEmail = "jgui2@wisc.edu"; 
-  const hardcodedRealtorPhoneNumber = "+17153050360"; // Your verified Twilio phone number
+  const hardcodedRealtorEmail = ""; 
+  const hardcodedRealtorPhoneNumber = ""; // Your verified Twilio phone number
 
   // Send SMS
   try {
