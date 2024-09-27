@@ -1,6 +1,6 @@
-import ClientMessageForm from "@/components/messages/ClientMessageForm";
 import PropertyDetails from "@/components/property/PropertyDetails";
 import { PropertyImages } from "@/components/property/PropertyImages";
+import PropertyPageClient from "@/components/property/PropertyPageClient";
 import { getProperties, getPropertyById } from "@/lib/data";
 import { isProduction } from "@/lib/utils/config";
 import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
@@ -35,30 +35,21 @@ export default async function PropertyPage({
     return <div>Not found</div>;
   }
 
-  // TODO: Redirect to listings
+  // TODO: Redirect to listings if no ID
   if (!id) {
     return <span>Redirect to all listings page...</span>;
   }
-
-  const realtorEmail = response?.ListAgentEmail || "realtor@example.com";
-  const realtorPhoneNumber =
-    response?.ListAgentPreferredPhone || "123-456-7890";
 
   return (
     <main>
       <PropertyImages property={response} />
       <div className="container mx-auto max-w-5xl">
         <PropertyDetails property={response} />
-      </div>      
-      <div className="mt-8 border-t pt-6">
-        <h3 className="text-xl font-semibold mb-4">Contact Realtor</h3>
-        <ClientMessageForm
-          propertyId={response.ListingId}
-          realtorEmail={realtorEmail}
-          realtorPhoneNumber={realtorPhoneNumber}
-        />
       </div>
-      
+      <div className="mt-8 border-t pt-6">
+        {/* Load the client-side component for handling user role and messages */}
+        <PropertyPageClient property={response} />
+      </div>
     </main>
   );
 }

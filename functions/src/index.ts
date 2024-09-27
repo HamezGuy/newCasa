@@ -29,13 +29,20 @@ interface MessageData {
   clientEmail: string;
   propertyId: string;
   clientId: string;
+  realtorEmail: string; // Add realtorEmail
+  realtorPhoneNumber: string; // Add realtorPhoneNumber
 }
 
 // Cloud function to send a message to the realtor
 export const sendMessageToRealtor = functions.https.onCall(
   async (data) => {
     const {
-      message, clientEmail, propertyId, clientId,
+      message,
+      clientEmail,
+      propertyId,
+      clientId,
+      realtorEmail, // Handle these fields
+      realtorPhoneNumber, // Handle these fields
     } = data.data as MessageData;
 
     console.log("Message received from frontend:", {
@@ -43,10 +50,9 @@ export const sendMessageToRealtor = functions.https.onCall(
       clientEmail,
       propertyId,
       clientId,
+      realtorEmail,
+      realtorPhoneNumber,
     });
-
-    const hardcodedRealtorEmail = "jgui2@wisc.edu";
-    const hardcodedRealtorPhoneNumber = "+17153050360";
 
     // Store the message in Firestore
     try {
@@ -61,45 +67,49 @@ export const sendMessageToRealtor = functions.https.onCall(
       if (error instanceof Error) {
         console.error("Error storing message in Firestore:", error.message);
         throw new functions.https.HttpsError(
-          "internal", `Failed to store message: ${error.message}`
+          "internal",
+          `Failed to store message: ${error.message}`
         );
       } else {
         console.error("Unknown error storing message in Firestore:", error);
         throw new functions.https.HttpsError(
-          "internal", "Failed to store message due to unknown error"
+          "internal",
+          "Failed to store message due to unknown error"
         );
       }
     }
 
-    // Send SMS via Twilio
+    // Send SMS via Twilio using realtorPhoneNumber
     try {
       await twilioClient.messages.create({
-        body: `Message regarding Property ID: ${propertyId}
-          \nMessage: ${message}`,
+        body: `Message regarding Property ID: 
+        ${propertyId}\nMessage: ${message}`,
         from: config.twilio.phoneNumber,
-        to: hardcodedRealtorPhoneNumber,
+        to: realtorPhoneNumber, // Use the realtor's phone number
       });
       console.log("SMS sent successfully");
     } catch (error: unknown) {
       if (error instanceof Error) {
         console.error("Failed to send SMS:", error.message);
         throw new functions.https.HttpsError(
-          "internal", `Failed to send SMS: ${error.message}`
+          "internal",
+          `Failed to send SMS: ${error.message}`
         );
       } else {
         console.error("Unknown error sending SMS:", error);
         throw new functions.https.HttpsError(
-          "internal", "Failed to send SMS due to unknown error"
+          "internal",
+          "Failed to send SMS due to unknown error"
         );
       }
     }
 
-    // Send Email
+    // Send Email using realtorEmail
     const mailOptions = {
       from: config.email.user,
-      to: hardcodedRealtorEmail,
-      subject: `New Message regarding Property ID: ${propertyId} 
-        from ${clientEmail}`,
+      to: realtorEmail, // Use the realtor's email
+      subject: `New Message regarding Property ID: 
+        ${propertyId} from ${clientEmail}`,
       text: message,
     };
 
@@ -111,12 +121,14 @@ export const sendMessageToRealtor = functions.https.onCall(
       if (error instanceof Error) {
         console.error("Failed to send email:", error.message);
         throw new functions.https.HttpsError(
-          "internal", `Failed to send email: ${error.message}`
+          "internal",
+          `Failed to send email: ${error.message}`
         );
       } else {
         console.error("Unknown error sending email:", error);
         throw new functions.https.HttpsError(
-          "internal", "Failed to send email due to unknown error"
+          "internal",
+          "Failed to send email due to unknown error"
         );
       }
     }
@@ -125,8 +137,9 @@ export const sendMessageToRealtor = functions.https.onCall(
       success: true,
       message: "Message sent successfully to realtor!",
     };
-  },
+  }
 );
+
 
 // Function to handle incoming Twilio SMS messages
 export const handleIncomingSms = functions.https.onRequest(
@@ -180,7 +193,7 @@ export const handleIncomingSms = functions.https.onRequest(
     twiml.message("Thanks for your message! We will get back to you soon.");
     res.writeHead(200, {"Content-Type": "text/xml"});
     res.end(twiml.toString());
-  },
+  }
 );
 
 // Test Firestore connection
@@ -195,16 +208,18 @@ export const testFirestoreConnection = functions.https.onRequest(
       res.status(200).send("Connected to Firestore. Document added.");
     } catch (error: unknown) {
       if (error instanceof Error) {
-        console.error("Error adding document to Firestore:", error.message);
+        console.error(
+          "Error adding document to Firestore:", error.message);
         res.status(500).send(
           `Failed to connect to Firestore: ${error.message}`);
       } else {
-        console.error("Unknown error adding document to Firestore:", error);
+        console.error(
+          "Unknown error adding document to Firestore:", error);
         res.status(500).send(
           "Failed to connect to Firestore due to unknown error");
       }
     }
-  },
+  }
 );
 
 // New Cloud Function: Assign User Role

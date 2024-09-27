@@ -4,7 +4,15 @@ import { sendMessageToRealtor } from "@/app/messages/sendMessageToRealtor";
 import { auth } from "@/config/firebase"; // Firebase auth
 import { useState } from "react";
 
-const ClientMessageForm = ({ propertyId }: { propertyId: string }) => {
+const ClientMessageForm = ({
+  propertyId,
+  realtorEmail,
+  realtorPhoneNumber,
+}: {
+  propertyId: string;
+  realtorEmail: string;       // Added props
+  realtorPhoneNumber: string; // Added props
+}) => {
   const [message, setMessage] = useState<string>(""); // Message state
   const [error, setError] = useState<string | null>(null); // Error state
   const [success, setSuccess] = useState<string | null>(null); // Success state
@@ -30,6 +38,8 @@ const ClientMessageForm = ({ propertyId }: { propertyId: string }) => {
         message,
         clientId: user.uid,
         clientEmail: user.email,
+        realtorEmail,       // Pass realtorEmail
+        realtorPhoneNumber, // Pass realtorPhoneNumber
       });
 
       await sendMessageToRealtor({
@@ -37,6 +47,8 @@ const ClientMessageForm = ({ propertyId }: { propertyId: string }) => {
         message,
         clientId: user.uid,
         clientEmail: user.email!,
+        realtorEmail,       // Pass realtorEmail
+        realtorPhoneNumber, // Pass realtorPhoneNumber
       });
       setSuccess("Message sent successfully!");
       setMessage(""); // Clear the message box
