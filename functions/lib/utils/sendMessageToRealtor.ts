@@ -5,17 +5,17 @@ import twilio from "twilio";
 
 admin.initializeApp();
 
-// Twilio credentials
-const TWILIO_ACCOUNT_SID = "";
-const TWILIO_AUTH_TOKEN = "";
-const TWILIO_PHONE_NUMBER = "+"; // Your Twilio number
+// Initialize environment variables
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID!;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN!;
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER!;
+const EMAIL_USER = process.env.EMAIL_USER!;
+const EMAIL_PASS = process.env.EMAIL_PASS!;
 
+// Initialize Twilio client
 const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
-// Gmail App Password setup (updated)
-const EMAIL_USER = "";
-const EMAIL_PASS = ""; // Your Gmail App Password
-
+// Initialize Nodemailer
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -26,7 +26,7 @@ const transporter = nodemailer.createTransport({
 
 // Define the type for incoming data
 interface MessageData {
-  message: string; 
+  message: string;
   clientEmail: string;
   propertyId: string;
   clientId: string;
@@ -39,9 +39,9 @@ export const sendMessageToRealtor = functions.https.onCall(async (data: function
   console.log("Message received from frontend:");
   console.log(`Message: ${message}, Client Email: ${clientEmail}, Property ID: ${propertyId}, Client ID: ${clientId}`);
 
-  // Hardcoded values for testing
-  const hardcodedRealtorEmail = ""; 
-  const hardcodedRealtorPhoneNumber = ""; // Your verified Twilio phone number
+  // Realtor information from environment variables
+  const hardcodedRealtorEmail = process.env.REALTOR_EMAIL!;
+  const hardcodedRealtorPhoneNumber = process.env.REALTOR_PHONE_NUMBER!;
 
   // Send SMS
   try {
