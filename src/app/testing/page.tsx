@@ -2,7 +2,7 @@
 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { db } from '../../config/firebase'; // Ensure this is correctly set up
+import { db } from '../../lib/firebase'; // Ensure this is correctly set up
 
 const TestFirestorePage = () => {
   const [testResult, setTestResult] = useState<string>('Testing Firestore...');

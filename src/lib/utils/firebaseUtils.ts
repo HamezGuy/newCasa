@@ -1,5 +1,5 @@
 import { doc, getDoc } from "firebase/firestore"; // Import Firestore functions
-import { db } from "../../config/firebase"; // Adjust this path based on your project structure
+import { db } from "../firebase"; // Adjust this path based on your project structure
 
 export const getUserRole = async (uid: string): Promise<string> => {
   const retryLimit = 3; // Maximum number of retries

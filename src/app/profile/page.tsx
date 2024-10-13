@@ -3,7 +3,7 @@
 import { onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { auth } from "../../config/firebase"; // Adjust this path based on your project structure
+import { auth } from "../../lib/firebase"; // Adjust this path based on your project structure
 import { getUserRole } from "../../lib/utils/firebaseUtils"; // Import getUserRole from utils
 
 export default function Profile() {

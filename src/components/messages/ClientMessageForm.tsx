@@ -1,7 +1,7 @@
 "use client"; // This marks the component as a Client Component
 
-import { sendMessageToRealtor } from "@/app/messages/sendMessageToRealtor";
-import { auth } from "@/config/firebase"; // Firebase auth
+import { auth } from "@/lib/firebase"; // Firebase auth
+import { sendMessageToRealtor } from "@/lib/utils/sendMessageToRealtor";
 import { useState } from "react";
 
 const ClientMessageForm = ({

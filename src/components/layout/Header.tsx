@@ -3,7 +3,7 @@
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { auth } from "../../config/firebase"; // Ensure this path is correct
+import { auth } from "../../lib/firebase"; // Ensure this path is correct
 import Logo from "../core/Logo";
 
 export default function Header() {

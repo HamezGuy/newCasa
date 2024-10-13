@@ -2,24 +2,40 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions";
 import nodemailer from "nodemailer";
 import twilio from "twilio";
-import {config} from "./config"; // Correctly importing the config
 
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore(); // Firestore instance
 
-// Initialize Twilio client using config
-const twilioClient = twilio(
-  config.twilio.accountSid,
-  config.twilio.authToken
-);
+// Retrieve Twilio credentials safely with fallback
+const twilioSid =
+  functions.config().twilio?.sid || process.env.TWILIO_ACCOUNT_SID;
+const twilioAuthToken =
+  functions.config().twilio?.token || process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber =
+  functions.config().twilio?.phone || process.env.TWILIO_PHONE_NUMBER;
 
-// Initialize Nodemailer using Gmail credentials from config
+// Initialize Twilio client (ensure credentials exist)
+if (!twilioSid || !twilioAuthToken) {
+  throw new Error("Twilio credentials are missing.");
+}
+const twilioClient = twilio(twilioSid, twilioAuthToken);
+
+// Retrieve email credentials safely with fallback
+const emailUser =
+  functions.config().email?.user || process.env.EMAIL_USER;
+const emailPass =
+  functions.config().email?.pass || process.env.EMAIL_PASS;
+
+// Initialize Nodemailer (ensure credentials exist)
+if (!emailUser || !emailPass) {
+  throw new Error("Email credentials are missing.");
+}
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: config.email.user,
-    pass: config.email.pass,
+    user: emailUser,
+    pass: emailPass,
   },
 });
 
@@ -29,8 +45,8 @@ interface MessageData {
   clientEmail: string;
   propertyId: string;
   clientId: string;
-  realtorEmail: string; // Add realtorEmail
-  realtorPhoneNumber: string; // Add realtorPhoneNumber
+  realtorEmail: string;
+  realtorPhoneNumber: string;
 }
 
 // Cloud function to send a message to the realtor
@@ -41,8 +57,8 @@ export const sendMessageToRealtor = functions.https.onCall(
       clientEmail,
       propertyId,
       clientId,
-      realtorEmail, // Handle these fields
-      realtorPhoneNumber, // Handle these fields
+      realtorEmail,
+      realtorPhoneNumber,
     } = data.data as MessageData;
 
     console.log("Message received from frontend:", {
@@ -63,15 +79,19 @@ export const sendMessageToRealtor = functions.https.onCall(
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
       console.log("Message stored in Firestore");
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
-        console.error("Error storing message in Firestore:", error.message);
+        console.error(
+          "Error storing message in Firestore:", error.message
+        );
         throw new functions.https.HttpsError(
           "internal",
           `Failed to store message: ${error.message}`
         );
       } else {
-        console.error("Unknown error storing message in Firestore:", error);
+        console.error(
+          "Unknown error storing message in Firestore:", error
+        );
         throw new functions.https.HttpsError(
           "internal",
           "Failed to store message due to unknown error"
@@ -79,18 +99,20 @@ export const sendMessageToRealtor = functions.https.onCall(
       }
     }
 
-    // Send SMS via Twilio using realtorPhoneNumber
+    // Send SMS via Twilio using the realtor's phone number
     try {
       await twilioClient.messages.create({
-        body: `Message regarding Property ID: 
-        ${propertyId}\nMessage: ${message}`,
-        from: config.twilio.phoneNumber,
-        to: realtorPhoneNumber, // Use the realtor's phone number
+        body: `Message regarding Property ID: ${propertyId}\nMessage: 
+        ${message}`,
+        from: twilioPhoneNumber, // Use the safely fetched phone number
+        to: realtorPhoneNumber,
       });
       console.log("SMS sent successfully");
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
-        console.error("Failed to send SMS:", error.message);
+        console.error(
+          "Failed to send SMS:", error.message
+        );
         throw new functions.https.HttpsError(
           "internal",
           `Failed to send SMS: ${error.message}`
@@ -104,12 +126,12 @@ export const sendMessageToRealtor = functions.https.onCall(
       }
     }
 
-    // Send Email using realtorEmail
+    // Send Email using Nodemailer
     const mailOptions = {
-      from: config.email.user,
-      to: realtorEmail, // Use the realtor's email
-      subject: `New Message regarding Property ID: 
-        ${propertyId} from ${clientEmail}`,
+      from: emailUser,
+      to: realtorEmail,
+      subject: `New Message regarding Property ID: ${propertyId} 
+        from ${clientEmail}`,
       text: message,
     };
 
@@ -117,7 +139,7 @@ export const sendMessageToRealtor = functions.https.onCall(
       console.log("Sending email to realtor...");
       await transporter.sendMail(mailOptions);
       console.log("Email sent successfully");
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         console.error("Failed to send email:", error.message);
         throw new functions.https.HttpsError(
@@ -139,7 +161,6 @@ export const sendMessageToRealtor = functions.https.onCall(
     };
   }
 );
-
 
 // Function to handle incoming Twilio SMS messages
 export const handleIncomingSms = functions.https.onRequest(
@@ -172,19 +193,25 @@ export const handleIncomingSms = functions.https.onRequest(
     // Store the incoming message in Firestore under the user's messages
     try {
       await db.collection("messages").add({
-        clientId, // Add the client ID
+        clientId,
         message: messageBody,
-        from: "realtor", // Message is from the realtor
+        from: "realtor",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
       console.log("Message stored in Firestore");
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
-        console.error("Error storing message in Firestore:", error.message);
+        console.error(
+          "Error storing message in Firestore:", error.message
+        );
         res.status(500).send(`Failed to store message: ${error.message}`);
       } else {
-        console.error("Unknown error storing message in Firestore:", error);
-        res.status(500).send("Failed to store message due to unknown error");
+        console.error(
+          "Unknown error storing message in Firestore:", error
+        );
+        res.status(500).send(
+          "Failed to store message due to unknown error"
+        );
       }
       return;
     }
@@ -206,23 +233,27 @@ export const testFirestoreConnection = functions.https.onRequest(
       });
       console.log("Document written with ID:", docRef.id);
       res.status(200).send("Connected to Firestore. Document added.");
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         console.error(
-          "Error adding document to Firestore:", error.message);
+          "Error adding document to Firestore:", error.message
+        );
         res.status(500).send(
-          `Failed to connect to Firestore: ${error.message}`);
+          `Failed to connect to Firestore: ${error.message}`
+        );
       } else {
         console.error(
-          "Unknown error adding document to Firestore:", error);
+          "Unknown error adding document to Firestore:", error
+        );
         res.status(500).send(
-          "Failed to connect to Firestore due to unknown error");
+          "Failed to connect to Firestore due to unknown error"
+        );
       }
     }
   }
 );
 
-// New Cloud Function: Assign User Role
+// Cloud function to assign a user role
 export const assignUserRole = functions.https.onCall(
   async (request: functions.https.CallableRequest<{
     uid: string;
@@ -253,11 +284,19 @@ export const assignUserRole = functions.https.onCall(
         message: "User role assigned successfully.",
       };
     } catch (error) {
-      console.error("Error saving user role:", error);
-      return {
-        success: false,
-        message: "Failed to assign user role.",
-      };
+      if (error instanceof Error) {
+        console.error("Error saving user role:", error.message);
+        return {
+          success: false,
+          message: `Failed to assign user role: ${error.message}`,
+        };
+      } else {
+        console.error("Unknown error saving user role:", error);
+        return {
+          success: false,
+          message: "Failed to assign user role due to unknown error",
+        };
+      }
     }
   }
 );

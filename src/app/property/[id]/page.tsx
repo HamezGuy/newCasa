@@ -1,9 +1,11 @@
 import PropertyDetails from "@/components/property/PropertyDetails";
 import { PropertyImages } from "@/components/property/PropertyImages";
-import PropertyPageClient from "@/components/property/PropertyPageClient";
+import PropertyPageClient from "@/components/property/RealtorPropertyInfo";
 import { getProperties, getPropertyById } from "@/lib/data";
 import { isProduction } from "@/lib/utils/config";
+import { getUserRole } from "@/lib/utils/firebaseUtils";
 import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
+import { getAuth } from "firebase/auth"; // Import Firebase auth
 
 // Statically generate routes to listings
 export async function generateStaticParams() {
@@ -40,12 +42,30 @@ export default async function PropertyPage({
     return <span>Redirect to all listings page...</span>;
   }
 
+  // Get current authenticated user and their role
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+
+  let userRole = "user"; // Default to 'user'
+  if (currentUser) {
+    const uid = currentUser.uid;
+    userRole = await getUserRole(uid); // Get role based on UID
+  }
+
   return (
     <main>
-      <PropertyImages property={response} />
       <div className="container mx-auto max-w-5xl">
-        <PropertyDetails property={response} />
+        {/* Display property images */}
+        <PropertyImages property={response} />
+        
+        {/* Display property details */}
+        <PropertyDetails 
+          property={response} 
+          userRole={userRole} 
+          userUid={currentUser ? currentUser.uid : null} 
+        />
       </div>
+
       <div className="mt-8 border-t pt-6">
         {/* Load the client-side component for handling user role and messages */}
         <PropertyPageClient property={response} />
