@@ -6,22 +6,23 @@ import {
   Box,
   Card,
   Divider,
-  Flex,
   Group,
   SimpleGrid,
   Space,
   Stack,
   Text,
-  Title,
+  Title
 } from "@mantine/core";
 
 interface IPropertyDetailsProps {
   property: IParagonProperty;
+  userRole: string; // Assuming 'realtor' or 'client'
+  userUid?: string | null; // To track if the user is logged in
 }
 
-// Takes a property and displays a full summary of it...
+// Main PropertyDetails component displaying a full summary
 export default function PropertyDetails(props: IPropertyDetailsProps) {
-  const { property } = props;
+  const { property, userRole, userUid } = props;
 
   return (
     <>
@@ -48,10 +49,21 @@ export default function PropertyDetails(props: IPropertyDetailsProps) {
         <PropertySummary property={property} />
       </PropertySection>
 
-      {/* Property Features */}
+      {/* Property Features (reuse PropertySummary for simplicity) */}
       <PropertySection title="Features">
-        <PropertyFeatures property={property} />
+        <PropertySummary property={property} />
       </PropertySection>
+
+      {/* Documents and Realtor Information */}
+      {userUid && userRole === "realtor" ? (
+        <PropertySection title="Documents and Realtor Information">
+          <RealtorInformation property={property} />
+        </PropertySection>
+      ) : (
+        <Text>
+          You need to be a logged-in realtor to view additional property details.
+        </Text>
+      )}
 
       {/* Listing Information */}
       <PropertySection
@@ -67,72 +79,44 @@ export default function PropertyDetails(props: IPropertyDetailsProps) {
 // PRIVATE COMPONENTS
 //
 
-interface IPropertyHeaderProps {
-  property: IParagonProperty;
-}
-
-// Displays the header of the property summary
-// This is the address and price in large letters and some other info
-function PropertyHeader(props: IPropertyHeaderProps) {
-  const { property } = props;
-
-  const isForSale = true; // TODO: How do we detect that?
-  const sOpenHouse = ParagonPropertyUtils.getOpenHouseTime(property);
-  const estimatedMortgage = 3225; // TODO: How do we get this?
-
+// PropertySummary: Displays property summary information
+function PropertySummary({ property }: { property: IParagonProperty }) {
   return (
-    <Box py={10}>
-      {/* For Sale / Open House Badges */}
-      <Group>
-        {isForSale && (
-          <Badge color="green" size="lg">
-            For Sale
-          </Badge>
-        )}
-        {sOpenHouse && (
-          <Badge color="green" size="lg">
-            {sOpenHouse}
-          </Badge>
-        )}
-      </Group>
-
-      {/* Address on Left; Price/Mortgage on Right */}
-      <Space h={10} />
-      <Group justify="space-between">
-        <Stack gap={0}>
-          <Text fw={500} style={{ fontSize: "24px" }}>
-            {ParagonPropertyUtils.formatStreetAddress(property)}
-          </Text>
-          <Text fw={500} style={{ fontSize: "24px" }}>
-            {ParagonPropertyUtils.formatCityStateZip(property)}
-          </Text>
-        </Stack>
-
-        <Stack gap={0}>
-          <Text size="sm">
-            Est. Mortgage:
-            <Text span fw="bold">
-              &nbsp;{DisplayUtils.formatCurrency(estimatedMortgage)}
-            </Text>
-          </Text>
-          <Text fw={500} style={{ fontSize: "32px" }} color="green">
-            {DisplayUtils.formatCurrency(property.ListPrice)}
-          </Text>
-        </Stack>
-      </Group>
-    </Box>
+    <SimpleGrid cols={2}>
+      <LabelValueTextDisplay label="MLS #:" value={property.ListingId} />
+      <LabelValueTextDisplay label="Type:" value={property.PropertySubType} />
+      <LabelValueTextDisplay label="Year Built:" value={property.YearBuilt?.toString() ?? ""} />
+      <LabelValueTextDisplay
+        label="Estimated Taxes:"
+        value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
+      />
+      <LabelValueTextDisplay label="Subdivision:" value={property.SubdivisionName} />
+      <LabelValueTextDisplay label="Stories:" value={property.StoriesTotal?.toString()} />
+      <LabelValueTextDisplay label="Style:" value={property.ArchitecturalStyle?.join(", ")} />
+    </SimpleGrid>
   );
 }
 
-interface IPropertySummaryProps {
-  property: IParagonProperty;
+// ListingInformation: Displays listing agent and broker info
+function ListingInformation({ property }: { property: IParagonProperty }) {
+  return (
+    <Stack>
+      <LabelValueTextDisplay label="Listing Broker:" value={property.ListOfficeName} />
+      <LabelValueTextDisplay label="Listing Agent:" value={property.ListAgentFullName} />
+      <LabelValueTextDisplay label="Last Changed:" value={property.StatusChangeTimestamp} />
+      <Text>
+        Accuracy of information is not guaranteed and should be verified by the buyer if material.
+      </Text>
+    </Stack>
+  );
 }
 
+// PropertySection: A reusable section component
 function PropertySection({
   title,
   children,
 }: {
-  title: String;
+  title: string;
   children: React.ReactNode;
 }) {
   return (
@@ -146,41 +130,7 @@ function PropertySection({
   );
 }
 
-// Displays the "Property Summary" table...
-function PropertySummary({ property }: IPropertySummaryProps) {
-  return (
-    <>
-      <SimpleGrid cols={2}>
-        <LabelValueTextDisplay label="MLS #: " value={property.ListingId} />
-        <LabelValueTextDisplay
-          label="Type: "
-          value={property.PropertySubType}
-        />
-        <LabelValueTextDisplay
-          label="Year Built: "
-          value={property.YearBuilt ? property.YearBuilt.toString() : ""}
-        />
-        <LabelValueTextDisplay
-          label="Estimated Taxes: "
-          value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
-        />
-        <LabelValueTextDisplay
-          label="Subdivision: "
-          value={property.SubdivisionName}
-        />
-        <LabelValueTextDisplay
-          label="Stories: "
-          value={property.StoriesTotal?.toString()}
-        />
-        <LabelValueTextDisplay
-          label="Style: "
-          value={property.ArchitecturalStyle?.join(", ")}
-        />
-      </SimpleGrid>
-    </>
-  );
-}
-
+// PropertyStatus: Displays status information of the property
 interface IPropertyStatusProps {
   numBeds?: number;
   numBaths?: number;
@@ -189,7 +139,6 @@ interface IPropertyStatusProps {
   yearBuilt?: number;
 }
 
-// Displays status of property as a card with a colorful bottom border...
 function PropertyStatus(props: IPropertyStatusProps) {
   return (
     <Card
@@ -235,192 +184,74 @@ function PropertyStatus(props: IPropertyStatusProps) {
   );
 }
 
-function PropertyFeatures({ property }: { property: IParagonProperty }) {
-  return (
-    <>
-      <Flex gap={"md"} justify="space-evenly">
-        <Stack className="w-full">
-          <DetailsSubtitle>Listing Details</DetailsSubtitle>
-          <LabelValueTextDisplay label="C/T/V:" value={property.ListingId} />
-          <LabelValueTextDisplay
-            label="Municipality:"
-            value={property.City ?? ""}
-          />
-          <LabelValueTextDisplay
-            label="Status Detail:"
-            value={property.StandardStatus}
-          />
-          <LabelValueTextDisplay
-            label="Mailing City:"
-            value={property.PostalCity}
-          />
-          <LabelValueTextDisplay
-            label="County:"
-            value={property.CountyOrParish}
-          />
-
-          {/* <LabelValueTextDisplay
-            label="Class:"
-            value={"Single Family"}
-          /> */}
-          <LabelValueTextDisplay label="Type:" value={"Single Family"} />
-          {/* <LabelValueTextDisplay
-            label="Type of Property:"
-            value={""}
-          /> */}
-          <LabelValueTextDisplay
-            label="Items Excluded:"
-            value={property.Exclusions}
-          />
-          <LabelValueTextDisplay
-            label="Items Included:"
-            value={property.Inclusions}
-          />
-          <LabelValueTextDisplay
-            label="Year Built Source:"
-            value={property.YearBuiltSource}
-          />
-          <LabelValueTextDisplay
-            label="Year Built:"
-            value={property.YearBuilt?.toString() ?? "unknown"}
-          />
-          {/* <LabelValueTextDisplay
-            label="Above Grade price per sq. ft:"
-            value={property?.sq}
-          /> */}
-          <DetailsSubtitle>Exterior Features</DetailsSubtitle>
-          {/* <LabelValueTextDisplay label="Exterior " value={"Vinyl"} /> */}
-          <LabelValueTextDisplay
-            label="Exterior Features:"
-            value={property.ExteriorFeatures?.join(",")}
-          />
-          <DetailsSubtitle>Garage / Parking</DetailsSubtitle>
-          <LabelValueTextDisplay
-            label="Driveway:"
-            value={
-              property.ParkingFeatures?.includes("Paved") ? "Paved" : "Unpaved"
-            }
-          />
-          <LabelValueTextDisplay
-            label="Parking Features:"
-            value={property.ParkingFeatures?.join(", ")}
-          />
-          <DetailsSubtitle>Utilities</DetailsSubtitle>
-          <LabelValueTextDisplay
-            label="Fuel:"
-            value={
-              property.Heating?.includes("Natural Gas") ? "Natural Gas" : ""
-            }
-          />
-          <LabelValueTextDisplay
-            label="Heating Cooling:"
-            value={property.Heating?.join(",")}
-          />
-          {/* <LabelValueTextDisplay label="Water Waste:" value={property} /> */}
-          <DetailsSubtitle>Tax Info</DetailsSubtitle>
-          {/* <LabelValueTextDisplay label="Land Assessment:" value={property.LandAssessment} /> */}
-          <LabelValueTextDisplay
-            label="Improvements:"
-            value={property.Improvements}
-          />
-          <LabelValueTextDisplay
-            label="Total Assessment:"
-            value={property.TaxAssessedValue?.toString()}
-          />
-          <LabelValueTextDisplay
-            label="Assessment Year:"
-            value={property.Total_Assess_Year?.toString()}
-          />
-          <LabelValueTextDisplay
-            label="Net Taxes:"
-            value={property.TaxAnnualAmount?.toString()}
-          />
-          <LabelValueTextDisplay
-            label="Tax Year:"
-            value={property.TaxYear?.toString()}
-          />
-          <DetailsSubtitle>Buyer Broker Compensation</DetailsSubtitle>
-          <LabelValueTextDisplay
-            label="Compensation:"
-            value={property.BuyerAgencyCompensation?.toString()}
-          />
-          <LabelValueTextDisplay
-            label="Sub-Agency Compensation:"
-            value={property.SubAgencyCompensation}
-          />
-          {/* <LabelValueTextDisplay
-            label="Disclaimer:"
-            value={property.Disclaimer?.toString()}
-          />
-          <LabelValueTextDisplay
-            label="BrokerAttribContact:"
-            value={property.BrokerAttribContact?.toString()}
-          /> */}
-        </Stack>
-        <Stack className="w-full">
-          <DetailsSubtitle>Interior Features</DetailsSubtitle>
-          <LabelValueTextDisplay
-            label="Above Grade Finished Sq Ft:"
-            value={property.AboveGradeFinishedArea?.toString()}
-          />
-          {/* <LabelValueTextDisplay
-            label="Finished Sq Ft:"
-            value={property.FinishedSqFt}
-          /> */}
-          <LabelValueTextDisplay
-            label="Above Grade Finished Sq Ft:"
-            value={property.AboveGradeFinishedArea?.toString()}
-          />
-          <LabelValueTextDisplay
-            label="Above Grade Finished Sq Ft:"
-            value={property.AboveGradeFinishedArea?.toString()}
-          />
-
-          <LabelValueTextDisplay
-            label="Estimated Taxes: "
-            value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
-          />
-          <DetailsSubtitle>Lot Info</DetailsSubtitle>
-          <DetailsSubtitle>Location Info</DetailsSubtitle>
-        </Stack>
-      </Flex>
-    </>
-  );
-}
-
-function ListingInformation({ property }: { property: IParagonProperty }) {
+// RealtorInformation: Displays realtor-specific details
+function RealtorInformation({ property }: { property: IParagonProperty }) {
   return (
     <Stack>
-      <LabelValueTextDisplay
-        label="Listing Broker:"
-        value={property.ListOfficeName}
-      />
-      <LabelValueTextDisplay
-        label="Listing Agent:"
-        value={property.ListAgentFullName}
-      />
-      <LabelValueTextDisplay
-        label="Last Changed:"
-        value={property.StatusChangeTimestamp}
-      />
-      <Text>
-        Accuracy of information is not guaranteed and should be verified by
-        buyer if material
-      </Text>
+      <DetailsSubtitle>Documents Available</DetailsSubtitle>
+      {property.DocumentsAvailable && property.DocumentsAvailable.length > 0 ? (
+        <ul>
+          {property.DocumentsAvailable.map((document, index) => (
+            <li key={index}>{document}</li>
+          ))}
+        </ul>
+      ) : (
+        <Text>No documents available for this property.</Text>
+      )}
+
+      <DetailsSubtitle>Realtor Information</DetailsSubtitle>
+      <LabelValueTextDisplay label="Listing Agent:" value={property.ListAgentFullName} />
+      <LabelValueTextDisplay label="Listing Agent Email:" value={property.ListAgentEmail} />
     </Stack>
   );
 }
 
-// Displays a label in bold with a value next to it...
-function LabelValueTextDisplay(props: { label?: string; value?: string }) {
+// PropertyHeader: Displays the header section of the property
+function PropertyHeader({ property }: { property: IParagonProperty }) {
+  const isForSale = true;
+  const sOpenHouse = ParagonPropertyUtils.getOpenHouseTime(property);
+  const estimatedMortgage = 3225;
+
+  return (
+    <Box py={10}>
+      <Group>
+        {isForSale && <Badge color="green" size="lg">For Sale</Badge>}
+        {sOpenHouse && <Badge color="green" size="lg">{sOpenHouse}</Badge>}
+      </Group>
+      <Space h={10} />
+      <Group justify="space-between">
+        <Stack gap={0}>
+          <Text fw={500} style={{ fontSize: "24px" }}>
+            {ParagonPropertyUtils.formatStreetAddress(property)}
+          </Text>
+          <Text fw={500} style={{ fontSize: "24px" }}>
+            {ParagonPropertyUtils.formatCityStateZip(property)}
+          </Text>
+        </Stack>
+        <Stack gap={0}>
+          <Text size="sm">
+            Est. Mortgage: <Text span fw="bold">&nbsp;{DisplayUtils.formatCurrency(estimatedMortgage)}</Text>
+          </Text>
+          <Text fw={500} style={{ fontSize: "32px" }} color="green">
+            {DisplayUtils.formatCurrency(property.ListPrice)}
+          </Text>
+        </Stack>
+      </Group>
+    </Box>
+  );
+}
+
+// LabelValueTextDisplay: General component for displaying a label and value
+function LabelValueTextDisplay({ label, value }: { label?: string; value?: string }) {
   return (
     <Group gap={0}>
-      <Text fw="bold">{props.label ?? ""}</Text>
-      <Text pl={5}>{props.value ?? ""}</Text>
+      <Text fw="bold">{label ?? ""}</Text>
+      <Text pl={5}>{value ?? ""}</Text>
     </Group>
   );
 }
 
+// DetailsSubtitle: Displays subtitles for sections
 function DetailsSubtitle({ children }: { children: React.ReactNode }) {
   return (
     <Title order={3} className="text-lg">

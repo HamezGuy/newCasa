@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "outDir": "lib",
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2017",
+    "esModuleInterop": true, // For proper ES module compatibility
+    "moduleResolution": "node", 
+    "baseUrl": ".", // Allows for relative paths
+    "paths": {
+      "@/config/*": ["src/config/*"], // Define alias for config
+      "@/lib/utils/*": ["src/lib/utils/*"] // Correctly point to lib/utils for firebaseUtils
+    }
+  },
+  "compileOnSave": true,
+  "include": [
+    "src", // Keep the source directory
+    "functions" // Add other directories where TypeScript files are present
+  ]
+}

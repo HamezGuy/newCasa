@@ -15,6 +15,8 @@ export default interface IParagonMedia {
   ShortDescription?: any,
   Create_Dt?: any,
   Duration?: any,
+  ListAgentEmail?: string; 
+  ListAgentPreferredPhone?: string;
 }
 
 export type ParagonPropertyWithMedia = IParagonProperty & { Media?: IParagonMedia[] };
