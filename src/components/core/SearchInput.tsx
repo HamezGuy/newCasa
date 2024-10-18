@@ -1,10 +1,16 @@
-"use client";
+'use client';
 
-import { Button, TextInput } from "@mantine/core";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useRef } from "react";
+import { Button, MantineSize, TextInput } from '@mantine/core';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useRef } from 'react';
 
-export default function SearchInput({ isLoading }: { isLoading?: boolean }) {
+export default function SearchInput({
+  isLoading,
+  size = 'md',
+}: {
+  isLoading?: boolean;
+  size?: MantineSize;
+}) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const searchInputRef = useRef(null);
@@ -17,9 +23,9 @@ export default function SearchInput({ isLoading }: { isLoading?: boolean }) {
       const params = new URLSearchParams(searchParams.toString());
 
       if (input.value) {
-        params.set("s", input.value);
+        params.set('s', input.value);
       } else {
-        params.delete("s");
+        params.delete('s');
       }
 
       router.replace(`/search?${params.toString()}`);
@@ -29,21 +35,22 @@ export default function SearchInput({ isLoading }: { isLoading?: boolean }) {
   return (
     <TextInput
       ref={searchInputRef}
-      defaultValue={searchParams.get("s")?.toString()}
+      defaultValue={searchParams.get('s')?.toString()}
       placeholder="City, Zip, Neighborhood, Address"
       className="flex-grow"
-      size="md"
+      size={size}
+      miw="280"
+      maw="500"
       type="text"
       rightSectionWidth="auto"
       data-1p-ignore
-      onKeyUp={(e) => e.key == "Enter" && handleSearch()}
+      onKeyUp={(e) => e.key === 'Enter' && handleSearch()}
       rightSection={
         <Button
           variant="filled"
-          color="indigo"
           loading={isLoading}
           onClick={handleSearch}
-          size="md"
+          size={size}
         >
           Search
         </Button>

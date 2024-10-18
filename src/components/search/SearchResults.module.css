@@ -1,0 +1,13 @@
+.searchResults {
+  height: auto;
+  @media (min-width: 48em) {
+    height: calc(100vh - 175px);
+  }
+}
+
+.searchResultsMap {
+  height: 300px;
+  @media (min-width: 48em) {
+    height: calc(100vh - 175px);
+  }
+}

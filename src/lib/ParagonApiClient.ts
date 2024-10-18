@@ -1,14 +1,26 @@
+<<<<<<< HEAD
+import IParagonMedia, { ParagonPropertyWithMedia } from '@/types/IParagonMedia';
+import IParagonProperty from '@/types/IParagonProperty';
+import md5 from 'crypto-js/md5';
+import { existsSync } from 'fs';
+import getConfig from 'next/config';
+import fs from 'node:fs/promises';
+import path from 'path';
+import * as url from 'url';
+import { geocodeProperties } from './GoogleMaps';
+=======
 import IParagonMedia, { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 import IParagonProperty from "@/types/IParagonProperty";
 import md5 from "crypto-js/md5";
 import getConfig from "next/config";
 import path from "path";
 import * as url from "url";
+>>>>>>> main
 
 const { serverRuntimeConfig } = getConfig();
 
 interface ITokenResponse {
-  token_type: "Bearer";
+  token_type: 'Bearer';
   access_token: string;
   expires_in: number;
 }
@@ -19,9 +31,9 @@ interface ILocalToken {
 }
 
 export interface IOdataResponse<T> {
-  "@odata.context": string;
-  "@odata.nextLink"?: string;
-  "@odata.count"?: number;
+  '@odata.context': string;
+  '@odata.nextLink'?: string;
+  '@odata.count'?: number;
   value: T[];
 }
 
@@ -83,8 +95,8 @@ export class ParagonApiClient {
     }
 
     const body = new url.URLSearchParams();
-    body.append("grant_type", "client_credentials");
-    body.append("scope", "OData");
+    body.append('grant_type', 'client_credentials');
+    body.append('scope', 'OData');
 
     const token = Buffer.from(`${this.__clientId}:${this.__clientSecret}`).toString("base64");
     const headers: HeadersInit = {
@@ -94,7 +106,7 @@ export class ParagonApiClient {
     };
 
     const options: RequestInit = {
-      method: "POST",
+      method: 'POST',
       headers: headers,
       body: body.toString(), 
       cache: "no-store",
@@ -126,11 +138,11 @@ export class ParagonApiClient {
   private async getFollowNext<T>(url: string): Promise<IOdataResponse<T>> {
     const response = await this.get<T>(url);
 
-    if (response["@odata.nextLink"]) {
+    if (response['@odata.nextLink']) {
       response.value = response.value.concat(
-        (await this.getFollowNext<T>(response["@odata.nextLink"])).value
+        (await this.getFollowNext<T>(response['@odata.nextLink'])).value
       );
-      delete response["@odata.nextLink"];
+      delete response['@odata.nextLink'];
     }
 
     return response;
@@ -151,36 +163,36 @@ export class ParagonApiClient {
   }
 
   private getMediaUrl(top: number, skip?: number, filter?: string): string {
-    const topStr = top ? `&$top=${top}` : "";
-    const skipStr = skip ? `&$skip=${skip}` : "";
-    const filterStr = filter ? `&$filter=${filter}` : "";
+    const topStr = top ? `&$top=${top}` : '';
+    const skipStr = skip ? `&$skip=${skip}` : '';
+    const filterStr = filter ? `&$filter=${filter}` : '';
 
     return `${this.__baseUrl}/Media?$select=ResourceRecordKey,MediaURL,Order&$count=true${topStr}${skipStr}${filterStr}`;
   }
 
   // Generate filter strings for media requests to avoid URL length issues
   private generateMediaFilters(listingKeys: string[]): string[] {
-    const baseURL = this.getMediaUrl(9999999, 9999999, "1");
+    const baseURL = this.getMediaUrl(9999999, 9999999, '1');
     const maxURLLength = 2048;
 
     let mediaFilters: string[] = [];
-    let accFilter = "";
+    let accFilter = '';
 
     const getEncodedLength = (str: string) => url.format(url.parse(str, true)).length;
 
     const generateFilter = (id: string, isFirst: boolean = false) => {
-      const prefix = isFirst ? "" : " or ";
+      const prefix = isFirst ? '' : ' or ';
       return `${prefix}ResourceRecordKey eq '${id}'`;
     };
 
     const pushNewFilter = (filter: string) => {
-      if (filter !== "") {
+      if (filter !== '') {
         mediaFilters.push(filter);
       }
     };
 
     for (const id of listingKeys) {
-      const currentFilter = generateFilter(id, accFilter === "");
+      const currentFilter = generateFilter(id, accFilter === '');
       const currentURL = `${baseURL}${accFilter}${currentFilter}`;
 
       if (getEncodedLength(currentURL) <= maxURLLength) {
@@ -221,7 +233,7 @@ export class ParagonApiClient {
         currentQueries.map(async (filter) => {
           const url = this.getMediaUrl(this.__maxPageSize, undefined, filter);
           const response = await this.get<IParagonMedia>(url);
-          const count = response["@odata.count"];
+          const count = response['@odata.count'];
 
           if (count && count > this.__maxPageSize) {
             response.value = response.value.concat(
@@ -282,17 +294,17 @@ export class ParagonApiClient {
   }
 
   public async searchByStreetName(): Promise<{
-    "@odata.context": string;
-    "@odata.nextLink": string;
+    '@odata.context': string;
+    '@odata.nextLink': string;
     value: IParagonProperty[];
   }> {
     const url = `${this.__baseUrl}/Property?$filter=contains(StreetName, 'Kenosha')`;
 
     const headers: HeadersInit = {};
-    headers["Accept"] = "application/json";
-    headers["Authorization"] = await this.__getAuthHeaderValue();
+    headers['Accept'] = 'application/json';
+    headers['Authorization'] = await this.__getAuthHeaderValue();
 
-    const options: RequestInit = { method: "GET", headers: headers };
+    const options: RequestInit = { method: 'GET', headers: headers };
     const response = await fetch(url, options);
 
     return await response.json();
@@ -300,12 +312,12 @@ export class ParagonApiClient {
 
   public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
     const url = this.getPropertyUrl(top ? top : this.__maxPageSize);
-    console.log("Called getAllProperty. URL:", url);
+    console.log('Called getAllProperty. URL:', url);
 
     const response = await this.get<IParagonProperty>(url);
 
     if (!top) {
-      const count = response["@odata.count"];
+      const count = response['@odata.count'];
 
       if (count && count > this.__maxPageSize) {
         return response.value.concat(
@@ -324,16 +336,36 @@ export class ParagonApiClient {
   public async getAllPropertyWithMedia(
     top?: number,
     limit: number = 0
-  ): Promise<any> {
-    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(top);
-    return await this.populatePropertyMedia(properties, limit);
+  ): Promise<IParagonProperty[]> {
+    if (process.env.MOCK_DATA && process.env.MOCK_DATA === 'true') {
+      console.log('Using mock data for getAllPropertyWithMedia');
+      const properties_mock = require('../../data/properties.json');
+      // await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      return await geocodeProperties(properties_mock.value);
+    }
+
+    const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(
+      top
+    );
+
+    const [withMedia, withGeocoding] = await Promise.all([
+      this.populatePropertyMedia(properties, limit),
+      geocodeProperties(properties),
+    ]);
+
+    return withMedia.map((property, index) => {
+      property.Latitude = withGeocoding[index].Latitude;
+      property.Longitude = withGeocoding[index].Longitude;
+      return property;
+    });
   }
 }
 
-const RESO_BASE_URL = process.env.RESO_BASE_URL ?? "";
-const RESO_TOKEN_URL = process.env.RESO_TOKEN_URL ?? "";
-const RESO_CLIENT_ID = process.env.RESO_CLIENT_ID ?? "";
-const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? "";
+const RESO_BASE_URL = process.env.RESO_BASE_URL ?? '';
+const RESO_TOKEN_URL = process.env.RESO_TOKEN_URL ?? '';
+const RESO_CLIENT_ID = process.env.RESO_CLIENT_ID ?? '';
+const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? '';
 
 const paragonApiClient = new ParagonApiClient(
   RESO_BASE_URL,

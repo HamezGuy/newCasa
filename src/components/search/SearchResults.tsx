@@ -1,12 +1,25 @@
-import { getPropertiesBySearchTerm } from "@/lib/data";
-import PropertyList from "../paragon/PropertyList";
+import { getPropertiesByQuery, searchQuery } from '@/lib/data';
+import PropertyList from '../paragon/PropertyList';
+import style from './SearchResults.module.css';
+import { ResultsMap } from './SearchResultsMap';
 
-export async function SearchResults({ query }: { query: string }) {
-  const properties = await getPropertiesBySearchTerm(query);
+export async function SearchResults({ query }: { query: searchQuery }) {
+  const properties = await getPropertiesByQuery(query);
 
-  if (!properties) return <div>Nothing found</div>;
+  if (!properties || properties.length === 0) return <div>Nothing found</div>;
 
-  return <PropertyList properties={properties} />;
+  return (
+    <div className={`${style.searchResults} md:flex`}>
+      <div
+        className={`${style.searchResultsMap} relative flex-auto md:basis-7/12`}
+      >
+        <ResultsMap properties={properties} />
+      </div>
+      <div className="basis-5/12 overflow-y-scroll">
+        <PropertyList properties={properties} reduced={true} className="p-4" />
+      </div>
+    </div>
+  );
 }
 
 export function SearchResultsLoading() {

@@ -1,26 +1,27 @@
-import SearchInput from "@/components/core/SearchInput";
+import SearchFilters from '@/components/core/SearchFilters';
+import SearchInput from '@/components/core/SearchInput';
 import {
   SearchResults,
   SearchResultsLoading,
-} from "@/components/search/SearchResults";
-import { Text } from "@mantine/core";
-import { Suspense } from "react";
+} from '@/components/search/SearchResults';
+import { searchQuery } from '@/lib/data';
+import { Suspense } from 'react';
 
 export default async function Search({
   searchParams,
 }: {
-  searchParams?: { s?: string };
+  searchParams?: searchQuery;
 }) {
   return (
     <main>
-      <div className="flex flex-row gap-3 w-full max-w-xl">
-        <SearchInput />
+      <div className="flex flex-row flex-wrap gap-3 w-full items-center py-2 px-4">
+        <SearchInput size="sm" />
+        <SearchFilters />
       </div>
-      <Text size="sm">(Only Zip Code search works right now)</Text>
 
       {searchParams?.s && (
         <Suspense fallback={<SearchResultsLoading />}>
-          <SearchResults query={searchParams.s} />
+          <SearchResults query={searchParams} />
         </Suspense>
       )}
     </main>

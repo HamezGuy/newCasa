@@ -1,22 +1,19 @@
-import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
-import IParagonProperty from "@/types/IParagonProperty";
-import paragonApiClient from "./ParagonApiClient";
+import { ParagonPropertyWithMedia } from '@/types/IParagonMedia';
+import IParagonProperty from '@/types/IParagonProperty';
+import paragonApiClient from './ParagonApiClient';
 
-// Adjustable limit for the number of properties to display
-const PROPERTY_LIMIT = 12; //TODO move this into configiration 
+export interface searchQuery {
+  s: string;
+  rent?: string;
+  type?: string[];
+  maxPrice?: string;
+  minPrice?: string;
+}
 
 export async function getPropertyById(
   id: string
 ): Promise<ParagonPropertyWithMedia> {
-  if (process.env.MOCK_DATA && process.env.MOCK_DATA === "true") {
-    console.log("Using mock data for getPropertyById");
-    const properties_mock = require("../../data/properties.json");
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    return properties_mock.value[0];
-  }
-
-  console.log("Fetching real property data by ID from API...");
+  console.log('Fetching real property data by ID from API...');
   const property = await paragonApiClient.getPropertyById(id);
 
   if (!property) {
@@ -30,46 +27,76 @@ export async function getPropertyById(
 export async function getPropertiesBySearchTerm(
   searchTerm: string
 ): Promise<IParagonProperty[]> {
-  console.log("Fetching properties for search term:", searchTerm);
+  console.log('Fetching properties for search term:', searchTerm);
 
-  let filteredProperties: IParagonProperty[] = [];
-  let page = 1;
-  let result: IParagonProperty[] = [];
+  const result = await paragonApiClient.getAllPropertyWithMedia();
 
-  // Keep fetching and filtering until we have enough properties
-  while (filteredProperties.length < PROPERTY_LIMIT) {
-    result = await paragonApiClient.getAllPropertyWithMedia(undefined, page);
+  // Filter the properties by the search term
+  const filteredProperties = result.filter(
+    (property: IParagonProperty) =>
+      property.PostalCode === searchTerm ||
+      (property.StreetName &&
+        property.StreetName.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
-    if (result.length === 0) {
-      // No more properties available from API
-      console.log("No more properties available.");
-      break;
+  return filteredProperties;
+}
+
+export async function getPropertiesByQuery(
+  query: searchQuery
+): Promise<IParagonProperty[]> {
+  const result = await paragonApiClient.getAllPropertyWithMedia();
+
+  const filteredProperties = result.filter((property) => {
+    // Filter by Sale or Rent
+    if (
+      (query.rent && !property.PropertyType.toLowerCase().includes('lease')) ||
+      (!query.rent && property.PropertyType.toLowerCase().includes('lease'))
+    ) {
+      return false;
     }
 
-    // Filter the properties by the search term
-    const filteredPage = result.filter(
-      (property: IParagonProperty) =>
-        property.PostalCode === searchTerm ||
-        (property.StreetName && property.StreetName.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    // TODO: Filter by Type
+    if (
+      query.type &&
+      query.type.length > 0 &&
+      property.PropertySubType &&
+      !query.type.includes(property.PropertySubType.toLowerCase())
+    ) {
+      return false;
+    }
 
-    // Add filtered properties to the final result
-    filteredProperties = filteredProperties.concat(filteredPage);
+    // Filter by Price
+    if (
+      (query.minPrice && parseFloat(query.minPrice) > property.ListPrice) ||
+      (query.maxPrice && parseFloat(query.maxPrice) < property.ListPrice)
+    ) {
+      return false;
+    }
 
-    page++; // Move to the next page for the next iteration
-  }
+    // Filter by search query
+    if (
+      query.s &&
+      property.PostalCode !== query.s &&
+      property.StreetName &&
+      !property.StreetName.toLowerCase().includes(query.s.toLowerCase())
+    ) {
+      return false;
+    }
 
-  // Ensure only PROPERTY_LIMIT properties are returned
-  return filteredProperties.slice(0, PROPERTY_LIMIT);
+    return true;
+  });
+
+  return filteredProperties;
 }
 
 export const getZipCodeTitle = (zipCode: string) => {
   const zipCodeTitles: Record<string, string> = {
-    "53703": "Middleton, WI", //TODO have this only in configuration //note: currently this the title for what's in configuraiton...
-    "53715": "Madison, WI",
+    '53703': 'Middleton, WI', //TODO have this only in configuration //note: currently this the title for what's in configuraiton...
+    '53715': 'Madison, WI',
   };
 
-  return zipCodeTitles[zipCode] || "Unknown";
+  return zipCodeTitles[zipCode] || 'Unknown';
 };
 
 export async function getPropertiesByZipCode(): Promise<
@@ -79,26 +106,9 @@ export async function getPropertiesByZipCode(): Promise<
     properties: IParagonProperty[];
   }[]
 > {
-  console.log("Fetching properties by zip code");
+  console.log('Fetching properties by zip code');
 
-  let filteredProperties: IParagonProperty[] = [];
-  let page = 1;
-  let result: IParagonProperty[] = [];
-
-  // Fetch and filter properties until PROPERTY_LIMIT is reached
-  while (filteredProperties.length < PROPERTY_LIMIT) {
-    result = await paragonApiClient.getAllPropertyWithMedia(undefined, page);
-
-    if (result.length === 0) {
-      // No more properties available from API
-      console.log("No more properties available.");
-      break;
-    }
-
-    filteredProperties = filteredProperties.concat(result);
-
-    page++; // Move to the next page
-  }
+  const filteredProperties = await paragonApiClient.getAllPropertyWithMedia();
 
   // Group the properties by zip code
   const propertiesByZipCode: Record<
@@ -113,55 +123,40 @@ export async function getPropertiesByZipCode(): Promise<
   filteredProperties.forEach((property: IParagonProperty) => {
     if (!propertiesByZipCode[property.PostalCode]) {
       propertiesByZipCode[property.PostalCode] = {
-        zipCode: property.PostalCode ?? "",
-        zipCodeTitle: getZipCodeTitle(property.PostalCode) ?? "",
+        zipCode: property.PostalCode ?? '',
+        zipCodeTitle: getZipCodeTitle(property.PostalCode) ?? '',
         properties: [],
       };
     }
     propertiesByZipCode[property.PostalCode].properties.push(property);
   });
 
-  // Flatten the grouped properties and return up to PROPERTY_LIMIT properties
-  const limitedProperties = Object.values(propertiesByZipCode)
-    .flatMap(group => group.properties)
-    .slice(0, PROPERTY_LIMIT);
+  // What's the point of this code?
+  // // Flatten the grouped properties and return up to PROPERTY_LIMIT properties
+  // const limitedProperties = Object.values(propertiesByZipCode)
+  //   .flatMap((group) => group.properties)
+  //   .slice(0, PROPERTY_LIMIT);
 
-  console.log(`Returning ${limitedProperties.length} properties with the limit applied`);
+  // console.log(
+  //   `Returning ${limitedProperties.length} properties with the limit applied`
+  // );
 
   return Object.values(
     Object.fromEntries(
       Object.entries(propertiesByZipCode).map(([zip, group]) => [
         zip,
-        { ...group, properties: group.properties.slice(0, PROPERTY_LIMIT) },
+        { ...group, properties: group.properties },
       ])
     )
   );
 }
 
 export async function getProperties(): Promise<IParagonProperty[]> {
-  if (process.env.MOCK_DATA && process.env.MOCK_DATA === "true") {
-    console.log("Using mock data for getProperties");
-    const properties_mock = require("../../data/properties.json");
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    console.log("Returning mock data for properties");
-
-    return properties_mock.value;
-  }
-
-  console.log("Fetching real properties from API...");
-  let allProperties: IParagonProperty[] = [];
-  let page = 1;
-  let result: IParagonProperty[] = [];
-
   // Fetch properties with pagination
-  do {
-    result = await paragonApiClient.getAllPropertyWithMedia(undefined, page);
-    allProperties = allProperties.concat(result);
-    page++;
-  } while (result.length > 0);
+  const allProperties = await paragonApiClient.getAllPropertyWithMedia();
 
   if (allProperties.length === 0) {
-    console.warn("No properties found");
+    console.warn('No properties found');
     return [];
   }
 
