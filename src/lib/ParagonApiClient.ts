@@ -4,6 +4,7 @@ import md5 from 'crypto-js/md5';
 import getConfig from 'next/config';
 import path from 'path';
 import * as url from 'url';
+import { geocodeProperties } from './GoogleMaps';
 
 const { serverRuntimeConfig } = getConfig();
 
