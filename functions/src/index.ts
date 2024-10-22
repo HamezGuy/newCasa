@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions"; // Use v1 for compatibility
 import nodemailer from "nodemailer";
 import twilio from "twilio";
 
@@ -7,68 +7,65 @@ import twilio from "twilio";
 admin.initializeApp();
 const db = admin.firestore(); // Firestore instance
 
-// Retrieve Twilio credentials safely with fallback
-const twilioSid =
-  functions.config().twilio?.sid || process.env.TWILIO_ACCOUNT_SID;
-const twilioAuthToken =
-  functions.config().twilio?.token || process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber =
-  functions.config().twilio?.phone || process.env.TWILIO_PHONE_NUMBER;
-
-// Initialize Twilio client (ensure credentials exist)
-if (!twilioSid || !twilioAuthToken) {
-  throw new Error("Twilio credentials are missing.");
-}
-const twilioClient = twilio(twilioSid, twilioAuthToken);
-
-// Retrieve email credentials safely with fallback
-const emailUser =
-  functions.config().email?.user || process.env.EMAIL_USER;
-const emailPass =
-  functions.config().email?.pass || process.env.EMAIL_PASS;
-
-// Initialize Nodemailer (ensure credentials exist)
-if (!emailUser || !emailPass) {
-  throw new Error("Email credentials are missing.");
-}
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: emailUser,
-    pass: emailPass,
-  },
-});
-
-// Define the type for incoming data
-interface MessageData {
-  message: string;
-  clientEmail: string;
-  propertyId: string;
-  clientId: string;
-  realtorEmail: string;
-  realtorPhoneNumber: string;
+/**
+ * Helper function to get environment variables or Firebase secrets
+ * @param {string} name - The name of the environment variable.
+ * @param {string} [fallback]  value if environment variable is missing.
+ * @return {string} - The value of the environment variable or fallback.
+ * @throws Will throw an error if the environment variable is not found.
+ */
+function getEnvVar(name: string, fallback?: string): string {
+  const value = process.env[name];
+  if (value) return value;
+  if (fallback) return fallback;
+  throw new Error(`Environment variable ${name} is missing.`);
 }
 
 // Cloud function to send a message to the realtor
 export const sendMessageToRealtor = functions.https.onCall(
-  async (data) => {
-    const {
-      message,
-      clientEmail,
-      propertyId,
-      clientId,
-      realtorEmail,
-      realtorPhoneNumber,
-    } = data.data as MessageData;
+  async (
+    request: functions.https.CallableRequest<{
+      message: string;
+      clientEmail: string;
+      propertyId: string;
+      clientId: string;
+    }>
+  ) => {
+    // Access secrets or fallback to environment variables
+    const twilioSid = getEnvVar("TWILIO_ACCOUNT_SID");
+    const twilioAuthToken = getEnvVar("TWILIO_AUTH_TOKEN");
+    const twilioPhoneNumber = getEnvVar("TWILIO_PHONE_NUMBER");
+    const emailUser = getEnvVar("EMAIL_USER");
+    const emailPass = getEnvVar("EMAIL_PASS");
+    const realtorEmail = getEnvVar("REALTOR_EMAIL");
+    const realtorPhoneNumber = getEnvVar("REALTOR_PHONE_NUMBER");
 
-    console.log("Message received from frontend:", {
-      message,
-      clientEmail,
-      propertyId,
-      clientId,
-      realtorEmail,
-      realtorPhoneNumber,
+    // Initialize Twilio client
+    if (!twilioSid || !twilioAuthToken) {
+      throw new Error("Twilio credentials are missing.");
+    }
+    const twilioClient = twilio(twilioSid, twilioAuthToken);
+
+    // Initialize Nodemailer
+    if (!emailUser || !emailPass) {
+      throw new Error("Email credentials are missing.");
+    }
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: emailUser,
+        pass: emailPass,
+      },
     });
+
+    // Extract the data from the request
+    const {message, clientEmail, propertyId, clientId} = request.data;
+
+    console.log(
+      "Message received from frontend:",
+      {message, clientEmail, propertyId, clientId},
+      {realtorEmail, realtorPhoneNumber}
+    );
 
     // Store the message in Firestore
     try {
@@ -82,16 +79,15 @@ export const sendMessageToRealtor = functions.https.onCall(
     } catch (error) {
       if (error instanceof Error) {
         console.error(
-          "Error storing message in Firestore:", error.message
+          "Error storing message in Firestore:",
+          error.message
         );
         throw new functions.https.HttpsError(
           "internal",
           `Failed to store message: ${error.message}`
         );
       } else {
-        console.error(
-          "Unknown error storing message in Firestore:", error
-        );
+        console.error("Unknown error storing message in Firestore:", error);
         throw new functions.https.HttpsError(
           "internal",
           "Failed to store message due to unknown error"
@@ -102,17 +98,15 @@ export const sendMessageToRealtor = functions.https.onCall(
     // Send SMS via Twilio using the realtor's phone number
     try {
       await twilioClient.messages.create({
-        body: `Message regarding Property ID: ${propertyId}\nMessage: 
-        ${message}`,
-        from: twilioPhoneNumber, // Use the safely fetched phone number
+        body: `Message regarding Property ID: ${propertyId}\n` +
+              `Message: ${message}`,
+        from: twilioPhoneNumber,
         to: realtorPhoneNumber,
       });
       console.log("SMS sent successfully");
     } catch (error) {
       if (error instanceof Error) {
-        console.error(
-          "Failed to send SMS:", error.message
-        );
+        console.error("Failed to send SMS:", error.message);
         throw new functions.https.HttpsError(
           "internal",
           `Failed to send SMS: ${error.message}`
@@ -130,8 +124,8 @@ export const sendMessageToRealtor = functions.https.onCall(
     const mailOptions = {
       from: emailUser,
       to: realtorEmail,
-      subject: `New Message regarding Property ID: ${propertyId} 
-        from ${clientEmail}`,
+      subject: `New Message regarding Property ID: ${propertyId} ` +
+               `from ${clientEmail}`,
       text: message,
     };
 
@@ -165,18 +159,16 @@ export const sendMessageToRealtor = functions.https.onCall(
 // Function to handle incoming Twilio SMS messages
 export const handleIncomingSms = functions.https.onRequest(
   async (req, res) => {
-    const twiml = new twilio.twiml.MessagingResponse();
     const fromNumber = req.body.From;
     const messageBody = req.body.Body;
 
     console.log("Incoming message from:", fromNumber);
     console.log("Message body:", messageBody);
 
-    // Look up the clientId based on the realtor's phone number
     let clientId: string | null = null;
     const realtorQuery = await db
       .collection("clients")
-      .where("phoneNumber", "==", fromNumber) // Match realtor's phone number
+      .where("phoneNumber", "==", fromNumber)
       .limit(1)
       .get();
 
@@ -190,7 +182,6 @@ export const handleIncomingSms = functions.https.onRequest(
       return;
     }
 
-    // Store the incoming message in Firestore under the user's messages
     try {
       await db.collection("messages").add({
         clientId,
@@ -201,25 +192,17 @@ export const handleIncomingSms = functions.https.onRequest(
       console.log("Message stored in Firestore");
     } catch (error) {
       if (error instanceof Error) {
-        console.error(
-          "Error storing message in Firestore:", error.message
-        );
+        console.error("Error storing message in Firestore:", error.message);
         res.status(500).send(`Failed to store message: ${error.message}`);
       } else {
-        console.error(
-          "Unknown error storing message in Firestore:", error
-        );
-        res.status(500).send(
-          "Failed to store message due to unknown error"
-        );
+        console.error("Unknown error storing message in Firestore:", error);
+        res.status(500).send("Failed to store message due to unknown error");
       }
       return;
     }
 
-    // Respond to the sender via Twilio
-    twiml.message("Thanks for your message! We will get back to you soon.");
     res.writeHead(200, {"Content-Type": "text/xml"});
-    res.end(twiml.toString());
+    res.end("Thanks for your message! We will get back to you soon.");
   }
 );
 
@@ -235,19 +218,14 @@ export const testFirestoreConnection = functions.https.onRequest(
       res.status(200).send("Connected to Firestore. Document added.");
     } catch (error) {
       if (error instanceof Error) {
-        console.error(
-          "Error adding document to Firestore:", error.message
-        );
+        console.error("Error adding document to Firestore:", error.message);
         res.status(500).send(
           `Failed to connect to Firestore: ${error.message}`
         );
       } else {
-        console.error(
-          "Unknown error adding document to Firestore:", error
-        );
+        console.error("Unknown error adding document to Firestore:", error);
         res.status(500).send(
-          "Failed to connect to Firestore due to unknown error"
-        );
+          "Failed to connect to Firestore due to unknown error");
       }
     }
   }
@@ -271,7 +249,6 @@ export const assignUserRole = functions.https.onCall(
     }
 
     try {
-      // Save user data to Firestore
       await db.collection("users").doc(uid).set({
         displayName: displayName || "No Name",
         email,
