@@ -25,6 +25,7 @@
     "nodemailer": "^6.9.15",
     "react": "^18",
     "react-dom": "^18",
+    "twilio": "^5.3.4",
     "url": "^0.11.0"
   },
   "devDependencies": {
