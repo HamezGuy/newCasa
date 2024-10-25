@@ -75,10 +75,6 @@ export default function PropertyDetails(props: IPropertyDetailsProps) {
   );
 }
 
-//
-// PRIVATE COMPONENTS
-//
-
 // PropertySummary: Displays property summary information
 function PropertySummary({ property }: { property: IParagonProperty }) {
   return (
@@ -189,15 +185,9 @@ function RealtorInformation({ property }: { property: IParagonProperty }) {
   return (
     <Stack>
       <DetailsSubtitle>Documents Available</DetailsSubtitle>
-      {property.DocumentsAvailable && property.DocumentsAvailable.length > 0 ? (
-        <ul>
-          {property.DocumentsAvailable.map((document, index) => (
-            <li key={index}>{document}</li>
-          ))}
-        </ul>
-      ) : (
-        <Text>No documents available for this property.</Text>
-      )}
+      <a href="/RealtorDocument.pdf" target="_blank" rel="noopener noreferrer">
+        Realtor Document (PDF)
+      </a>
 
       <DetailsSubtitle>Realtor Information</DetailsSubtitle>
       <LabelValueTextDisplay label="Listing Agent:" value={property.ListAgentFullName} />
@@ -205,6 +195,7 @@ function RealtorInformation({ property }: { property: IParagonProperty }) {
     </Stack>
   );
 }
+
 
 // PropertyHeader: Displays the header section of the property
 function PropertyHeader({ property }: { property: IParagonProperty }) {

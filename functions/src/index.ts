@@ -78,10 +78,7 @@ export const sendMessageToRealtor = functions.https.onCall(
       console.log("Message stored in Firestore");
     } catch (error) {
       if (error instanceof Error) {
-        console.error(
-          "Error storing message in Firestore:",
-          error.message
-        );
+        console.error("Error storing message in Firestore:", error.message);
         throw new functions.https.HttpsError(
           "internal",
           `Failed to store message: ${error.message}`
@@ -98,8 +95,8 @@ export const sendMessageToRealtor = functions.https.onCall(
     // Send SMS via Twilio using the realtor's phone number
     try {
       await twilioClient.messages.create({
-        body: `Message regarding Property ID: ${propertyId}\n` +
-              `Message: ${message}`,
+        body: `Message regarding Property ID: 
+        ${propertyId}\nMessage: ${message}`,
         from: twilioPhoneNumber,
         to: realtorPhoneNumber,
       });
@@ -124,8 +121,8 @@ export const sendMessageToRealtor = functions.https.onCall(
     const mailOptions = {
       from: emailUser,
       to: realtorEmail,
-      subject: `New Message regarding Property ID: ${propertyId} ` +
-               `from ${clientEmail}`,
+      subject: `New Message regarding Property ID:
+       ${propertyId} from ${clientEmail}`,
       text: message,
     };
 
@@ -225,7 +222,8 @@ export const testFirestoreConnection = functions.https.onRequest(
       } else {
         console.error("Unknown error adding document to Firestore:", error);
         res.status(500).send(
-          "Failed to connect to Firestore due to unknown error");
+          "Failed to connect to Firestore due to unknown error"
+        );
       }
     }
   }
@@ -233,47 +231,43 @@ export const testFirestoreConnection = functions.https.onRequest(
 
 // Cloud function to assign a user role
 export const assignUserRole = functions.https.onCall(
-  async (request: functions.https.CallableRequest<{
-    uid: string;
-    displayName: string;
-    email: string;
-    role: string;
-  }>) => {
-    const {uid, displayName, email, role} = request.data;
+  async (
+    request: functions.https.CallableRequest<{ uid: string; role?: string }>
+  ) => {
+    const {uid, role = "realtor"} = request.data;
 
-    if (!uid || !email || !role) {
+    if (!uid) {
       return {
         success: false,
-        message: "Missing required fields: uid, email, or role.",
+        message: "Missing required field: uid.",
       };
     }
 
     try {
-      await db.collection("users").doc(uid).set({
-        displayName: displayName || "No Name",
-        email,
-        role,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+      const assignedRole = role || "realtor";
+
+      // Save the role in Firestore
+      await db.collection("users").doc(uid).set(
+        {
+          role: assignedRole,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        {merge: true}
+      );
+
+      // Set custom claims
+      await admin.auth().setCustomUserClaims(uid, {role: assignedRole});
 
       return {
         success: true,
         message: "User role assigned successfully.",
       };
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error saving user role:", error.message);
-        return {
-          success: false,
-          message: `Failed to assign user role: ${error.message}`,
-        };
-      } else {
-        console.error("Unknown error saving user role:", error);
-        return {
-          success: false,
-          message: "Failed to assign user role due to unknown error",
-        };
-      }
+      console.error("Failed to assign user role:", error);
+      return {
+        success: false,
+        message: "Failed to assign user role due to an error.",
+      };
     }
   }
 );

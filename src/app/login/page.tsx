@@ -4,17 +4,22 @@ import {
   Alert,
   Box,
   Button,
-  Group,
   PasswordInput,
-  Radio,
-  TextInput,
+  TextInput
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, updateProfile, UserCredential } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  updateProfile,
+  UserCredential,
+} from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore"; // Import Firestore functions
 import { httpsCallable } from "firebase/functions";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { auth, functions, googleProvider } from "../../lib/firebase";
+import { auth, db, functions, googleProvider } from "../../lib/firebase"; // Ensure Firestore is imported
 
 interface AssignUserRoleResponse {
   success: boolean;
@@ -31,7 +36,7 @@ const Login = (): JSX.Element => {
   const assignUserRole = httpsCallable(functions, "assignUserRole");
 
   const form = useForm({
-    initialValues: { name: "", email: "", password: "", role: "user" },
+    initialValues: { name: "", email: "", password: "", role: "realtor" }, // Default role to "realtor"
     validate: {
       email: (value) => (/^\S+@\S+$/.test(value) ? null : "Invalid email"),
       password: (value) =>
@@ -41,20 +46,31 @@ const Login = (): JSX.Element => {
 
   const handleAuth = async (
     authPromise: Promise<UserCredential>,
-    role: string
+    initialRole?: string // Modify to allow optional role
   ) => {
     setLoading(true);
     setError(null);
+
     try {
       const { user } = await authPromise;
 
+      let role = initialRole || "realtor"; // Default role to "realtor"
+
+      // If registering, assign the selected role and store it in Firestore
       if (isRegistering) {
         await updateProfile(user, { displayName: form.values.name });
         await assignUserRole({ uid: user.uid, role });
 
         setSuccess("Account created successfully!");
+      } else {
+        // On login, fetch the assigned role from Firestore
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          role = userDoc.data().role; // Use the role from Firestore
+        }
       }
 
+      // Navigate to the correct dashboard based on the user's role
       router.push(role === "realtor" ? "/realtor-dashboard" : "/user-dashboard");
     } catch (error: any) {
       setError(error.message || "Authentication failed.");
@@ -63,15 +79,20 @@ const Login = (): JSX.Element => {
     }
   };
 
-  const handleGoogleLogin = () =>
-    handleAuth(signInWithPopup(auth, googleProvider), "user");
+  const handleGoogleLogin = async () => {
+    const userCredential = await signInWithPopup(auth, googleProvider);
+    const { user } = userCredential;
+
+    // Default role to "realtor"
+    handleAuth(Promise.resolve(userCredential), "realtor");
+  };
 
   const handleSubmit = (values: typeof form.values) => {
     const authPromise = isRegistering
       ? createUserWithEmailAndPassword(auth, values.email, values.password)
       : signInWithEmailAndPassword(auth, values.email, values.password);
 
-    handleAuth(authPromise, values.role);
+    handleAuth(authPromise, "realtor"); // Default to "realtor"
   };
 
   return (
@@ -107,19 +128,6 @@ const Login = (): JSX.Element => {
             {...form.getInputProps("password")}
             classNames={{ input: "bg-gray-100 focus:ring focus:ring-blue-500" }}
           />
-
-          {isRegistering && (
-            <Radio.Group
-              label="Select Role"
-              {...form.getInputProps("role")}
-              className="mt-4"
-            >
-              <Group mt="xs">
-                <Radio value="user" label="User" />
-                <Radio value="realtor" label="Realtor" />
-              </Group>
-            </Radio.Group>
-          )}
 
           <Button
             type="submit"

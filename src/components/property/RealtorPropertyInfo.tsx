@@ -37,21 +37,11 @@ export default function PropertyPageClient({
         <div className="mt-4 p-4 bg-gray-200">
           <h4 className="font-bold">Realtor-Only Information</h4>
 
-          {/* Display Documents */}
+          {/* Display Only the Realtor PDF */}
           <h5 className="font-bold">Documents Available</h5>
-          {property.DocumentsAvailable && property.DocumentsAvailable.length > 0 ? (
-            <ul className="list-disc ml-5">
-              {property.DocumentsAvailable.map((doc, index) => (
-                <li key={index}>
-                  <a href={doc} target="_blank" rel="noopener noreferrer">
-                    Document {index + 1}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>No documents available for this property.</p>
-          )}
+          <a href="/RealtorDocument.pdf" target="_blank" rel="noopener noreferrer">
+            Realtor Document (PDF)
+          </a>
 
           {/* Display Realtor Information */}
           <h5 className="font-bold mt-4">Realtor Information</h5>
