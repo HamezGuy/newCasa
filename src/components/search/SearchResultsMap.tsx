@@ -25,7 +25,7 @@ function getMapCenter(properties: IParagonProperty[]) {
     }
   }
 
-  if (nMarkers == 0) {
+  if (nMarkers === 0) {
     console.error('could not locate map center');
     return undefined;
   }
@@ -68,7 +68,6 @@ function ResultMarkers({
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // TODO: fix possible infinte loop
   const markerClickHandler = useCallback(
     (propertyId: string, marker?: any) => {
       setSelectedId(propertyId);
@@ -82,28 +81,32 @@ function ResultMarkers({
 
   if (!properties) return null;
 
-  return properties.map((property, index) => {
-    if (!property.Latitude || !property.Longitude) {
-      console.log(`Property ${property.ListingId} is missing geocoding`);
-      return null;
-    }
+  return (
+    <>
+      {properties.map((property, index) => {
+        if (!property.Latitude || !property.Longitude) {
+          console.log(`Property ${property.ListingId} is missing geocoding`);
+          return null;
+        }
 
-    const id = property.ListingId;
+        const id = property.ListingId;
 
-    return (
-      <AdvancedMarkerWithRef
-        key={index}
-        position={{ lat: property.Latitude, lng: property.Longitude }}
-        onMarkerClick={(marker) => markerClickHandler(id, marker)}
-      >
-        <Pin
-          background={selectedId === id ? '#22ccff' : null}
-          borderColor={selectedId === id ? '#1e89a1' : null}
-          glyphColor={selectedId === id ? '#0f677a' : null}
-        />
-      </AdvancedMarkerWithRef>
-    );
-  });
+        return (
+          <AdvancedMarkerWithRef
+            key={index}
+            position={{ lat: property.Latitude, lng: property.Longitude }}
+            onMarkerClick={(marker) => markerClickHandler(id, marker)}
+          >
+            <Pin
+              background={selectedId === id ? '#22ccff' : undefined}
+              borderColor={selectedId === id ? '#1e89a1' : undefined}
+              glyphColor={selectedId === id ? '#0f677a' : undefined}
+            />
+          </AdvancedMarkerWithRef>
+        );
+      })}
+    </>
+  );
 }
 
 export function ResultsMap({ properties }: { properties: IParagonProperty[] }) {

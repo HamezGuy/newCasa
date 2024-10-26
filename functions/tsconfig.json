@@ -7,17 +7,23 @@
     "sourceMap": true,
     "strict": true,
     "target": "es2017",
-    "esModuleInterop": true, // For proper ES module compatibility
-    "moduleResolution": "node", 
-    "baseUrl": ".", // Allows for relative paths
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "baseUrl": ".", 
     "paths": {
-      "@/config/*": ["src/config/*"], // Define alias for config
-      "@/lib/utils/*": ["src/lib/utils/*"] // Correctly point to lib/utils for firebaseUtils
-    }
+      "@/config/*": ["src/config/*"],
+      "@/lib/utils/*": ["src/lib/utils/*"]
+    },
+    "forceConsistentCasingInFileNames": true, // Avoid case-related issues
+    "skipLibCheck": true // Improve performance by skipping type checks in node_modules
   },
   "compileOnSave": true,
   "include": [
-    "src", // Keep the source directory
-    "functions" // Add other directories where TypeScript files are present
+    "src/**/*", 
+    "functions/**/*" 
+  ],
+  "exclude": [
+    "node_modules",
+    "lib" // Make sure the output directory is excluded
   ]
 }

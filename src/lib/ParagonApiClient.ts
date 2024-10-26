@@ -243,7 +243,7 @@ export class ParagonApiClient {
     // Get Media URLs from Paragon
     await pMap(
       queryFilters,
-      async (queryFilter) => {
+      async (queryFilter: string) => {
         const url = this.getMediaUrl(
           this.__maxPageSize,
           undefined,
@@ -283,7 +283,7 @@ export class ParagonApiClient {
     // Upload Media to CDN
     await pMap(
       properties,
-      async (property) => {
+      async (property: ParagonPropertyWithMedia) => {
         const media = mediaByProperty[property.ListingKey];
 
         if (!media) {
