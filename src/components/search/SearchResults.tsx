@@ -21,7 +21,3 @@ export async function SearchResults({ query }: { query: searchQuery }) {
     </div>
   );
 }
-
-export function SearchResultsLoading() {
-  return <div>Searching...</div>;
-}

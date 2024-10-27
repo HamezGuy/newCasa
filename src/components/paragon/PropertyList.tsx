@@ -23,6 +23,7 @@ export default function PropertyList({
           <PropertySearchResultCard
             key={property.ListingKey}
             property={property}
+            size={reduced ? 'sm' : 'md'}
           />
         ))}
     </div>

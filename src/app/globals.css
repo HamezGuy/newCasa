@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --text-color: #212121;
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
@@ -22,7 +23,7 @@ main > .container {
   &::before {
     position: absolute;
     z-index: 2;
-    content: "";
+    content: '';
     display: block;
     top: 0;
     left: 0;
@@ -65,4 +66,26 @@ a {
 a:focus,
 a:hover {
   @apply text-blue-600;
+}
+
+/* Header */
+
+.app-header {
+  .main-nav {
+    a {
+      padding: 6px 0px;
+      text-decoration: none;
+      color: var(--text-color);
+      font-weight: 500;
+    }
+
+    a:hover {
+      border-bottom: 3px solid #006dc7;
+    }
+
+    a:active,
+    a:focus {
+      color: #444;
+    }
+  }
 }

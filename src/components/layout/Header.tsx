@@ -27,12 +27,15 @@ export default function Header() {
   };
 
   return (
-    <div className="flex justify-between items-center py-4 px-8">
+    <div className="app-header flex justify-between items-center py-4 px-8">
       <div className="logo-brand min-w-[8rem]">
         <Logo link="/" />
       </div>
       <div className="main-nav">
-        <ul className="flex gap-4 list-none">
+        <ul className="flex gap-8 list-none no-underline">
+          <li>
+            <Link href="/search">Search</Link>
+          </li>
           <li>
             <Link href="/listings">Listings</Link>
           </li>
@@ -52,7 +55,10 @@ export default function Header() {
                 <Link href="/profile">Profile</Link>
               </li>
               <li>
-                <button onClick={handleLogout} className="text-blue-500 hover:underline">
+                <button
+                  onClick={handleLogout}
+                  className="text-blue-500 hover:underline"
+                >
                   Logout
                 </button>
               </li>

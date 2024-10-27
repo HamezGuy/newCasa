@@ -1,13 +1,13 @@
 import SearchFilters from '@/components/core/SearchFilters';
 import SearchInput from '@/components/core/SearchInput';
+import { SearchResults } from '@/components/search/SearchResults';
 import { searchQuery } from '@/lib/data';
-import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 
 // Explicitly define the type of the component to avoid issues with TypeScript
-const SearchResults = dynamic(() => import('@/components/search/SearchResults') as unknown as Promise<React.ComponentType<{ query: searchQuery }>>, {
-  ssr: false,
-});
+// const SearchResults = dynamic(() => import('@/components/search/SearchResults') as unknown as Promise<React.ComponentType<{ query: searchQuery }>>, {
+//   ssr: false,
+// });
 
 export default function Search({
   searchParams,
