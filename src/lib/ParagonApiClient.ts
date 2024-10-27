@@ -10,6 +10,8 @@ import { cdn } from './utils/cdn';
 
 const { serverRuntimeConfig } = getConfig();
 
+const MOCK_DATA = process.env.MOCK_DATA && process.env.MOCK_DATA === 'true';
+
 interface ITokenResponse {
   token_type: 'Bearer';
   access_token: string;
@@ -282,7 +284,7 @@ export class ParagonApiClient {
 
     // Upload Media to CDN
     await pMap(
-      properties,
+      MOCK_DATA ? properties.slice(0, 3) : properties,
       async (property: ParagonPropertyWithMedia) => {
         const media = mediaByProperty[property.ListingKey];
 
@@ -311,6 +313,18 @@ export class ParagonApiClient {
     id: string,
     includeMedia: boolean = true
   ): Promise<IParagonProperty> {
+    if (MOCK_DATA) {
+      console.log('Using mock data for getPropertyById');
+      const properties_mock = require('../../data/properties.json');
+      // await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      const property = properties_mock.value.filter(
+        (p: IParagonProperty) => p.ListingId == id
+      );
+
+      return (await geocodeProperties(property))[0];
+    }
+
     const url = `${this.__baseUrl}/Property?$filter=ListingId eq '${id}'`;
     const response = await this.get<ParagonPropertyWithMedia>(url);
 
@@ -381,7 +395,7 @@ export class ParagonApiClient {
     top?: number,
     limit: number = 0
   ): Promise<IParagonProperty[]> {
-    if (process.env.MOCK_DATA && process.env.MOCK_DATA === 'true') {
+    if (MOCK_DATA) {
       console.log('Using mock data for getAllPropertyWithMedia');
       const properties_mock = require('../../data/properties.json');
       // await new Promise((resolve) => setTimeout(resolve, 3000));
