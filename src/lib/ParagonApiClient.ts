@@ -2,11 +2,15 @@ import IParagonMedia, { ParagonPropertyWithMedia } from '@/types/IParagonMedia';
 import IParagonProperty from '@/types/IParagonProperty';
 import md5 from 'crypto-js/md5';
 import getConfig from 'next/config';
+import pMap from 'p-map';
 import path from 'path';
 import * as url from 'url';
 import { geocodeProperties } from './GoogleMaps';
+import { cdn } from './utils/cdn';
 
 const { serverRuntimeConfig } = getConfig();
+
+const MOCK_DATA = process.env.MOCK_DATA && process.env.MOCK_DATA === 'true';
 
 interface ITokenResponse {
   token_type: 'Bearer';
@@ -177,7 +181,7 @@ export class ParagonApiClient {
     const skipStr = skip ? `&$skip=${skip}` : '';
     const filterStr = filter ? `&$filter=${filter}` : '';
 
-    return `${this.__baseUrl}/Media?$select=ResourceRecordKey,MediaURL,Order&$count=true${topStr}${skipStr}${filterStr}`;
+    return `${this.__baseUrl}/Media?$select=MediaKey,MediaURL,Order,ResourceRecordKey,ModificationTimestamp&$count=true${topStr}${skipStr}${filterStr}`;
   }
 
   // Generate filter strings for media requests to avoid URL length issues
@@ -223,12 +227,13 @@ export class ParagonApiClient {
     properties: ParagonPropertyWithMedia[],
     limit: number = 0
   ): Promise<ParagonPropertyWithMedia[]> {
-    if (!Array.isArray(properties) || properties.length === 0) {
-      console.error('Invalid properties data:', properties);
+    if (properties.length === 0) {
       return [];
     }
 
-    let queries = this.generateMediaFilters(
+    const mediaByProperty: Record<string, IParagonMedia[]> = {};
+
+    let queryFilters = this.generateMediaFilters(
       properties.map((p) => {
         if (!p.ListingKey) {
           console.error('Property is missing ListingKey:', p);
@@ -237,44 +242,70 @@ export class ParagonApiClient {
       })
     );
 
-    while (queries.length > 0) {
-      const currentQueries = queries.slice(0, this.__maxConcurrentQueries);
+    // Get Media URLs from Paragon
+    await pMap(
+      queryFilters,
+      async (queryFilter: string) => {
+        const url = this.getMediaUrl(
+          this.__maxPageSize,
+          undefined,
+          queryFilter
+        );
+        const mediaResponse = await this.get<IParagonMedia>(url);
+        const count = mediaResponse['@odata.count'];
 
-      await Promise.all(
-        currentQueries.map(async (filter) => {
-          const url = this.getMediaUrl(this.__maxPageSize, undefined, filter);
-          const response = await this.get<IParagonMedia>(url);
-          const count = response['@odata.count'];
+        if (count && count > this.__maxPageSize) {
+          mediaResponse.value = mediaResponse.value.concat(
+            (
+              await this.getFollowNext<IParagonMedia>(
+                this.getMediaUrl(count, this.__maxPageSize, queryFilter)
+              )
+            ).value
+          );
+        }
 
-          if (count && count > this.__maxPageSize) {
-            response.value = response.value.concat(
-              (
-                await this.getFollowNext<IParagonMedia>(
-                  this.getMediaUrl(count, this.__maxPageSize, filter)
-                )
-              ).value
-            );
+        mediaResponse.value.map((media) => {
+          if (mediaByProperty[media.ResourceRecordKey]) {
+            mediaByProperty[media.ResourceRecordKey].push(media);
+          } else {
+            mediaByProperty[media.ResourceRecordKey] = [media];
           }
+        });
+      },
+      { concurrency: this.__maxConcurrentQueries }
+    );
 
-          response.value.map((media) => {
-            const property = properties.find(
-              (p) => p.ListingKey === media.ResourceRecordKey
-            );
-            if (property) {
-              if (!property.Media) {
-                property.Media = [];
-              }
+    // Order mediaByProperty by Media Order
+    Object.values(mediaByProperty).map((media) => {
+      media.sort((a, b) => a.Order - b.Order);
+    });
 
-              if (limit === 0 || property.Media.length < limit) {
-                property.Media.push(media);
-              }
-            }
-          });
-        })
-      );
+    const propertiesInCDN = await cdn.getProperties();
 
-      queries = queries.slice(this.__maxConcurrentQueries);
-    }
+    // Assign Media to property
+    await pMap(
+      MOCK_DATA ? properties.slice(0, 3) : properties,
+      async (property: ParagonPropertyWithMedia) => {
+        const media = mediaByProperty[property.ListingKey];
+
+        if (!media) {
+          console.log(`Property ${property.ListingKey} has no media`);
+        }
+
+        // Upload Media to CDN
+        if (!propertiesInCDN.includes(property.ListingKey)) {
+          const mediaOnCDN = await cdn.uploadMedia(
+            mediaByProperty[property.ListingKey]
+          );
+
+          property.Media = mediaOnCDN;
+        } else {
+          //TODO: Order incoming existing media
+          property.Media = await cdn.getMedia(property.ListingKey);
+        }
+      },
+      { concurrency: 5 }
+    );
 
     return properties;
   }
@@ -283,6 +314,18 @@ export class ParagonApiClient {
     id: string,
     includeMedia: boolean = true
   ): Promise<IParagonProperty> {
+    if (MOCK_DATA) {
+      console.log('Using mock data for getPropertyById');
+      const properties_mock = require('../../data/properties.json');
+      // await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      const property = properties_mock.value.filter(
+        (p: IParagonProperty) => p.ListingId == id
+      );
+
+      return (await geocodeProperties(property))[0];
+    }
+
     const url = `${this.__baseUrl}/Property?$filter=ListingId eq '${id}'`;
     const response = await this.get<ParagonPropertyWithMedia>(url);
 
@@ -353,7 +396,7 @@ export class ParagonApiClient {
     top?: number,
     limit: number = 0
   ): Promise<IParagonProperty[]> {
-    if (process.env.MOCK_DATA && process.env.MOCK_DATA === 'true') {
+    if (MOCK_DATA) {
       console.log('Using mock data for getAllPropertyWithMedia');
       const properties_mock = require('../../data/properties.json');
       // await new Promise((resolve) => setTimeout(resolve, 3000));
