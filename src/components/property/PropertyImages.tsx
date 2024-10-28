@@ -20,23 +20,25 @@ export function PropertyImages({
         style={{ height: '24.25rem' }}
       >
         {images.map((image, i) => (
-          <Box
-            key={i}
-            className={`relative overflow-hidden ${
-              i == 0 ? 'w-96 h-full' : 'w-56 h-48'
-            }`}
-          >
-            <Image
-              fill={true}
-              src={
-                image.MediaURL.startsWith('http')
-                  ? image.MediaURL
-                  : `https:${image.MediaURL}`
-              }
-              alt=""
-              style={{ objectFit: 'cover' }}
-            />
-          </Box>
+          image.MediaURL ? (
+            <Box
+              key={i}
+              className={`relative overflow-hidden ${
+                i === 0 ? 'w-96 h-full' : 'w-56 h-48'
+              }`}
+            >
+              <Image
+                fill={true}
+                src={
+                  image.MediaURL.startsWith('http')
+                    ? image.MediaURL
+                    : `https:${image.MediaURL}`
+                }
+                alt="Property Image"
+                style={{ objectFit: 'cover' }}
+              />
+            </Box>
+          ) : null
         ))}
       </Box>
     </Box>

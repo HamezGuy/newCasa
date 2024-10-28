@@ -1,93 +1,118 @@
 import IParagonMedia from '@/types/IParagonMedia';
-import { v2 as cloudinary } from 'cloudinary';
+
+interface CloudinaryConfig {
+  config: (configUrl: string | undefined) => void;
+  uploader: {
+    upload: (
+      path: string,
+      options: {
+        folder: string;
+        public_id: string;
+        metadata: { order: string };
+      }
+    ) => Promise<{ url: string }>;
+  };
+  api: {
+    resources_by_asset_folder: (
+      path: string,
+      options: { max_results: number }
+    ) => Promise<{ resources: { secure_url: string }[] }>;
+    sub_folders: (path: string) => Promise<{ folders: { name: string }[] }>;
+    delete_all_resources: (options: { resource_type: string }) => Promise<void>;
+  };
+}
+
+let cloudinary: CloudinaryConfig | undefined;
+
+// Conditionally import Cloudinary on the server side
+if (typeof window === 'undefined') {
+  cloudinary = require('cloudinary').v2;
+  
+  // Check if cloudinary is defined before configuring
+  if (cloudinary && process.env.CLOUDINARY_URL) {
+    cloudinary.config(process.env.CLOUDINARY_URL);
+  }
+}
 
 export const cdn = {
   async uploadMedia(media: IParagonMedia[]): Promise<IParagonMedia[]> {
-    if (!process.env.CLOUDINARY_URL) {
-      console.error(
-        'Cloudinary config not valid or set. Will use source image URLs'
+    if (!cloudinary || !process.env.CLOUDINARY_URL) {
+      console.warn(
+        'Cloudinary config not set or not available on the client. Using source image URLs.'
       );
       return media;
     }
 
-    // Iterate over each image URL and upload it to Cloudinary
-    const uploadResults = media.map(async (media) => {
-      if (!media.MediaURL) {
-        return media;
+    const uploadResults = media.map(async (mediaItem) => {
+      if (!mediaItem.MediaURL) return mediaItem;
+
+      const imageUrl = mediaItem.MediaURL.startsWith('http')
+        ? mediaItem.MediaURL
+        : `https:${mediaItem.MediaURL}`;
+
+      try {
+        const uploadResult = await cloudinary.uploader.upload(imageUrl, {
+          folder: `property/${mediaItem.ResourceRecordKey}`,
+          public_id: mediaItem.Order.toString(),
+          metadata: { order: mediaItem.Order.toString() },
+        });
+        mediaItem.MediaURL = uploadResult.url;
+        return mediaItem;
+      } catch (error) {
+        console.error(`Error uploading media ${mediaItem.MediaURL}:`, error);
+        return mediaItem;
       }
-
-      const imageUrl = media.MediaURL.startsWith('http')
-        ? media.MediaURL
-        : `https:${media.MediaURL}`;
-
-      return new Promise((resolve, reject) => {
-        cloudinary.uploader
-          .upload(imageUrl, {
-            asset_folder: 'property/' + media.ResourceRecordKey,
-            public_id_prefix: media.Order,
-            metadada: 'order=' + media.Order,
-          })
-          .then((uploadResult) => {
-            media.MediaURL = uploadResult.url;
-            resolve(uploadResult);
-          })
-          .catch((error) => {
-            console.error(
-              `Error fetching or uploading media ${media.MediaURL}:`,
-              error
-            );
-            reject(error);
-          });
-      });
     });
 
-    await Promise.allSettled(uploadResults);
-
+    await Promise.all(uploadResults);
     return media;
   },
 
-  getMedia(propertyId: string): Promise<IParagonMedia[]> {
-    return new Promise((resolve, reject) => {
-      cloudinary.api
-        .resources_by_asset_folder(`property/${propertyId}`, {
-          fields: 'secure_url,width,height,metadata',
-          metadata: true,
-          max_results: 20,
-        })
-        .then((result) =>
-          resolve(
-            result.resources.map((r: any) => ({ MediaURL: r.secure_url }))
-          )
-        )
-        .catch((err) => {
-          console.log(
-            `Error getting Media for property ${propertyId}`,
-            err.error.message
-          );
-          resolve([]);
-        });
-    });
+  async getMedia(propertyId: string): Promise<IParagonMedia[]> {
+    if (!cloudinary) {
+      console.warn('Cloudinary is only available on the server.');
+      return [];
+    }
+
+    try {
+      const result = await cloudinary.api.resources_by_asset_folder(
+        `property/${propertyId}`,
+        { max_results: 20 }
+      );
+      return result.resources.map((resource) => ({
+        MediaURL: resource.secure_url,
+      }));
+    } catch (error) {
+      console.error(`Error fetching media for property ${propertyId}:`, error);
+      return [];
+    }
   },
 
-  getProperties(): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-      cloudinary.api
-        .sub_folders('property')
-        .then((result) => resolve(result.folders.map((f: any) => f.name)))
-        .catch((err) => {
-          console.log(
-            'Error listing subfolders in /property',
-            err.error.message
-          );
-          resolve([]);
-        });
-    });
+  async getProperties(): Promise<string[]> {
+    if (!cloudinary) {
+      console.warn('Cloudinary is only available on the server.');
+      return [];
+    }
+
+    try {
+      const result = await cloudinary.api.sub_folders('property');
+      return result.folders.map((folder) => folder.name);
+    } catch (error) {
+      console.error('Error listing subfolders in /property:', error);
+      return [];
+    }
   },
 
   async clearCDN() {
-    return await cloudinary.api.delete_all_resources({
-      resource_type: 'image',
-      type: 'upload',
-    });
+    if (!cloudinary) {
+      console.warn('Cloudinary is only available on the server.');
+      return;
+    }
+
+    try {
+      await cloudinary.api.delete_all_resources({ resource_type: 'image' });
+    } catch (error) {
+      console.error('Error clearing CDN resources:', error);
+    }
   },
 };
