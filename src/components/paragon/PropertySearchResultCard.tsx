@@ -14,28 +14,27 @@ interface IPropertySearchResultCardProps {
 }
 
 // Displays a single property in a card to be used as a search result...
-export default function PropertySearchResultCard(
-  props: IPropertySearchResultCardProps
-) {
-  const { property, size } = props;
-
-  //TODO: Come up with a decent placeholder
-  const imgUrl =
-    'https://images.homesnap.com/listings/302/0946014463-164279961-original.jpg';
+export default function PropertySearchResultCard({
+  property,
+  size = 'md',
+  onClick,
+}: IPropertySearchResultCardProps) {
+  //TODO: design a better placeholder
+  const imgUrl = '/img/placeholder.png';
   const primaryPhoto = getPrimaryPhoto(property);
   const sPrice = DisplayUtils.formatCurrency(property.ListPrice);
   const sOpenHouse = ParagonPropertyUtils.getOpenHouseTime(property);
 
   return (
-    <Link href={`/property/${property.ListingId}`}>
+    <Link href={`/property/${property.ListingId}`} className={`no-underline`}>
       <Card
         shadow="sm"
         padding="lg"
         radius="md"
         h="100%"
         withBorder
-        onClick={() => props.onClick?.(property)}
-        className={size ? style.propertyCard_sm : undefined}
+        onClick={() => onClick?.(property)}
+        className={size == 'md' ? style.propertyCard : style.propertyCardSmall}
       >
         <Card.Section>
           <Image

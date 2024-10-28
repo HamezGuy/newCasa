@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { Text, Title } from "@mantine/core";
-import Image from "next/image";
-import { Suspense } from "react";
-import styles from "./HeroSearch.module.css";
-import SearchInput from "./SearchInput";
+import { Title } from '@mantine/core';
+import Image from 'next/image';
+import { Suspense } from 'react';
+import styles from './HeroSearch.module.css';
+import SearchInput from './SearchInput';
 
 export default function HeroSearch() {
   return (
@@ -17,7 +17,7 @@ export default function HeroSearch() {
         alt="Cover"
         fill
         priority
-        style={{ objectFit: "cover" }}
+        style={{ objectFit: 'cover' }}
         className="brightness-75"
       />
 
@@ -27,12 +27,11 @@ export default function HeroSearch() {
       >
         Find your next home
       </Title>
-      <div className="flex flex-row gap-3 w-full max-w-xl">
+      <div className="flex justify-center w-full">
         <Suspense>
           <SearchInput />
         </Suspense>
       </div>
-      <Text size="sm">(Only Zip Code search works right now)</Text>
     </div>
   );
 }
