@@ -8,7 +8,6 @@ interface CloudinaryConfig {
       options: {
         folder: string;
         public_id: string;
-        metadata: { order: string };
       }
     ) => Promise<{ url: string }>;
   };
@@ -24,18 +23,22 @@ interface CloudinaryConfig {
 
 let cloudinary: CloudinaryConfig | undefined;
 
-// Conditionally import Cloudinary on the server side
 if (typeof window === 'undefined') {
   cloudinary = require('cloudinary').v2;
-  
-  // Check if cloudinary is defined before configuring
+
   if (cloudinary && process.env.CLOUDINARY_URL) {
     cloudinary.config(process.env.CLOUDINARY_URL);
   }
 }
 
 export const cdn = {
-  async uploadMedia(media: IParagonMedia[]): Promise<IParagonMedia[]> {
+  async uploadMedia(media: IParagonMedia[] | undefined): Promise<IParagonMedia[]> {
+    // Check if media is undefined or empty
+    if (!media || !Array.isArray(media) || media.length === 0) {
+      console.warn('No media items provided for upload.');
+      return [];
+    }
+
     if (!cloudinary || !process.env.CLOUDINARY_URL) {
       console.warn(
         'Cloudinary config not set or not available on the client. Using source image URLs.'
@@ -51,21 +54,20 @@ export const cdn = {
         : `https:${mediaItem.MediaURL}`;
 
       try {
-        const uploadResult = await cloudinary.uploader.upload(imageUrl, {
+        const uploadResult = await cloudinary!.uploader.upload(imageUrl, {
           folder: `property/${mediaItem.ResourceRecordKey}`,
           public_id: mediaItem.Order.toString(),
-          metadata: { order: mediaItem.Order.toString() },
         });
         mediaItem.MediaURL = uploadResult.url;
         return mediaItem;
       } catch (error) {
-        console.error(`Error uploading media ${mediaItem.MediaURL}:`, error);
+        console.error(`Error uploading media ${imageUrl}:`, error);
         return mediaItem;
       }
     });
 
-    await Promise.all(uploadResults);
-    return media;
+    const results = await Promise.all(uploadResults);
+    return results.filter((item) => item.MediaURL);
   },
 
   async getMedia(propertyId: string): Promise<IParagonMedia[]> {
@@ -75,7 +77,7 @@ export const cdn = {
     }
 
     try {
-      const result = await cloudinary.api.resources_by_asset_folder(
+      const result = await cloudinary!.api.resources_by_asset_folder(
         `property/${propertyId}`,
         { max_results: 20 }
       );
@@ -95,7 +97,7 @@ export const cdn = {
     }
 
     try {
-      const result = await cloudinary.api.sub_folders('property');
+      const result = await cloudinary!.api.sub_folders('property');
       return result.folders.map((folder) => folder.name);
     } catch (error) {
       console.error('Error listing subfolders in /property:', error);
@@ -110,7 +112,7 @@ export const cdn = {
     }
 
     try {
-      await cloudinary.api.delete_all_resources({ resource_type: 'image' });
+      await cloudinary!.api.delete_all_resources({ resource_type: 'image' });
     } catch (error) {
       console.error('Error clearing CDN resources:', error);
     }
