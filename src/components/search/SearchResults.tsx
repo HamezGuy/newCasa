@@ -1,12 +1,31 @@
 // src/components/search/SearchResults.tsx
+"use client";
+
 import { getPropertiesByQuery, searchQuery } from '@/lib/data';
+import IParagonProperty from '@/types/IParagonProperty';
+import { useEffect, useState } from 'react';
 import PropertyList from '../paragon/PropertyList';
 import style from './SearchResults.module.css';
 import { ResultsMap } from './SearchResultsMap';
 
-async function SearchResults({ query }: { query: searchQuery }) {
-  const properties = await getPropertiesByQuery(query);
+interface SearchResultsProps {
+  query: searchQuery;
+}
 
+function SearchResults({ query }: SearchResultsProps) {
+  const [properties, setProperties] = useState<IParagonProperty[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProperties = async () => {
+      const result = await getPropertiesByQuery(query);
+      setProperties(result || []);
+      setLoading(false);
+    };
+    fetchProperties();
+  }, [query]);
+
+  if (loading) return <div>Loading...</div>;
   if (!properties || properties.length === 0) return <div>Nothing found</div>;
 
   return (
