@@ -10,6 +10,9 @@ const nextConfig = {
         pathname: '/ParagonImages/Property/**',
       },
       {
+        hostname: 'res.cloudinary.com',
+      },
+      {
         hostname: 'localhost',
       },
     ],
@@ -33,7 +36,7 @@ const nextConfig = {
     },
   },
   serverRuntimeConfig: {
-    zipCodes: [53715, 53703], //note: if added here, must manually update code in data.ts 
+    zipCodes: [53715, 53703], //note: if added here, must manually update code in data.ts
   },
 };
 

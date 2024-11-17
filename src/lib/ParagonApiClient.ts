@@ -275,18 +275,13 @@ export class ParagonApiClient {
       { concurrency: this.__maxConcurrentQueries }
     );
 
-    // Order mediaByProperty by Media Order
-    Object.values(mediaByProperty).map((media) => {
-      media.sort((a, b) => a.Order - b.Order);
-    });
-
     const propertiesInCDN = await cdn.getProperties();
 
     // Assign Media to property
     await pMap(
-      MOCK_DATA ? properties.slice(0, 3) : properties,
+      true ? properties.slice(0, 3) : properties,
       async (property: ParagonPropertyWithMedia) => {
-        const media = mediaByProperty[property.ListingKey];
+        const media = mediaByProperty[property.ListingKey].slice(0, 5);
 
         if (!media) {
           console.log(`Property ${property.ListingKey} has no media`);

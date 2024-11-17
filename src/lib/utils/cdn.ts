@@ -8,14 +8,15 @@ interface CloudinaryConfig {
       options: {
         folder: string;
         public_id: string;
+        metadata: string;
       }
     ) => Promise<{ url: string }>;
   };
   api: {
     resources_by_asset_folder: (
       path: string,
-      options: { max_results: number }
-    ) => Promise<{ resources: { secure_url: string }[] }>;
+      options: { fields: string; max_results: number }
+    ) => Promise<{ resources: { secure_url: string; public_id: string }[] }>;
     sub_folders: (path: string) => Promise<{ folders: { name: string }[] }>;
     delete_all_resources: (options: { resource_type: string }) => Promise<void>;
   };
@@ -32,7 +33,9 @@ if (typeof window === 'undefined') {
 }
 
 export const cdn = {
-  async uploadMedia(media: IParagonMedia[] | undefined): Promise<IParagonMedia[]> {
+  async uploadMedia(
+    media: IParagonMedia[] | undefined
+  ): Promise<IParagonMedia[]> {
     // Check if media is undefined or empty
     if (!media || !Array.isArray(media) || media.length === 0) {
       console.warn('No media items provided for upload.');
@@ -46,6 +49,9 @@ export const cdn = {
       return media;
     }
 
+    // Upload Media in Order
+    media.sort((a, b) => a.Order - b.Order);
+
     const uploadResults = media.map(async (mediaItem) => {
       if (!mediaItem.MediaURL) return mediaItem;
 
@@ -57,6 +63,7 @@ export const cdn = {
         const uploadResult = await cloudinary!.uploader.upload(imageUrl, {
           folder: `property/${mediaItem.ResourceRecordKey}`,
           public_id: mediaItem.Order.toString(),
+          metadata: `order=${mediaItem.Order.toString()}`,
         });
         mediaItem.MediaURL = uploadResult.url;
         return mediaItem;
@@ -79,8 +86,17 @@ export const cdn = {
     try {
       const result = await cloudinary!.api.resources_by_asset_folder(
         `property/${propertyId}`,
-        { max_results: 20 }
+        {
+          fields: 'public_id,secure_url,width,height,metadata',
+          max_results: 20,
+        }
       );
+
+      result.resources.sort((a, b) => {
+        const orderA = parseInt(a.public_id.split('/')[2]);
+        const orderB = parseInt(b.public_id.split('/')[2]);
+        return orderA - orderB;
+      });
       return result.resources.map((resource) => ({
         MediaURL: resource.secure_url,
       }));
