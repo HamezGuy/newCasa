@@ -4,15 +4,23 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        // protocol: 'https',
+        // Paragon Images
         hostname: 'cdnparap50.paragonrels.com',
-        port: '',
         pathname: '/ParagonImages/Property/**',
       },
       {
+        // Localhost (if you use it for testing)
         hostname: 'localhost',
       },
+      {
+        // Cloudinary images
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        pathname: '/dmluwytl0/image/upload/**', // Adjust the pathname if needed
+      },
     ],
+    // Alternatively, use domains array if simpler
+    domains: ['res.cloudinary.com', 'cdnparap50.paragonrels.com', 'localhost'],
   },
   publicRuntimeConfig: {
     realtor: {
@@ -33,7 +41,7 @@ const nextConfig = {
     },
   },
   serverRuntimeConfig: {
-    zipCodes: [53715, 53703], //note: if added here, must manually update code in data.ts 
+    zipCodes: [53715, 53703], // Note: Update manually in data.ts if necessary
   },
 };
 
