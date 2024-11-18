@@ -1,52 +1,88 @@
-// src/components/messages/ChatDetail.tsx
-import { Message } from "@/app/types/Messages";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  where,
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 
+interface Message {
+  id: string;
+  sender: string;
+  message: string;
+  timestamp: any;
+}
+
 interface ChatDetailProps {
-  chatId: string | null; 
-  clientId: string; // To track the current user
+  chatId: string | null; // Allow chatId to be null
+  clientId: string;
 }
 
 const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId }) => {
-  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
 
   useEffect(() => {
-    if (!clientId || !chatId) return; // Ensure both clientId and chatId are available
+    if (!chatId) return; // Ensure chatId is available
 
-    const chatQuery = query(
+    const messagesQuery = query(
       collection(db, "messages"),
-      where("propertyId", "==", chatId)
+      where("chatId", "==", chatId)
     );
 
-    const unsubscribe = onSnapshot(chatQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
       const messagesData = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       })) as Message[];
-
-      setChatMessages(messagesData);
+      setMessages(messagesData);
     });
 
     return () => unsubscribe();
-  }, [clientId, chatId]);
+  }, [chatId]);
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !chatId) return;
+
+    try {
+      await addDoc(collection(db, "messages"), {
+        chatId,
+        sender: clientId,
+        message: newMessage,
+        timestamp: serverTimestamp(),
+      });
+      setNewMessage("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
+    }
+  };
+
+  if (!chatId) {
+    return <p>Select a chat to view messages.</p>;
+  }
 
   return (
     <div>
-      <h3 className="text-xl font-semibold">Chat Details for {chatId}</h3>
-      {chatMessages.length === 0 ? (
-        <p>No messages in this chat.</p>
-      ) : (
-        <ul className="list-disc pl-5">
-          {chatMessages.map((msg) => (
-            <li key={msg.id}>
-              <strong>{msg.from === "user" ? "You" : "Realtor"}:</strong> {msg.message}
-            </li>
-          ))}
-        </ul>
-      )}
-      {/* Include MessageInput component for typing new messages */}
+      <h3>Chat for Property {chatId}</h3>
+      <ul>
+        {messages.map((msg) => (
+          <li key={msg.id}>
+            <strong>{msg.sender === clientId ? "You" : "Realtor"}:</strong> {msg.message}
+          </li>
+        ))}
+      </ul>
+      <textarea
+        value={newMessage}
+        onChange={(e) => setNewMessage(e.target.value)}
+        placeholder="Type your message"
+        className="w-full p-2 border rounded"
+      />
+      <button onClick={sendMessage} className="btn mt-2">
+        Send
+      </button>
     </div>
   );
 };
