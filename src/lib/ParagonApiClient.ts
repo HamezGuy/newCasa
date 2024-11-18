@@ -279,9 +279,9 @@ export class ParagonApiClient {
 
     // Assign Media to property
     await pMap(
-      true ? properties.slice(0, 3) : properties,
+      MOCK_DATA ? properties.slice(0, 3) : properties,
       async (property: ParagonPropertyWithMedia) => {
-        const media = mediaByProperty[property.ListingKey].slice(0, 5);
+        const media = mediaByProperty[property.ListingKey];
 
         if (!media) {
           console.log(`Property ${property.ListingKey} has no media`);
@@ -295,7 +295,6 @@ export class ParagonApiClient {
 
           property.Media = mediaOnCDN;
         } else {
-          //TODO: Order incoming existing media
           property.Media = await cdn.getMedia(property.ListingKey);
         }
       },
