@@ -19,8 +19,6 @@ const nextConfig = {
         pathname: '/dmluwytl0/image/upload/**', // Adjust the pathname if needed
       },
     ],
-    // Alternatively, use domains array if simpler
-    domains: ['res.cloudinary.com', 'cdnparap50.paragonrels.com', 'localhost'],
   },
   publicRuntimeConfig: {
     realtor: {
