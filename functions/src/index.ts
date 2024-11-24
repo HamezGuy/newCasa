@@ -1,16 +1,16 @@
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions"; // Use v1 for compatibility
+import * as functions from "firebase-functions";
 import nodemailer from "nodemailer";
 import twilio from "twilio";
 
 // Initialize Firebase Admin
 admin.initializeApp();
-const db = admin.firestore(); // Firestore instance
+const db = admin.firestore();
 
 /**
- * Helper function to get environment variables or Firebase secrets
+ * Helper function to get environment variables or Firebase secrets.
  * @param {string} name - The name of the environment variable.
- * @param {string} [fallback]  value if environment variable is missing.
+ * @param {string} [fallback] - Fallback value if the variable is missing.
  * @return {string} - The value of the environment variable or fallback.
  * @throws Will throw an error if the environment variable is not found.
  */
@@ -21,7 +21,9 @@ function getEnvVar(name: string, fallback?: string): string {
   throw new Error(`Environment variable ${name} is missing.`);
 }
 
-// Cloud function to send a message to the realtor
+/**
+ * Sends a message to a realtor and updates Firestore.
+ */
 export const sendMessageToRealtor = functions.https.onCall(
   async (
     request: functions.https.CallableRequest<{
@@ -31,7 +33,6 @@ export const sendMessageToRealtor = functions.https.onCall(
       clientId: string;
     }>
   ) => {
-    // Access secrets or fallback to environment variables
     const twilioSid = getEnvVar("TWILIO_ACCOUNT_SID");
     const twilioAuthToken = getEnvVar("TWILIO_AUTH_TOKEN");
     const twilioPhoneNumber = getEnvVar("TWILIO_PHONE_NUMBER");
@@ -40,234 +41,183 @@ export const sendMessageToRealtor = functions.https.onCall(
     const realtorEmail = getEnvVar("REALTOR_EMAIL");
     const realtorPhoneNumber = getEnvVar("REALTOR_PHONE_NUMBER");
 
-    // Initialize Twilio client
-    if (!twilioSid || !twilioAuthToken) {
-      throw new Error("Twilio credentials are missing.");
-    }
     const twilioClient = twilio(twilioSid, twilioAuthToken);
 
-    // Initialize Nodemailer
-    if (!emailUser || !emailPass) {
-      throw new Error("Email credentials are missing.");
-    }
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: emailUser,
-        pass: emailPass,
-      },
-    });
-
-    // Extract the data from the request
     const {message, clientEmail, propertyId, clientId} = request.data;
 
-    console.log(
-      "Message received from frontend:",
-      {message, clientEmail, propertyId, clientId},
-      {realtorEmail, realtorPhoneNumber}
-    );
+    if (!propertyId || !clientId || !message.trim()) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Missing required fields: propertyId, clientId, or message"
+      );
+    }
 
-    // Store the message in Firestore
+    console.log("Message received:", {
+      message,
+      clientEmail,
+      propertyId,
+      clientId,
+    });
+
+    const chatDocRef = db.collection("chats").doc(propertyId);
+    const chatSnapshot = await chatDocRef.get();
+
+    if (!chatSnapshot.exists) {
+      await chatDocRef.set({
+        propertyId,
+        clientId,
+        realtorEmail,
+        realtorPhoneNumber,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
     try {
       await db.collection("messages").add({
-        clientId,
+        chatId: propertyId,
+        sender: "client",
         message,
-        from: "user",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
       console.log("Message stored in Firestore");
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error storing message in Firestore:", error.message);
-        throw new functions.https.HttpsError(
-          "internal",
-          `Failed to store message: ${error.message}`
-        );
-      } else {
-        console.error("Unknown error storing message in Firestore:", error);
-        throw new functions.https.HttpsError(
-          "internal",
-          "Failed to store message due to unknown error"
-        );
-      }
+      console.error("Error storing message:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to store message in Firestore"
+      );
     }
 
-    // Send SMS via Twilio using the realtor's phone number
     try {
       await twilioClient.messages.create({
-        body: `Message regarding Property ID: 
-        ${propertyId}\nMessage: ${message}`,
+        body: `Property ID: ${propertyId}\nMessage: ${message}`,
         from: twilioPhoneNumber,
         to: realtorPhoneNumber,
       });
       console.log("SMS sent successfully");
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Failed to send SMS:", error.message);
-        throw new functions.https.HttpsError(
-          "internal",
-          `Failed to send SMS: ${error.message}`
-        );
-      } else {
-        console.error("Unknown error sending SMS:", error);
-        throw new functions.https.HttpsError(
-          "internal",
-          "Failed to send SMS due to unknown error"
-        );
-      }
+      console.error("Failed to send SMS:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to send SMS via Twilio"
+      );
     }
 
-    // Send Email using Nodemailer
     const mailOptions = {
       from: emailUser,
       to: realtorEmail,
-      subject: `New Message regarding Property ID:
-       ${propertyId} from ${clientEmail}`,
+      subject: `Message about Property ID: ${propertyId}`,
       text: message,
     };
 
     try {
-      console.log("Sending email to realtor...");
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {user: emailUser, pass: emailPass},
+      });
       await transporter.sendMail(mailOptions);
       console.log("Email sent successfully");
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Failed to send email:", error.message);
-        throw new functions.https.HttpsError(
-          "internal",
-          `Failed to send email: ${error.message}`
-        );
-      } else {
-        console.error("Unknown error sending email:", error);
-        throw new functions.https.HttpsError(
-          "internal",
-          "Failed to send email due to unknown error"
-        );
-      }
+      console.error("Failed to send email:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to send email via Nodemailer"
+      );
     }
 
-    return {
-      success: true,
-      message: "Message sent successfully to realtor!",
-    };
+    return {success: true, message: "Message sent successfully!"};
   }
 );
 
-// Function to handle incoming Twilio SMS messages
+/**
+ * Handles incoming SMS messages and updates Firestore.
+ */
 export const handleIncomingSms = functions.https.onRequest(
   async (req, res) => {
     const fromNumber = req.body.From;
     const messageBody = req.body.Body;
 
-    console.log("Incoming message from:", fromNumber);
-    console.log("Message body:", messageBody);
+    console.log("Incoming SMS from:", fromNumber, "Message:", messageBody);
 
-    let clientId: string | null = null;
-    const realtorQuery = await db
-      .collection("clients")
-      .where("phoneNumber", "==", fromNumber)
+    let chatId: string | null = null;
+    const chatQuery = await db
+      .collection("chats")
+      .where("realtorPhoneNumber", "==", fromNumber)
       .limit(1)
       .get();
 
-    if (!realtorQuery.empty) {
-      clientId = realtorQuery.docs[0].id;
+    if (!chatQuery.empty) {
+      chatId = chatQuery.docs[0].id;
     }
 
-    if (!clientId) {
-      console.error("Client or Realtor not found for this number");
-      res.status(400).send("Client or Realtor not found");
+    if (!chatId) {
+      console.error("No chat found for this phone number");
+      res.status(400).send("No chat found for this phone number");
       return;
     }
 
     try {
       await db.collection("messages").add({
-        clientId,
+        chatId,
+        sender: "realtor",
         message: messageBody,
-        from: "realtor",
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
       console.log("Message stored in Firestore");
+      res.status(200).send(
+        "<Response><Message>Message received</Message></Response>"
+      );
     } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error storing message in Firestore:", error.message);
-        res.status(500).send(`Failed to store message: ${error.message}`);
-      } else {
-        console.error("Unknown error storing message in Firestore:", error);
-        res.status(500).send("Failed to store message due to unknown error");
-      }
-      return;
-    }
-
-    res.writeHead(200, {"Content-Type": "text/xml"});
-    res.end("Thanks for your message! We will get back to you soon.");
-  }
-);
-
-// Test Firestore connection
-export const testFirestoreConnection = functions.https.onRequest(
-  async (req, res) => {
-    try {
-      const docRef = await db.collection("testCollection").add({
-        testField: "Hello Firestore!",
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      console.log("Document written with ID:", docRef.id);
-      res.status(200).send("Connected to Firestore. Document added.");
-    } catch (error) {
-      if (error instanceof Error) {
-        console.error("Error adding document to Firestore:", error.message);
-        res.status(500).send(
-          `Failed to connect to Firestore: ${error.message}`
-        );
-      } else {
-        console.error("Unknown error adding document to Firestore:", error);
-        res.status(500).send(
-          "Failed to connect to Firestore due to unknown error"
-        );
-      }
+      console.error("Error storing message:", error);
+      res.status(500).send("Failed to store message in Firestore");
     }
   }
 );
 
-// Cloud function to assign a user role
+/**
+ * Assigns a role to a user and updates Firestore.
+ */
 export const assignUserRole = functions.https.onCall(
-  async (
-    request: functions.https.CallableRequest<{ uid: string; role?: string }>
-  ) => {
+  async (request: functions.https
+    .CallableRequest<{ uid: string; role?: string }>) => {
     const {uid, role = "realtor"} = request.data;
 
     if (!uid) {
-      return {
-        success: false,
-        message: "Missing required field: uid.",
-      };
+      throw new functions.https.HttpsError("invalid-argument", "Missing UID");
     }
 
     try {
-      const assignedRole = role || "realtor";
-
-      // Save the role in Firestore
       await db.collection("users").doc(uid).set(
-        {
-          role: assignedRole,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
+        {role, updatedAt: admin.firestore.FieldValue.serverTimestamp()},
         {merge: true}
       );
-
-      // Set custom claims
-      await admin.auth().setCustomUserClaims(uid, {role: assignedRole});
-
-      return {
-        success: true,
-        message: "User role assigned successfully.",
-      };
+      await admin.auth().setCustomUserClaims(uid, {role});
+      return {success: true, message: "User role assigned successfully"};
     } catch (error) {
       console.error("Failed to assign user role:", error);
-      return {
-        success: false,
-        message: "Failed to assign user role due to an error.",
-      };
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to assign user role"
+      );
+    }
+  }
+);
+
+/**
+ * Tests Firestore connection by adding a test document.
+ */
+export const testFirestoreConnection = functions.https.onRequest(
+  async (req, res) => {
+    try {
+      const testDoc = await db.collection("testCollection").add({
+        message: "Hello Firestore!",
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      console.log("Test document written with ID:", testDoc.id);
+      res.status(200).send("Connected to Firestore. Test document created.");
+    } catch (error) {
+      console.error("Error writing test document:", error);
+      res.status(500).send("Failed to connect to Firestore");
     }
   }
 );
