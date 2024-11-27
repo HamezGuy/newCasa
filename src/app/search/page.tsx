@@ -1,29 +1,45 @@
-// src/app/search/page.tsx
-import SearchFilters from '@/components/core/SearchFilters';
+'use client';
+
 import SearchInput from '@/components/core/SearchInput';
-import { searchQuery } from '@/lib/data';
-import { Suspense, lazy } from 'react';
+import { ResultsMap } from '@/components/search/SearchResultsMap';
+import { lazy, useState } from 'react';
 
 // Lazy load the SearchResults component
 const SearchResults = lazy(() => import('@/components/search/SearchResults'));
 
-export default function Search({
-  searchParams,
-}: {
-  searchParams?: searchQuery;
-}) {
+export default function Search({ searchParams }: { searchParams?: any }) {
+  const [selectedGeometry, setSelectedGeometry] = useState<{
+    bounds?: google.maps.LatLngBounds;
+    polygonCoords?: google.maps.LatLngLiteral[];
+  } | undefined>(undefined);
+
+  const handlePlaceSelected = (geometry: any) => {
+    const boundsLiteral = geometry.geometry?.bounds;
+
+    if (boundsLiteral) {
+      const bounds = new google.maps.LatLngBounds(
+        boundsLiteral.southwest,
+        boundsLiteral.northeast
+      );
+
+      const polygonCoords = [
+        bounds.getSouthWest().toJSON(),
+        bounds.getNorthEast().toJSON(),
+      ];
+
+      setSelectedGeometry({ bounds, polygonCoords });
+    } else {
+      setSelectedGeometry(undefined);
+    }
+  };
+
   return (
     <main>
       <div className="flex flex-row flex-wrap gap-3 w-full items-center py-2 px-4">
-        <SearchInput size="sm" />
-        <SearchFilters />
+        <SearchInput size="sm" onPlaceSelected={handlePlaceSelected} />
       </div>
 
-      {searchParams?.s && (
-        <Suspense fallback={<div>Loading Search Results...</div>}>
-          <SearchResults query={searchParams} />
-        </Suspense>
-      )}
+      <ResultsMap properties={[]} selectedGeometry={selectedGeometry} />
     </main>
   );
 }
