@@ -3,7 +3,7 @@
 import { Button, MantineSize, TextInput } from '@mantine/core';
 import { Autocomplete, LoadScript } from '@react-google-maps/api';
 import axios from 'axios';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState } from 'react';
 
 export default function SearchInput({
@@ -16,12 +16,19 @@ export default function SearchInput({
   onPlaceSelected?: (geometry: any) => void;
 }) {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const GOOGLE_MAPS_API_KEY = 'AIzaSyAhPp5mHXCLCKZI2QSolcIUONI3ceZ-Zcc';
+  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
+  console.log("starting " + GOOGLE_MAPS_API_KEY);
+  
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.error('Google Maps API key is missing. Check your .env.local configuration.');
+    return <p>Error: Google Maps API key is not provided</p>;
+  }
 
   const handleSearch = async () => {
     if (autocompleteRef.current) {
@@ -50,12 +57,16 @@ export default function SearchInput({
           const result = response.data.results[0];
           const geometry = result.geometry;
 
-          router.replace(`/search?s=${inputValue}`);
-
-          onPlaceSelected?.({
-            bounds: geometry.bounds || geometry.viewport,
-            geometry,
-          });
+          if (pathname === '/search') {
+            // Update map and filters without refreshing the page
+            onPlaceSelected?.({
+              bounds: geometry.bounds || geometry.viewport,
+              geometry,
+            });
+          } else {
+            // Redirect to search page with query as URL parameter
+            router.push(`/search?s=${inputValue}`);
+          }
         } else {
           console.warn('No results found for the provided input.');
         }

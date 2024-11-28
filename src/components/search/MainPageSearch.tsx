@@ -10,7 +10,6 @@ export default function MainPageSearch() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate a short loading delay
     const timer = setTimeout(() => setLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);

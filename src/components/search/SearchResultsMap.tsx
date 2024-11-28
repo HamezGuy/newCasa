@@ -31,7 +31,7 @@ function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; l
   return { lat: sumLat / validProperties.length, lng: sumLng / validProperties.length };
 }
 
-// AdvancedMarker wrapper with references
+// AdvancedMarker wrapper with reference handling
 export const AdvancedMarkerWithRef = (
   props: AdvancedMarkerProps & {
     onMarkerClick: (marker: google.maps.marker.AdvancedMarkerElement) => void;
@@ -66,7 +66,13 @@ export function SearchResultsMap({
   const [selectedMarker, setSelectedMarker] =
     useState<google.maps.marker.AdvancedMarkerElement | null>(null);
 
-  const GOOGLE_MAPS_API_KEY = 'AIzaSyAhPp5mHXCLCKZI2QSolcIUONI3ceZ-Zcc';
+  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
+
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.error('Google Maps API key is missing. Check your .env.local configuration.');
+    return <p>Error: Google Maps API key is not provided.</p>;
+  }
+
   const defaultCenter = { lat: 43.0731, lng: -89.4012 }; // Default to Madison, WI
 
   const handleMarkerClick = useCallback(
@@ -93,10 +99,12 @@ export function SearchResultsMap({
     ? {
         lat:
           (selectedGeometry.bounds.getNorthEast().lat() +
-            selectedGeometry.bounds.getSouthWest().lat()) / 2,
+            selectedGeometry.bounds.getSouthWest().lat()) /
+          2,
         lng:
           (selectedGeometry.bounds.getNorthEast().lng() +
-            selectedGeometry.bounds.getSouthWest().lng()) / 2,
+            selectedGeometry.bounds.getSouthWest().lng()) /
+          2,
       }
     : getMapCenter(properties, defaultCenter);
 
