@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import PropertySearchResultCard from '../paragon/PropertySearchResultCard';
 
+// Utility function to calculate map center
 function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; lng: number }) {
   const validProperties = properties.filter(
     (property) => property.Latitude !== undefined && property.Longitude !== undefined
@@ -30,6 +31,7 @@ function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; l
   return { lat: sumLat / validProperties.length, lng: sumLng / validProperties.length };
 }
 
+// AdvancedMarker wrapper with references
 export const AdvancedMarkerWithRef = (
   props: AdvancedMarkerProps & {
     onMarkerClick: (marker: google.maps.marker.AdvancedMarkerElement) => void;
@@ -40,11 +42,7 @@ export const AdvancedMarkerWithRef = (
 
   return (
     <AdvancedMarker
-      onClick={() => {
-        if (marker) {
-          onMarkerClick(marker);
-        }
-      }}
+      onClick={() => marker && onMarkerClick(marker)}
       ref={markerRef}
       {...advancedMarkerProps}
     >
@@ -64,31 +62,26 @@ export function SearchResultsMap({
   };
 }) {
   const [infoWindowShown, setInfoWindowShown] = useState(false);
-  const [selectedProperty, setSelectedProperty] =
-    useState<IParagonProperty | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
   const [selectedMarker, setSelectedMarker] =
     useState<google.maps.marker.AdvancedMarkerElement | null>(null);
 
   const GOOGLE_MAPS_API_KEY = 'AIzaSyAhPp5mHXCLCKZI2QSolcIUONI3ceZ-Zcc';
-  const defaultCenter = { lat: 43.0731, lng: -89.4012 }; // Example: Madison, WI
+  const defaultCenter = { lat: 43.0731, lng: -89.4012 }; // Default to Madison, WI
 
   const handleMarkerClick = useCallback(
-    (propertyId: string, marker?: any) => {
-      setSelectedProperty(
-        properties.find((p) => p.ListingId === propertyId) ?? null
-      );
-
-      if (marker) {
-        setSelectedMarker(marker);
+    (propertyId: string, marker?: google.maps.marker.AdvancedMarkerElement) => {
+      if (selectedProperty?.ListingId === propertyId && infoWindowShown) {
+        setInfoWindowShown(false);
+        return;
       }
 
-      if (propertyId !== selectedProperty?.ListingId) {
-        setInfoWindowShown(true);
-      } else {
-        setInfoWindowShown((isShown) => !isShown);
-      }
+      const property = properties.find((p) => p.ListingId === propertyId);
+      setSelectedProperty(property || null);
+      setSelectedMarker(marker || null);
+      setInfoWindowShown(true);
     },
-    [selectedProperty, properties]
+    [selectedProperty, infoWindowShown, properties]
   );
 
   const onMapClick = useCallback(() => {
@@ -121,18 +114,21 @@ export function SearchResultsMap({
         disableDefaultUI={true}
         onClick={onMapClick}
         mapId="8c1f1e07f191046d"
+        style={{ minHeight: '400px', minWidth: '100%' }}
       >
         {/* Render Property Markers */}
-        {properties.map((property) =>
-          property.Latitude && property.Longitude ? (
-            <AdvancedMarkerWithRef
-              key={property.ListingId}
-              position={{ lat: property.Latitude, lng: property.Longitude }}
-              onMarkerClick={(marker) => handleMarkerClick(property.ListingId, marker)}
-            >
-              <Pin />
-            </AdvancedMarkerWithRef>
-          ) : null
+        {properties.map(
+          (property) =>
+            property.Latitude &&
+            property.Longitude && (
+              <AdvancedMarkerWithRef
+                key={property.ListingId}
+                position={{ lat: property.Latitude, lng: property.Longitude }}
+                onMarkerClick={(marker) => handleMarkerClick(property.ListingId, marker)}
+              >
+                <Pin />
+              </AdvancedMarkerWithRef>
+            )
         )}
 
         {/* Render Polygon for Location Outline */}
@@ -157,8 +153,6 @@ export function SearchResultsMap({
               lng: selectedProperty.Longitude ?? 0,
             }}
             onCloseClick={() => setInfoWindowShown(false)}
-            headerDisabled={true}
-            style={{ maxWidth: 250 }}
           >
             <PropertySearchResultCard property={selectedProperty} size="sm" />
           </InfoWindow>

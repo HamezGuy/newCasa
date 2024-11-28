@@ -14,6 +14,11 @@ const zipCodes = serverRuntimeConfig.zipCodes || [];
 
 const MOCK_DATA = process.env.MOCK_DATA && process.env.MOCK_DATA === 'true';
 
+/*if (!process.env.RESO_BASE_URL || !process.env.RESO_TOKEN_URL || !process.env.RESO_CLIENT_ID || !process.env.RESO_CLIENT_SECRET) {
+  throw new Error('Missing required RESO environment variables.');
+} TODO: have this in final code, but until env variables fixed, ignore for now
+  */
+
 interface ITokenResponse {
   token_type: 'Bearer';
   access_token: string;
@@ -103,7 +108,7 @@ export class ParagonApiClient {
       return this;
     }
 
-    const body = new url.URLSearchParams();
+    const body = new URLSearchParams();
     body.append('grant_type', 'client_credentials');
     body.append('scope', 'OData');
 
@@ -145,6 +150,13 @@ export class ParagonApiClient {
     };
     const options: RequestInit = { method: 'GET', headers: headers };
     const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching URL: ${url}, Status: ${response.status}, Body: ${errorText}`);
+      throw new Error(`Failed to fetch: ${url}`);
+    }
+    
     return (await response.json()) as IOdataResponse<T>;
   }
 
@@ -178,11 +190,12 @@ export class ParagonApiClient {
   }
 
   private getMediaUrl(top: number, skip?: number, filter?: string): string {
-    const topStr = top ? `&$top=${top}` : '';
-    const skipStr = skip ? `&$skip=${skip}` : '';
-    const filterStr = filter ? `&$filter=${filter}` : '';
-
-    return `${this.__baseUrl}/Media?$select=MediaKey,MediaURL,Order,ResourceRecordKey,ModificationTimestamp&$count=true${topStr}${skipStr}${filterStr}`;
+    const params = new URLSearchParams();
+    params.append('$top', top.toString());
+    if (skip) params.append('$skip', skip.toString());
+    if (filter) params.append('$filter', filter);
+  
+    return `${this.__baseUrl}/Media?$select=MediaKey,MediaURL,Order,ResourceRecordKey,ModificationTimestamp&$count=true&${params.toString()}`;
   }
 
   private generateMediaFilters(listingKeys: string[]): string[] {
