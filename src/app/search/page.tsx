@@ -11,7 +11,7 @@ export default function Search() {
   const [selectedGeometry, setSelectedGeometry] = useState<{
     bounds?: google.maps.LatLngBounds;
     polygonCoords?: google.maps.LatLngLiteral[];
-  } | undefined>(undefined); // Changed from null to undefined
+  } | undefined>(undefined);
   const [loading, setLoading] = useState(false);
 
   const fetchProperties = async (zipCode?: string) => {
@@ -54,13 +54,13 @@ export default function Search() {
 
       setSelectedGeometry({ bounds, polygonCoords });
     } else {
-      setSelectedGeometry(undefined); // Use undefined instead of null
+      setSelectedGeometry(undefined);
     }
   };
 
   const handleFiltersUpdate = (filters: any) => {
     console.log('Filters updated:', filters);
-    // Apply filters logic here (if applicable)
+    // Apply filters logic here
   };
 
   const handleTestingButtonClick = async () => {

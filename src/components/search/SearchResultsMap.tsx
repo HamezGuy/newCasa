@@ -76,7 +76,7 @@ export function SearchResultsMap({
   const defaultCenter = { lat: 43.0731, lng: -89.4012 }; // Default to Madison, WI
 
   const handleMarkerClick = useCallback(
-    (propertyId: string, marker?: google.maps.marker.AdvancedMarkerElement) => {
+    (propertyId: string, marker: google.maps.marker.AdvancedMarkerElement) => {
       if (selectedProperty?.ListingId === propertyId && infoWindowShown) {
         setInfoWindowShown(false);
         return;
