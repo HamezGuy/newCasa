@@ -2,11 +2,19 @@
 
 import { Title } from '@mantine/core';
 import Image from 'next/image';
-import { Suspense } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './HeroSearch.module.css';
 import SearchInput from './SearchInput';
 
-export default function HeroSearch() {
+export default function MainPageSearch() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate a short loading delay
+    const timer = setTimeout(() => setLoading(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div
       style={{ height: 600 }}
@@ -28,9 +36,11 @@ export default function HeroSearch() {
         Find your next home
       </Title>
       <div className="flex justify-center w-full">
-        <Suspense>
+        {loading ? (
+          <p className="text-center text-gray-500">Loading search input...</p>
+        ) : (
           <SearchInput />
-        </Suspense>
+        )}
       </div>
     </div>
   );

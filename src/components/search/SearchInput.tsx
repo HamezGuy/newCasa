@@ -21,13 +21,7 @@ export default function SearchInput({
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Google Maps API key
   const GOOGLE_MAPS_API_KEY = 'AIzaSyAhPp5mHXCLCKZI2QSolcIUONI3ceZ-Zcc';
-
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.error('Google Maps API key is missing.');
-    return <p>Error: Google Maps API key is not provided</p>;
-  }
 
   const handleSearch = async () => {
     if (autocompleteRef.current) {
@@ -55,14 +49,11 @@ export default function SearchInput({
         if (response.data.status === 'OK' && response.data.results.length > 0) {
           const result = response.data.results[0];
           const geometry = result.geometry;
-          const locationType = result.types?.[0] ?? 'unknown';
 
-          // Navigate and pass selected geometry
           router.replace(`/search?s=${inputValue}`);
 
           onPlaceSelected?.({
             bounds: geometry.bounds || geometry.viewport,
-            locationType,
             geometry,
           });
         } else {
@@ -79,7 +70,13 @@ export default function SearchInput({
   };
 
   return (
-    <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY} libraries={['places']}>
+    <LoadScript
+      googleMapsApiKey={GOOGLE_MAPS_API_KEY}
+      libraries={['places']}
+      onError={(error) =>
+        console.error('Google Maps LoadScript error:', error)
+      }
+    >
       <Autocomplete
         onLoad={(autocomplete) => (autocompleteRef.current = autocomplete)}
         onPlaceChanged={handleSearch}
@@ -90,11 +87,6 @@ export default function SearchInput({
           placeholder="Enter City, ZIP Code, or Address"
           className="flex-grow"
           size={size}
-          miw="280"
-          maw="500"
-          type="text"
-          rightSectionWidth="auto"
-          data-1p-ignore
           onKeyUp={(e) => e.key === 'Enter' && handleSearch()}
           rightSection={
             <Button
