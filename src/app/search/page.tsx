@@ -1,17 +1,20 @@
 'use client';
 
-import SearchInput from '@/components/core/SearchInput';
-import { ResultsMap } from '@/components/search/SearchResultsMap';
-import { lazy, useState } from 'react';
+import PropertySearchResultCard from '@/components/paragon/PropertySearchResultCard';
+import SearchFilters from '@/components/search/SearchFilters';
+import SearchInput from '@/components/search/SearchInput';
+import { SearchResultsMap } from '@/components/search/SearchResultsMap';
+import { searchQuery } from '@/lib/data';
+import IParagonProperty from '@/types/IParagonProperty';
+import { useState } from 'react';
 
-// Lazy load the SearchResults component
-const SearchResults = lazy(() => import('@/components/search/SearchResults'));
-
-export default function Search({ searchParams }: { searchParams?: any }) {
+export default function Search({ searchParams }: { searchParams?: searchQuery }) {
   const [selectedGeometry, setSelectedGeometry] = useState<{
     bounds?: google.maps.LatLngBounds;
     polygonCoords?: google.maps.LatLngLiteral[];
   } | undefined>(undefined);
+
+  const [filteredProperties, setFilteredProperties] = useState<IParagonProperty[]>([]);
 
   const handlePlaceSelected = (geometry: any) => {
     const boundsLiteral = geometry.geometry?.bounds;
@@ -33,13 +36,42 @@ export default function Search({ searchParams }: { searchParams?: any }) {
     }
   };
 
+  const handleFiltersUpdate = (filters: any) => {
+    // Placeholder for applying filters
+    console.log('Filters updated:', filters);
+  };
+
   return (
-    <main>
-      <div className="flex flex-row flex-wrap gap-3 w-full items-center py-2 px-4">
+    <main className="flex flex-col w-full h-screen">
+      {/* Search Bar and Filters */}
+      <div className="flex flex-wrap w-full p-4 gap-4 bg-gray-100 shadow-md z-10">
         <SearchInput size="sm" onPlaceSelected={handlePlaceSelected} />
+        <SearchFilters onUpdate={handleFiltersUpdate} />
       </div>
 
-      <ResultsMap properties={[]} selectedGeometry={selectedGeometry} />
+      {/* Map and Property List */}
+      <div className="flex flex-col lg:flex-row flex-grow w-full">
+        {/* Map View */}
+        <div className="w-full lg:w-2/3 h-96 lg:h-full">
+          <SearchResultsMap
+            properties={filteredProperties}
+            selectedGeometry={selectedGeometry}
+          />
+        </div>
+
+        {/* Property List */}
+        <div className="w-full lg:w-1/3 h-full overflow-auto p-4 bg-white shadow-inner">
+          {filteredProperties.length > 0 ? (
+            filteredProperties.map((property) => (
+              <PropertySearchResultCard key={property.ListingId} property={property} />
+            ))
+          ) : (
+            <p className="text-center text-gray-500 mt-4">
+              No properties found. Adjust your search or filters.
+            </p>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

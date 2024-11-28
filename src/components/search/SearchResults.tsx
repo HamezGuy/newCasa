@@ -6,7 +6,7 @@ import IParagonProperty from '@/types/IParagonProperty';
 import { useEffect, useState } from 'react';
 import PropertyList from '../paragon/PropertyList';
 import style from './SearchResults.module.css';
-import { ResultsMap } from './SearchResultsMap';
+import { SearchResultsMap } from './SearchResultsMap';
 
 interface SearchResultsProps {
   query: searchQuery;
@@ -31,7 +31,7 @@ function SearchResults({ query }: SearchResultsProps) {
   return (
     <div className={`${style.searchResults} md:flex`}>
       <div className={`${style.searchResultsMap} relative flex-auto md:basis-7/12`}>
-        <ResultsMap properties={properties} />
+        <SearchResultsMap properties={properties} />
       </div>
       <div className="basis-5/12 overflow-y-scroll">
         <PropertyList properties={properties} reduced={true} className="p-4" />
