@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, MantineSize, TextInput } from '@mantine/core';
-import { Autocomplete, LoadScript } from '@react-google-maps/api';
+import { Autocomplete } from '@react-google-maps/api';
 import axios from 'axios';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useRef, useState } from 'react';
@@ -23,8 +23,7 @@ export default function SearchInput({
   const [loading, setLoading] = useState(false);
 
   const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
-  console.log("starting " + GOOGLE_MAPS_API_KEY);
-  
+
   if (!GOOGLE_MAPS_API_KEY) {
     console.error('Google Maps API key is missing. Check your .env.local configuration.');
     return <p>Error: Google Maps API key is not provided</p>;
@@ -58,13 +57,11 @@ export default function SearchInput({
           const geometry = result.geometry;
 
           if (pathname === '/search') {
-            // Update map and filters without refreshing the page
             onPlaceSelected?.({
               bounds: geometry.bounds || geometry.viewport,
               geometry,
             });
           } else {
-            // Redirect to search page with query as URL parameter
             router.push(`/search?s=${inputValue}`);
           }
         } else {
@@ -81,36 +78,28 @@ export default function SearchInput({
   };
 
   return (
-    <LoadScript
-      googleMapsApiKey={GOOGLE_MAPS_API_KEY}
-      libraries={['places']}
-      onError={(error) =>
-        console.error('Google Maps LoadScript error:', error)
-      }
+    <Autocomplete
+      onLoad={(autocomplete) => (autocompleteRef.current = autocomplete)}
+      onPlaceChanged={handleSearch}
     >
-      <Autocomplete
-        onLoad={(autocomplete) => (autocompleteRef.current = autocomplete)}
-        onPlaceChanged={handleSearch}
-      >
-        <TextInput
-          ref={inputRef}
-          defaultValue={searchParams.get('s') || ''}
-          placeholder="Enter City, ZIP Code, or Address"
-          className="flex-grow"
-          size={size}
-          onKeyUp={(e) => e.key === 'Enter' && handleSearch()}
-          rightSection={
-            <Button
-              variant="filled"
-              loading={isLoading || loading}
-              onClick={handleSearch}
-              size={size}
-            >
-              Search
-            </Button>
-          }
-        />
-      </Autocomplete>
-    </LoadScript>
+      <TextInput
+        ref={inputRef}
+        defaultValue={searchParams.get('s') || ''}
+        placeholder="Enter City, ZIP Code, or Address"
+        className="flex-grow"
+        size={size}
+        onKeyUp={(e) => e.key === 'Enter' && handleSearch()}
+        rightSection={
+          <Button
+            variant="filled"
+            loading={isLoading || loading}
+            onClick={handleSearch}
+            size={size}
+          >
+            Search
+          </Button>
+        }
+      />
+    </Autocomplete>
   );
 }
