@@ -1,15 +1,14 @@
-// src/components/search/SearchResults.tsx
-"use client";
+'use client';
 
-import { getPropertiesByQuery, searchQuery } from '@/lib/data';
+import PropertyList from '@/components/paragon/PropertyList';
+import paragonApiClient from '@/lib/ParagonApiClient';
 import IParagonProperty from '@/types/IParagonProperty';
 import { useEffect, useState } from 'react';
-import PropertyList from '../paragon/PropertyList';
 import style from './SearchResults.module.css';
-import { ResultsMap } from './SearchResultsMap';
+import { SearchResultsMap } from './SearchResultsMap';
 
 interface SearchResultsProps {
-  query: searchQuery;
+  query: { zipCode?: string; filters?: any }; // Adjust the query type as needed
 }
 
 function SearchResults({ query }: SearchResultsProps) {
@@ -17,11 +16,22 @@ function SearchResults({ query }: SearchResultsProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProperties = async () => {
-      const result = await getPropertiesByQuery(query);
-      setProperties(result || []);
-      setLoading(false);
-    };
+    async function fetchProperties() {
+      try {
+        if (query.zipCode) {
+          const results = await paragonApiClient.searchByZipCode(query.zipCode);
+          setProperties(results.value || []);
+        } else {
+          const allProperties = await paragonApiClient.getAllPropertyWithMedia();
+          setProperties(allProperties || []);
+        }
+      } catch (error) {
+        console.error('Error fetching properties:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     fetchProperties();
   }, [query]);
 
@@ -30,9 +40,12 @@ function SearchResults({ query }: SearchResultsProps) {
 
   return (
     <div className={`${style.searchResults} md:flex`}>
+      {/* Map View */}
       <div className={`${style.searchResultsMap} relative flex-auto md:basis-7/12`}>
-        <ResultsMap properties={properties} />
+        <SearchResultsMap properties={properties} />
       </div>
+
+      {/* Property List */}
       <div className="basis-5/12 overflow-y-scroll">
         <PropertyList properties={properties} reduced={true} className="p-4" />
       </div>

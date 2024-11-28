@@ -19,9 +19,9 @@ export default function MessageInput({ propertyId, clientId }: MessageInputProps
         clientId,
         clientEmail: "user@example.com", // Replace with actual email logic
         realtorEmail: "realtor@example.com", // Replace with actual logic
-        realtorPhoneNumber: "123-456-7890", // Replace with actual phone logic
+        realtorPhoneNumber: "+1234567890", // Replace with actual phone logic
       });
-      setMessage("");
+      setMessage(""); // Clear input after sending
     } catch (error) {
       console.error("Failed to send message:", error);
     }
@@ -33,8 +33,11 @@ export default function MessageInput({ propertyId, clientId }: MessageInputProps
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         placeholder="Type your message..."
+        className="w-full p-2 border rounded"
       />
-      <button onClick={handleSendMessage}>Send</button>
+      <button onClick={handleSendMessage} className="bg-blue-500 text-white p-2 rounded">
+        Send
+      </button>
     </div>
   );
 }

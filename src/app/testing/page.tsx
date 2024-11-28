@@ -1,57 +1,177 @@
-"use client"; // Ensures the component is rendered on the client-side
+'use client';
 
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import { db } from '../../lib/firebase'; // Ensure this is correctly set up
+import {
+  Autocomplete,
+  GoogleMap,
+  InfoWindow,
+  LoadScript,
+  Marker,
+  Polygon,
+} from '@react-google-maps/api';
+import { useCallback, useRef, useState } from 'react';
 
-const TestFirestorePage = () => {
-  const [testResult, setTestResult] = useState<string>('Testing Firestore...');
+const GOOGLE_MAPS_API_KEY = 'AIzaSyAhPp5mHXCLCKZI2QSolcIUONI3ceZ-Zcc'; // Replace with your actual API key
 
-  useEffect(() => {
-    // Function to add and then test Firestore connection
-    const addAndTestFirestore = async () => {
-      try {
-        console.log("Adding document to Firestore...");
+interface Property {
+  ListingId: string;
+  Latitude: number;
+  Longitude: number;
+  Address: string;
+  Price: string;
+}
 
-        const docRef = doc(db, 'users', '123'); // Use a test user ID or random one for each test
+// Mock property data for testing
+const mockProperties: Property[] = [
+  {
+    ListingId: '1',
+    Latitude: 43.073051,
+    Longitude: -89.40123,
+    Address: '123 Main St, Madison, WI',
+    Price: '$350,000',
+  },
+  {
+    ListingId: '2',
+    Latitude: 43.083051,
+    Longitude: -89.41123,
+    Address: '456 Elm St, Madison, WI',
+    Price: '$450,000',
+  },
+];
 
-        await setDoc(docRef, {
-          name: "John Doe",    // Fields you want to add
-          email: "johndoe@example.com",
-          age: 30
-        });
+const TestMapWithSearch = () => {
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [polygonCoords, setPolygonCoords] = useState<{ lat: number; lng: number }[] | null>(null);
 
-        console.log("Document added! Attempting to fetch document from Firestore...");
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
-        // Fetch the document after adding it
-        const docSnap = await getDoc(docRef);
+  const mapContainerStyle = {
+    width: '100%',
+    height: '100vh',
+  };
 
-        if (docSnap.exists()) {
-          console.log('Document data:', docSnap.data()); // Logs the document data
-          setTestResult('Document fetched successfully. Data: ' + JSON.stringify(docSnap.data()));
+  const mapCenter = selectedLocation || { lat: 43.0731, lng: -89.4012 }; // Default to Madison, WI
+
+  const polygonOptions = {
+    fillColor: '#22ccff',
+    fillOpacity: 0.2,
+    strokeColor: '#1e89a1',
+    strokeOpacity: 0.8,
+    strokeWeight: 2,
+  };
+
+  const handleSearch = useCallback(() => {
+    if (autocompleteRef.current) {
+      const place = autocompleteRef.current.getPlace();
+
+      if (place?.geometry?.location) {
+        const location = place.geometry.location;
+
+        if (location) {
+          setSelectedLocation({
+            lat: location.lat(),
+            lng: location.lng(),
+          });
         } else {
-          console.log('No such document!');
-          setTestResult('No document found in Firestore.');
+          console.error('Location is undefined.');
         }
-      } catch (error) {
-        console.error('Error connecting to Firestore:', error);
-        
-        // Type assertion to check if error has a message property
-        const errorMessage = (error as Error).message || "An unknown error occurred";
-        setTestResult('Error connecting to Firestore: ' + errorMessage);
-      }
-    };
 
-    addAndTestFirestore(); 
+        const viewport = place.geometry.viewport;
+        if (viewport) {
+          const ne = viewport.getNorthEast();
+          const sw = viewport.getSouthWest();
+          setPolygonCoords([
+            { lat: sw.lat(), lng: sw.lng() },
+            { lat: sw.lat(), lng: ne.lng() },
+            { lat: ne.lat(), lng: ne.lng() },
+            { lat: ne.lat(), lng: sw.lng() },
+          ]);
+        }
+      } else {
+        console.error('Place geometry or location is undefined.');
+      }
+    }
+  }, []);
+
+  const handleMarkerClick = useCallback((property: Property) => {
+    setSelectedProperty(property);
+  }, []);
+
+  const handleMapClick = useCallback(() => {
+    setSelectedProperty(null);
   }, []);
 
   return (
-    <div>
-      <h1>Firestore Add and Fetch Test</h1>
-      <p>{testResult}</p>
-      <p>Check the console for detailed results.</p>
+    <div style={{ height: '100vh', width: '100%' }}>
+      <LoadScript
+        googleMapsApiKey={GOOGLE_MAPS_API_KEY}
+        libraries={['places']}
+      >
+        {/* Search Bar */}
+        <div style={{ position: 'absolute', zIndex: 10, top: 10, left: 10, display: 'flex', alignItems: 'center' }}>
+          <Autocomplete onLoad={(ref) => (autocompleteRef.current = ref)}>
+            <input
+              type="text"
+              placeholder="Search for a location"
+              style={{
+                width: '300px',
+                height: '40px',
+                fontSize: '16px',
+                padding: '0 10px',
+              }}
+            />
+          </Autocomplete>
+          <button
+            onClick={handleSearch}
+            style={{
+              marginLeft: '10px',
+              height: '40px',
+              fontSize: '16px',
+              cursor: 'pointer',
+            }}
+          >
+            Search
+          </button>
+        </div>
+
+        {/* Google Map */}
+        <GoogleMap
+          mapContainerStyle={mapContainerStyle}
+          center={mapCenter}
+          zoom={12}
+          onClick={handleMapClick}
+        >
+          {/* Render Polygon */}
+          {polygonCoords && <Polygon paths={polygonCoords} options={polygonOptions} />}
+
+          {/* Render Property Markers */}
+          {mockProperties.map((property) => (
+            <Marker
+              key={property.ListingId}
+              position={{ lat: property.Latitude, lng: property.Longitude }}
+              onClick={() => handleMarkerClick(property)}
+            />
+          ))}
+
+          {/* Render InfoWindow for selected property */}
+          {selectedProperty && (
+            <InfoWindow
+              position={{
+                lat: selectedProperty.Latitude,
+                lng: selectedProperty.Longitude,
+              }}
+              onCloseClick={handleMapClick}
+            >
+              <div>
+                <h3>{selectedProperty.Address}</h3>
+                <p>Price: {selectedProperty.Price}</p>
+              </div>
+            </InfoWindow>
+          )}
+        </GoogleMap>
+      </LoadScript>
     </div>
   );
 };
 
-export default TestFirestorePage;
+export default TestMapWithSearch;

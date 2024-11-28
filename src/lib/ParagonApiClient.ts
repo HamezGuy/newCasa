@@ -8,9 +8,16 @@ import * as url from 'url';
 import { geocodeProperties } from './GoogleMaps';
 import { cdn } from './utils/cdn';
 
-const { serverRuntimeConfig } = getConfig();
+// Fallback mechanism for serverRuntimeConfig
+const { serverRuntimeConfig = {} } = getConfig() || {};
+const zipCodes = serverRuntimeConfig.zipCodes || [];
 
 const MOCK_DATA = process.env.MOCK_DATA && process.env.MOCK_DATA === 'true';
+
+/*if (!process.env.RESO_BASE_URL || !process.env.RESO_TOKEN_URL || !process.env.RESO_CLIENT_ID || !process.env.RESO_CLIENT_SECRET) {
+  throw new Error('Missing required RESO environment variables.');
+} TODO: have this in final code, but until env variables fixed, ignore for now
+  */
 
 interface ITokenResponse {
   token_type: 'Bearer';
@@ -39,7 +46,7 @@ export class ParagonApiClient {
   private __tokenExpiration: Date | undefined;
   private __maxPageSize = 2500;
   private __maxConcurrentQueries = 120;
-  private __zipCodes = [];
+  private __zipCodes: string[];
 
   constructor(
     baseUrl: string,
@@ -51,12 +58,11 @@ export class ParagonApiClient {
     this.__tokenUrl = tokenUrl;
     this.__clientId = clientId;
     this.__clientSecret = clientSecret;
-    this.__zipCodes = serverRuntimeConfig.zipCodes ?? [];
+    this.__zipCodes = zipCodes; // Use the fallback zipCodes
   }
 
   // Server-side only token initialization logic
   public async initializeToken(): Promise<void> {
-    // In Next.js, fs operations need to be on the server side
     if (typeof window === 'undefined') {
       const fs = await import('fs/promises'); // Dynamically import fs on the server-side
       const filepath = path.join(
@@ -102,7 +108,7 @@ export class ParagonApiClient {
       return this;
     }
 
-    const body = new url.URLSearchParams();
+    const body = new URLSearchParams();
     body.append('grant_type', 'client_credentials');
     body.append('scope', 'OData');
 
@@ -144,6 +150,13 @@ export class ParagonApiClient {
     };
     const options: RequestInit = { method: 'GET', headers: headers };
     const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching URL: ${url}, Status: ${response.status}, Body: ${errorText}`);
+      throw new Error(`Failed to fetch: ${url}`);
+    }
+    
     return (await response.json()) as IOdataResponse<T>;
   }
 
@@ -177,14 +190,14 @@ export class ParagonApiClient {
   }
 
   private getMediaUrl(top: number, skip?: number, filter?: string): string {
-    const topStr = top ? `&$top=${top}` : '';
-    const skipStr = skip ? `&$skip=${skip}` : '';
-    const filterStr = filter ? `&$filter=${filter}` : '';
-
-    return `${this.__baseUrl}/Media?$select=MediaKey,MediaURL,Order,ResourceRecordKey,ModificationTimestamp&$count=true${topStr}${skipStr}${filterStr}`;
+    const params = new URLSearchParams();
+    params.append('$top', top.toString());
+    if (skip) params.append('$skip', skip.toString());
+    if (filter) params.append('$filter', filter);
+  
+    return `${this.__baseUrl}/Media?$select=MediaKey,MediaURL,Order,ResourceRecordKey,ModificationTimestamp&$count=true&${params.toString()}`;
   }
 
-  // Generate filter strings for media requests to avoid URL length issues
   private generateMediaFilters(listingKeys: string[]): string[] {
     const baseURL = this.getMediaUrl(9999999, 9999999, '1');
     const maxURLLength = 2048;
@@ -242,7 +255,6 @@ export class ParagonApiClient {
       })
     );
 
-    // Get Media URLs from Paragon
     await pMap(
       queryFilters,
       async (queryFilter: string) => {
@@ -277,7 +289,6 @@ export class ParagonApiClient {
 
     const propertiesInCDN = await cdn.getProperties();
 
-    // Assign Media to property
     await pMap(
       MOCK_DATA ? properties.slice(0, 3) : properties,
       async (property: ParagonPropertyWithMedia) => {
@@ -287,7 +298,6 @@ export class ParagonApiClient {
           console.log(`Property ${property.ListingKey} has no media`);
         }
 
-        // Upload Media to CDN
         if (!propertiesInCDN.includes(property.ListingKey)) {
           const mediaOnCDN = await cdn.uploadMedia(
             mediaByProperty[property.ListingKey]
@@ -311,7 +321,6 @@ export class ParagonApiClient {
     if (MOCK_DATA) {
       console.log('Using mock data for getPropertyById');
       const properties_mock = require('../../data/properties.json');
-      // await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const property = properties_mock.value.filter(
         (p: IParagonProperty) => p.ListingId == id
@@ -393,7 +402,6 @@ export class ParagonApiClient {
     if (MOCK_DATA) {
       console.log('Using mock data for getAllPropertyWithMedia');
       const properties_mock = require('../../data/properties.json');
-      // await new Promise((resolve) => setTimeout(resolve, 3000));
 
       return await geocodeProperties(properties_mock.value);
     }
