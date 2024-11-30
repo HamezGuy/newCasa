@@ -14,7 +14,6 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import PropertySearchResultCard from '../paragon/PropertySearchResultCard';
 
-// Utility function to calculate map center
 function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; lng: number }) {
   const validProperties = properties.filter(
     (property) => property.Latitude !== undefined && property.Longitude !== undefined
@@ -31,7 +30,6 @@ function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; l
   return { lat: sumLat / validProperties.length, lng: sumLng / validProperties.length };
 }
 
-// AdvancedMarker wrapper with reference handling
 export const AdvancedMarkerWithRef = (
   props: AdvancedMarkerProps & {
     onMarkerClick: (marker: google.maps.marker.AdvancedMarkerElement) => void;

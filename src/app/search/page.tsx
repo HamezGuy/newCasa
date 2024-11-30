@@ -4,7 +4,7 @@ import PropertyList from '@/components/paragon/PropertyList';
 import SearchFilters from '@/components/search/SearchFilters';
 import SearchInput from '@/components/search/SearchInput';
 import { SearchResultsMap } from '@/components/search/SearchResultsMap';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function Search() {
   const [filteredProperties, setFilteredProperties] = useState([]);
@@ -14,7 +14,13 @@ export default function Search() {
   } | undefined>(undefined);
   const [loading, setLoading] = useState(false);
 
+  // Ref to prevent unnecessary re-fetches
+  const hasFetched = useRef(false);
+
   const fetchProperties = async (zipCode?: string) => {
+    if (hasFetched.current) return; // Skip if already fetched
+    hasFetched.current = true;
+
     setLoading(true);
     try {
       const response = await fetch(`/api/v1/listings${zipCode ? `?zipCode=${zipCode}` : ''}`);

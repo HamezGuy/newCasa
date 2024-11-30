@@ -1,10 +1,10 @@
 'use client';
 
-import { Button, MantineSize, TextInput } from '@mantine/core';
-import { Autocomplete } from '@react-google-maps/api';
+import { Button, MantineSize, Modal, TextInput } from '@mantine/core';
 import axios from 'axios';
+import debounce from 'lodash/debounce';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export default function SearchInput({
   isLoading,
@@ -18,88 +18,210 @@ export default function SearchInput({
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const cancelTokenSourceRef = useRef<ReturnType<typeof axios.CancelToken.source> | null>(null);
+  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
+
   const [loading, setLoading] = useState(false);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
 
-  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
+  // Initialize Google Autocomplete
+  const initializeAutocomplete = useCallback(() => {
+    if (!autocomplete && inputRef.current && window.google?.maps) {
+      const newAutocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+        types: ['(regions)'],
+      });
 
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.error('Google Maps API key is missing. Check your .env.local configuration.');
-    return <p>Error: Google Maps API key is not provided</p>;
-  }
+      newAutocomplete.addListener('place_changed', handlePlaceChanged);
+      setAutocomplete(newAutocomplete);
+    }
+  }, [autocomplete]);
 
-  const handleSearch = async () => {
-    if (autocompleteRef.current) {
-      const place = autocompleteRef.current.getPlace();
-      const inputValue = place?.formatted_address || inputRef.current?.value;
+  // Attempt to initialize Google Autocomplete whenever the input is rendered
+  useEffect(() => {
+    initializeAutocomplete();
 
-      if (!inputValue) {
-        console.warn('No input value or place selected.');
-        return;
+    const interval = setInterval(() => {
+      if (!autocomplete && window.google?.maps) {
+        initializeAutocomplete();
+        clearInterval(interval);
       }
+    }, 100);
 
-      setLoading(true);
+    return () => {
+      if (autocomplete) {
+        google.maps.event.clearInstanceListeners(autocomplete);
+      }
+      if (cancelTokenSourceRef.current) {
+        cancelTokenSourceRef.current.cancel('Component unmounted, cancelling pending requests.');
+      }
+    };
+  }, [initializeAutocomplete, autocomplete]);
 
-      try {
-        const response = await axios.get(
-          `https://maps.googleapis.com/maps/api/geocode/json`,
-          {
-            params: {
-              address: inputValue,
-              key: GOOGLE_MAPS_API_KEY,
-            },
-          }
-        );
+  // Handle Google Place selection
+  const handlePlaceChanged = async () => {
+    if (!autocomplete) return;
 
-        if (response.data.status === 'OK' && response.data.results.length > 0) {
-          const result = response.data.results[0];
-          const geometry = result.geometry;
+    const place = autocomplete.getPlace();
 
-          if (pathname === '/search') {
-            onPlaceSelected?.({
-              bounds: geometry.bounds || geometry.viewport,
-              geometry,
-            });
-          } else {
-            router.push(`/search?s=${inputValue}`);
-          }
-        } else {
-          console.warn('No results found for the provided input.');
-        }
-      } catch (error) {
-        console.error('Error fetching geocoding data:', error);
-      } finally {
-        setLoading(false);
+    if (place && place.geometry) {
+      const geometry = place.geometry as google.maps.places.PlaceGeometry & {
+        bounds?: google.maps.LatLngBounds;
+      };
+
+      const inputValue = place.formatted_address || inputRef.current?.value;
+
+      if (pathname === '/search') {
+        onPlaceSelected?.({
+          bounds: geometry.bounds || geometry.viewport,
+          geometry,
+        });
+      } else {
+        router.push(`/search?s=${inputValue}`);
       }
     } else {
-      console.error('Autocomplete is not initialized.');
+      openSuggestionsPopup();
     }
   };
 
-  return (
-    <Autocomplete
-      onLoad={(autocomplete) => (autocompleteRef.current = autocomplete)}
-      onPlaceChanged={handleSearch}
-    >
-      <TextInput
-        ref={inputRef}
-        defaultValue={searchParams.get('s') || ''}
-        placeholder="Enter City, ZIP Code, or Address"
-        className="flex-grow"
-        size={size}
-        onKeyUp={(e) => e.key === 'Enter' && handleSearch()}
-        rightSection={
-          <Button
-            variant="filled"
-            loading={isLoading || loading}
-            onClick={handleSearch}
-            size={size}
-          >
-            Search
-          </Button>
+  // Fetch suggestions via API with debounced function
+  const openSuggestionsPopup = useCallback(
+    debounce(async () => {
+      if (!inputRef.current?.value) return;
+
+      setLoading(true);
+
+      if (cancelTokenSourceRef.current) {
+        cancelTokenSourceRef.current.cancel('New request initiated.');
+      }
+
+      const cancelTokenSource = axios.CancelToken.source();
+      cancelTokenSourceRef.current = cancelTokenSource;
+
+      try {
+        const response = await axios.get('/api/v1/autocomplete', {
+          params: { input: inputRef.current.value, types: '(regions)' },
+          cancelToken: cancelTokenSource.token,
+        });
+
+        if (response.data.status === 'OK' && response.data.predictions.length > 0) {
+          setSuggestions(response.data.predictions);
+        } else {
+          setSuggestions([]);
         }
-      />
-    </Autocomplete>
+      } catch (error: any) {
+        console.error('Error fetching autocomplete suggestions:', error);
+      } finally {
+        setLoading(false);
+        setIsPopupOpen(true);
+      }
+    }, 300),
+    []
+  );
+
+  // Handle suggestion selection from the modal
+  const handleSuggestionSelect = async (suggestion: any) => {
+    setIsPopupOpen(false);
+  
+    if (inputRef.current) {
+      inputRef.current.value = suggestion.description; // Populate input with selected suggestion
+    }
+  
+    try {
+      const response = await axios.get(`/api/v1/geocode`, {
+        params: { address: suggestion.description },
+      });
+  
+      if (response.data.status === 'OK' && response.data.results.length > 0) {
+        const geometry = response.data.results[0].geometry;
+  
+        if (pathname === '/search') {
+          onPlaceSelected?.({
+            bounds: geometry.bounds || geometry.viewport,
+            geometry,
+          });
+        } else {
+          router.push(`/search?s=${suggestion.description}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching geocoding data for suggestion:', error);
+    }
+  };  
+
+  return (
+    <div style={{ maxWidth: '1000px', minWidth: '400px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', width: '100%' }}>
+        <TextInput
+          ref={inputRef}
+          defaultValue={searchParams.get('s') || ''}
+          placeholder="Enter City, ZIP Code, or Address"
+          size={size}
+          onKeyUp={(e) => e.key === 'Enter' && handlePlaceChanged()}
+          style={{
+            flex: 1,
+            borderTopRightRadius: 0,
+            borderBottomRightRadius: 0,
+          }}
+        />
+        <Button
+          variant="filled"
+          loading={isLoading || loading}
+          onClick={handlePlaceChanged}
+          size={size}
+          style={{
+            borderTopLeftRadius: 0,
+            borderBottomLeftRadius: 0,
+          }}
+        >
+          Search
+        </Button>
+      </div>
+
+      <Modal
+        opened={isPopupOpen}
+        onClose={() => setIsPopupOpen(false)}
+        title="Select a Valid Location"
+        overlayProps={{
+          color: 'rgba(0, 0, 0, 0.5)',
+          blur: 3,
+        }}
+      >
+        {loading ? (
+          <p className="text-center text-gray-500 mt-4">Loading suggestions...</p>
+        ) : suggestions.length > 0 ? (
+          <ul
+            style={{
+              listStyleType: 'none',
+              padding: 0,
+              margin: 0,
+              maxHeight: '300px',
+              overflowY: 'auto',
+            }}
+          >
+            {suggestions.map((suggestion) => (
+              <li
+                key={suggestion.place_id}
+                onClick={() => handleSuggestionSelect(suggestion)}
+                style={{
+                  padding: '10px',
+                  borderBottom: '1px solid #ddd',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                className="hover:bg-gray-200"
+              >
+                <strong>{suggestion.structured_formatting.main_text}</strong>{' '}
+                <small>{suggestion.structured_formatting.secondary_text}</small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No valid locations found. Please try again.</p>
+        )}
+      </Modal>
+    </div>
   );
 }
