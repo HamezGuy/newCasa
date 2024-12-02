@@ -12,12 +12,14 @@ const GOOGLE_MAPS_LIBRARIES = ['places']; // Define libraries as a static consta
 export function SearchResultsMap({
   properties,
   selectedGeometry,
+  onSearchComplete,
 }: {
   properties: IParagonProperty[];
   selectedGeometry?: {
     bounds?: google.maps.LatLngBounds;
     polygonCoords?: google.maps.LatLngLiteral[];
   };
+  onSearchComplete?: () => void; // Optional callback to indicate search success
 }) {
   const { geocodeData: selectedGeocodeData } = useGeocode(); // Access geocode data from context
   const [infoWindowShown, setInfoWindowShown] = useState(false);
@@ -49,13 +51,12 @@ export function SearchResultsMap({
 
   // Center the map only once when geometry or geocode data changes
   useEffect(() => {
-    if (hasCentered) return; // Skip if the map has already centered
-
     if (selectedGeometry?.bounds) {
       console.log('Snapping map to geometry bounds:', selectedGeometry.bounds);
       const boundsCenter = selectedGeometry.bounds.getCenter().toJSON();
       setMapCenter(boundsCenter);
       setHasCentered(true); // Mark as centered
+      onSearchComplete?.(); // Signal search completion
     } else if (selectedGeocodeData?.location) {
       console.log('Snapping map to geocode location:', selectedGeocodeData.location);
       setMapCenter({
@@ -63,11 +64,12 @@ export function SearchResultsMap({
         lng: selectedGeocodeData.location.lng,
       });
       setHasCentered(true); // Mark as centered
+      onSearchComplete?.(); // Signal search completion
     } else {
       console.log('Using default center.');
       setMapCenter(defaultCenter);
     }
-  }, [selectedGeometry, selectedGeocodeData, hasCentered]);
+  }, [selectedGeometry, selectedGeocodeData]); // Removed dependency on `hasCentered`
 
   const polygonCoords = selectedGeometry?.polygonCoords;
 
@@ -114,7 +116,6 @@ function MapContent({
   const map = useMap();
 
   useEffect(() => {
-    // Only fit bounds once when selectedGeometry changes
     if (!map) return;
     console.log('Map is ready for user interaction.');
   }, [map]);
