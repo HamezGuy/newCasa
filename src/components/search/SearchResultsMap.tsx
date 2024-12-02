@@ -5,30 +5,25 @@ import { Polygon } from '@react-google-maps/api';
 import { APIProvider, InfoWindow, Map, Marker, useMap } from '@vis.gl/react-google-maps';
 import { useCallback, useEffect, useState } from 'react';
 import PropertySearchResultCard from '../paragon/PropertySearchResultCard';
-import { useGeocode } from './GeocodeContext'; // Use context for geocode data
+import { useGeocode } from './GeocodeContext';
 
-// Helper function to calculate map center
-function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; lng: number }) {
-  const validProperties = properties.filter(
-    (property) => property.Latitude !== undefined && property.Longitude !== undefined
-  );
+const GOOGLE_MAPS_LIBRARIES = ['places']; // Define libraries as a static constant
 
-  if (validProperties.length === 0) {
-    console.warn('Could not locate map center. Defaulting to fallback center.');
-    return fallback;
-  }
-
-  const sumLat = validProperties.reduce((acc, property) => acc + property.Latitude!, 0);
-  const sumLng = validProperties.reduce((acc, property) => acc + property.Longitude!, 0);
-
-  return { lat: sumLat / validProperties.length, lng: sumLng / validProperties.length };
-}
-
-export function SearchResultsMap({ properties }: { properties: IParagonProperty[] }) {
+export function SearchResultsMap({
+  properties,
+  selectedGeometry,
+}: {
+  properties: IParagonProperty[];
+  selectedGeometry?: {
+    bounds?: google.maps.LatLngBounds;
+    polygonCoords?: google.maps.LatLngLiteral[];
+  };
+}) {
   const { geocodeData: selectedGeocodeData } = useGeocode(); // Access geocode data from context
   const [infoWindowShown, setInfoWindowShown] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
-  const [isUserInteracting, setIsUserInteracting] = useState(false); // Track user interaction
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+  const [hasCentered, setHasCentered] = useState(false); // Track if the map has already centered
 
   const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
 
@@ -52,31 +47,39 @@ export function SearchResultsMap({ properties }: { properties: IParagonProperty[
     setInfoWindowShown(false);
   }, []);
 
-  const mapCenter = properties.length > 0
-    ? getMapCenter(properties, defaultCenter)
-    : defaultCenter;
+  // Center the map only once when geometry or geocode data changes
+  useEffect(() => {
+    if (hasCentered) return; // Skip if the map has already centered
 
-  const polygonCoords = selectedGeocodeData?.bounds
-    ? [
-        { lat: selectedGeocodeData.bounds.northeast.lat, lng: selectedGeocodeData.bounds.northeast.lng },
-        { lat: selectedGeocodeData.bounds.southwest.lat, lng: selectedGeocodeData.bounds.northeast.lng },
-        { lat: selectedGeocodeData.bounds.southwest.lat, lng: selectedGeocodeData.bounds.southwest.lng },
-        { lat: selectedGeocodeData.bounds.northeast.lat, lng: selectedGeocodeData.bounds.southwest.lng },
-      ]
-    : undefined;
+    if (selectedGeometry?.bounds) {
+      console.log('Snapping map to geometry bounds:', selectedGeometry.bounds);
+      const boundsCenter = selectedGeometry.bounds.getCenter().toJSON();
+      setMapCenter(boundsCenter);
+      setHasCentered(true); // Mark as centered
+    } else if (selectedGeocodeData?.location) {
+      console.log('Snapping map to geocode location:', selectedGeocodeData.location);
+      setMapCenter({
+        lat: selectedGeocodeData.location.lat,
+        lng: selectedGeocodeData.location.lng,
+      });
+      setHasCentered(true); // Mark as centered
+    } else {
+      console.log('Using default center.');
+      setMapCenter(defaultCenter);
+    }
+  }, [selectedGeometry, selectedGeocodeData, hasCentered]);
+
+  const polygonCoords = selectedGeometry?.polygonCoords;
 
   console.log('Selected Geocode Data received by SearchResultsMap:', selectedGeocodeData);
 
   return (
-    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES}>
       <Map
-        center={mapCenter}
+        center={mapCenter || defaultCenter}
         defaultZoom={12}
         disableDefaultUI={true}
         onClick={onMapClick}
-        onDragstart={() => setIsUserInteracting(true)} // Track dragging start
-        onIdle={() => setIsUserInteracting(false)} // Track idle state
-        onZoomChanged={() => setIsUserInteracting(true)} // Track zoom interaction
         mapId="8c1f1e07f191046d"
         style={{ minHeight: '400px', minWidth: '100%' }}
       >
@@ -87,7 +90,6 @@ export function SearchResultsMap({ properties }: { properties: IParagonProperty[
           infoWindowShown={infoWindowShown}
           selectedProperty={selectedProperty}
           onCloseInfoWindow={() => setInfoWindowShown(false)}
-          isUserInteracting={isUserInteracting}
         />
       </Map>
     </APIProvider>
@@ -101,7 +103,6 @@ function MapContent({
   infoWindowShown,
   selectedProperty,
   onCloseInfoWindow,
-  isUserInteracting, // Receive interaction state
 }: {
   properties: IParagonProperty[];
   polygonCoords?: { lat: number; lng: number }[];
@@ -109,33 +110,14 @@ function MapContent({
   infoWindowShown: boolean;
   selectedProperty: IParagonProperty | null;
   onCloseInfoWindow: () => void;
-  isUserInteracting: boolean;
 }) {
   const map = useMap();
-  const { geocodeData: selectedGeocodeData } = useGeocode(); // Access geocode data in MapContent too
 
   useEffect(() => {
-    if (!map || isUserInteracting) return; // Skip updates if user is interacting
-
-    if (selectedGeocodeData?.bounds) {
-      console.log('Fitting map to bounds in search map location:', selectedGeocodeData.bounds);
-      const bounds = new google.maps.LatLngBounds(
-        selectedGeocodeData.bounds.southwest,
-        selectedGeocodeData.bounds.northeast
-      );
-      map.fitBounds(bounds);
-    } else if (selectedGeocodeData?.location) {
-      const location = new google.maps.LatLng(
-        selectedGeocodeData.location.lat,
-        selectedGeocodeData.location.lng
-      );
-      console.log('Panning to location:', location);
-      map.panTo(location);
-      map.setZoom(14);
-    } else {
-      console.log('No bounds or location available in selectedGeocodeData.');
-    }
-  }, [map, selectedGeocodeData, isUserInteracting]); // Dependency includes interaction state
+    // Only fit bounds once when selectedGeometry changes
+    if (!map) return;
+    console.log('Map is ready for user interaction.');
+  }, [map]);
 
   return (
     <>
