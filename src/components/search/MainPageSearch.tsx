@@ -15,7 +15,7 @@ export default function MainPageSearch() {
     libraries: ['places'],
   });
 
-  // Check when hydration is complete and Maps script is loaded
+  // Check when Maps script is loaded
   useEffect(() => {
     if (isLoaded) {
       setIsReady(true);

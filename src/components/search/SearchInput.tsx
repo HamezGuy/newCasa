@@ -5,6 +5,7 @@ import axios from 'axios';
 import debounce from 'lodash/debounce';
 import { useRouter } from 'next/navigation'; // Updated import
 import { useCallback, useRef, useState } from 'react';
+import { useGeocode } from './GeocodeContext'; // Import GeocodeContext
 
 export default function SearchInput({
   isLoading,
@@ -18,6 +19,7 @@ export default function SearchInput({
   isRedirectEnabled?: boolean; // New prop to control redirect behavior
 }) {
   const router = useRouter();
+  const { setGeocodeData } = useGeocode(); // Access context to set geocode data
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -66,9 +68,30 @@ export default function SearchInput({
         // Pass geocode data to the parent component
         onPlaceSelected?.(geocodeData);
 
+        // Update geocode data in context
+        const formattedData = {
+          location: {
+            lat: geocodeData.geometry.location.lat,
+            lng: geocodeData.geometry.location.lng,
+          },
+          bounds: {
+            northeast: {
+              lat: geocodeData.geometry.viewport.northeast.lat,
+              lng: geocodeData.geometry.viewport.northeast.lng,
+            },
+            southwest: {
+              lat: geocodeData.geometry.viewport.southwest.lat,
+              lng: geocodeData.geometry.viewport.southwest.lng,
+            },
+          },
+          formatted_address: geocodeData.formatted_address,
+          place_id: geocodeData.place_id,
+        };
+        setGeocodeData(formattedData);
+
         if (isRedirectEnabled) {
           // Navigate to search page with geocode data
-          router.push(`/search?geocode=${encodeURIComponent(JSON.stringify(geocodeData))}`);
+          router.push(`/search?geocode=${encodeURIComponent(JSON.stringify(formattedData))}`);
         }
       } else {
         console.warn('Invalid address. Triggering popup suggestions.');

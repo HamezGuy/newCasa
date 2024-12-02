@@ -5,6 +5,7 @@ import { Polygon } from '@react-google-maps/api';
 import { APIProvider, InfoWindow, Map, Marker, useMap } from '@vis.gl/react-google-maps';
 import { useCallback, useEffect, useState } from 'react';
 import PropertySearchResultCard from '../paragon/PropertySearchResultCard';
+import { useGeocode } from './GeocodeContext'; // Use context for geocode data
 
 // Helper function to calculate map center
 function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; lng: number }) {
@@ -23,15 +24,11 @@ function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; l
   return { lat: sumLat / validProperties.length, lng: sumLng / validProperties.length };
 }
 
-export function SearchResultsMap({
-  properties,
-  selectedGeocodeData,
-}: {
-  properties: IParagonProperty[];
-  selectedGeocodeData?: any;
-}) {
+export function SearchResultsMap({ properties }: { properties: IParagonProperty[] }) {
+  const { geocodeData: selectedGeocodeData } = useGeocode(); // Access geocode data from context
   const [infoWindowShown, setInfoWindowShown] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
+  const [isUserInteracting, setIsUserInteracting] = useState(false); // Track user interaction
 
   const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
 
@@ -68,7 +65,6 @@ export function SearchResultsMap({
       ]
     : undefined;
 
-  // Logging selected geocode data
   console.log('Selected Geocode Data received by SearchResultsMap:', selectedGeocodeData);
 
   return (
@@ -78,6 +74,9 @@ export function SearchResultsMap({
         defaultZoom={12}
         disableDefaultUI={true}
         onClick={onMapClick}
+        onDragstart={() => setIsUserInteracting(true)} // Track dragging start
+        onIdle={() => setIsUserInteracting(false)} // Track idle state
+        onZoomChanged={() => setIsUserInteracting(true)} // Track zoom interaction
         mapId="8c1f1e07f191046d"
         style={{ minHeight: '400px', minWidth: '100%' }}
       >
@@ -88,7 +87,7 @@ export function SearchResultsMap({
           infoWindowShown={infoWindowShown}
           selectedProperty={selectedProperty}
           onCloseInfoWindow={() => setInfoWindowShown(false)}
-          selectedGeocodeData={selectedGeocodeData}
+          isUserInteracting={isUserInteracting}
         />
       </Map>
     </APIProvider>
@@ -102,7 +101,7 @@ function MapContent({
   infoWindowShown,
   selectedProperty,
   onCloseInfoWindow,
-  selectedGeocodeData,
+  isUserInteracting, // Receive interaction state
 }: {
   properties: IParagonProperty[];
   polygonCoords?: { lat: number; lng: number }[];
@@ -110,12 +109,13 @@ function MapContent({
   infoWindowShown: boolean;
   selectedProperty: IParagonProperty | null;
   onCloseInfoWindow: () => void;
-  selectedGeocodeData?: any;
+  isUserInteracting: boolean;
 }) {
   const map = useMap();
+  const { geocodeData: selectedGeocodeData } = useGeocode(); // Access geocode data in MapContent too
 
   useEffect(() => {
-    if (!map) return;
+    if (!map || isUserInteracting) return; // Skip updates if user is interacting
 
     if (selectedGeocodeData?.bounds) {
       console.log('Fitting map to bounds in search map location:', selectedGeocodeData.bounds);
@@ -135,11 +135,7 @@ function MapContent({
     } else {
       console.log('No bounds or location available in selectedGeocodeData.');
     }
-  }, [map, selectedGeocodeData]);
-
-  console.log('MapContent Props:');
-  console.log('Polygon Coords:', polygonCoords);
-  console.log('Selected Geocode Data:', selectedGeocodeData);
+  }, [map, selectedGeocodeData, isUserInteracting]); // Dependency includes interaction state
 
   return (
     <>
