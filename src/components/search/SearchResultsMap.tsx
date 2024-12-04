@@ -1,5 +1,6 @@
 'use client';
 
+import { useBounds } from '@/components/search/boundscontext';
 import IParagonProperty from '@/types/IParagonProperty';
 import { Polygon } from '@react-google-maps/api';
 import { APIProvider, InfoWindow, Map, Marker, useMap } from '@vis.gl/react-google-maps';
@@ -7,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import PropertySearchResultCard from '../paragon/PropertySearchResultCard';
 import { useGeocode } from './GeocodeContext';
 
-const GOOGLE_MAPS_LIBRARIES = ['places']; // Define libraries as a static constant
+const GOOGLE_MAPS_LIBRARIES = ['places'];
 
 export function SearchResultsMap({
   properties,
@@ -19,16 +20,18 @@ export function SearchResultsMap({
     bounds?: google.maps.LatLngBounds;
     polygonCoords?: google.maps.LatLngLiteral[];
   };
-  onSearchComplete?: () => void; // Optional callback to indicate search success
+  onSearchComplete?: () => void;
 }) {
-  const { geocodeData: selectedGeocodeData } = useGeocode(); // Access geocode data from context
+  const { geocodeData: selectedGeocodeData } = useGeocode();
+  const { setBounds } = useBounds();
   const [infoWindowShown, setInfoWindowShown] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
-  const [hasCentered, setHasCentered] = useState(false); // Track if the map has already centered
+
+  // Use useMap to access the Google Maps instance
+  const map = useMap();
 
   const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
-
   if (!GOOGLE_MAPS_API_KEY) {
     console.error('Google Maps API key is missing. Check your .env.local configuration.');
     return <p>Error: Google Maps API key is not provided.</p>;
@@ -49,31 +52,45 @@ export function SearchResultsMap({
     setInfoWindowShown(false);
   }, []);
 
-  // Center the map only once when geometry or geocode data changes
+  const handleMapIdle = useCallback(() => {
+    if (map) {
+      const bounds = map.getBounds();
+      if (bounds) {
+        setBounds({
+          southwest: bounds.getSouthWest().toJSON(),
+          northeast: bounds.getNorthEast().toJSON(),
+        });
+      }
+    }
+  }, [map, setBounds]);
+
   useEffect(() => {
     if (selectedGeometry?.bounds) {
       console.log('Snapping map to geometry bounds:', selectedGeometry.bounds);
       const boundsCenter = selectedGeometry.bounds.getCenter().toJSON();
       setMapCenter(boundsCenter);
-      setHasCentered(true); // Mark as centered
-      onSearchComplete?.(); // Signal search completion
+      onSearchComplete?.();
     } else if (selectedGeocodeData?.location) {
       console.log('Snapping map to geocode location:', selectedGeocodeData.location);
       setMapCenter({
         lat: selectedGeocodeData.location.lat,
         lng: selectedGeocodeData.location.lng,
       });
-      setHasCentered(true); // Mark as centered
-      onSearchComplete?.(); // Signal search completion
+      onSearchComplete?.();
     } else {
       console.log('Using default center.');
       setMapCenter(defaultCenter);
     }
-  }, [selectedGeometry, selectedGeocodeData]); // Removed dependency on `hasCentered`
+  }, [selectedGeometry, selectedGeocodeData, onSearchComplete]);
+
+  useEffect(() => {
+    if (map) {
+      const idleListener = map.addListener('idle', handleMapIdle);
+      return () => google.maps.event.removeListener(idleListener);
+    }
+  }, [map, handleMapIdle]);
 
   const polygonCoords = selectedGeometry?.polygonCoords;
-
-  console.log('Selected Geocode Data received by SearchResultsMap:', selectedGeocodeData);
 
   return (
     <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES}>
@@ -82,7 +99,6 @@ export function SearchResultsMap({
         defaultZoom={12}
         disableDefaultUI={true}
         onClick={onMapClick}
-        mapId="8c1f1e07f191046d"
         style={{ minHeight: '400px', minWidth: '100%' }}
       >
         <MapContent
@@ -113,13 +129,6 @@ function MapContent({
   selectedProperty: IParagonProperty | null;
   onCloseInfoWindow: () => void;
 }) {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map) return;
-    console.log('Map is ready for user interaction.');
-  }, [map]);
-
   return (
     <>
       {properties.map(

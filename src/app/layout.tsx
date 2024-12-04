@@ -1,5 +1,6 @@
 import Header from "@/components/layout/Header";
 import { GeocodeProvider } from "@/components/search/GeocodeContext"; // Import GeocodeProvider
+import { BoundsProvider } from "@/components/search/boundscontext"; // Import BoundsProvider
 import { MantineProvider, createTheme } from "@mantine/core";
 import "@mantine/core/styles.css";
 import type { Metadata } from "next";
@@ -24,9 +25,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <MantineProvider theme={mantineTheme} forceColorScheme="light">
-          <GeocodeProvider> {/* Wrap Header and children with GeocodeProvider */}
-            <Header />
-            {children}
+          <GeocodeProvider> {/* Wrap with GeocodeProvider */}
+            <BoundsProvider> {/* Add BoundsProvider here */}
+              <Header />
+              {children}
+            </BoundsProvider>
           </GeocodeProvider>
         </MantineProvider>
       </body>

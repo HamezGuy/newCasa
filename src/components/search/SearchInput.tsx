@@ -1,25 +1,27 @@
 'use client';
 
+import { useBounds } from '@/components/search/boundscontext'; // Import BoundsContext
 import { Button, MantineSize, Modal, TextInput } from '@mantine/core';
 import axios from 'axios';
 import debounce from 'lodash/debounce';
-import { useRouter } from 'next/navigation'; // Updated import
+import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
-import { useGeocode } from './GeocodeContext'; // Import GeocodeContext
+import { useGeocode } from './GeocodeContext';
 
 export default function SearchInput({
   isLoading,
   size = 'md',
   onPlaceSelected,
-  isRedirectEnabled = true, // New prop
+  isRedirectEnabled = true,
 }: {
   isLoading?: boolean;
   size?: MantineSize;
   onPlaceSelected?: (geocodeData: any) => void;
-  isRedirectEnabled?: boolean; // New prop to control redirect behavior
+  isRedirectEnabled?: boolean;
 }) {
   const router = useRouter();
-  const { setGeocodeData } = useGeocode(); // Access context to set geocode data
+  const { setGeocodeData } = useGeocode();
+  const { setBounds } = useBounds(); // Use BoundsContext to update bounds
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -65,29 +67,25 @@ export default function SearchInput({
         const geocodeData = response.data.results[0];
         console.log('Valid Geocode Data:', geocodeData);
 
-        // Pass geocode data to the parent component
-        onPlaceSelected?.(geocodeData);
-
-        // Update geocode data in context
         const formattedData = {
           location: {
             lat: geocodeData.geometry.location.lat,
             lng: geocodeData.geometry.location.lng,
           },
           bounds: {
-            northeast: {
-              lat: geocodeData.geometry.viewport.northeast.lat,
-              lng: geocodeData.geometry.viewport.northeast.lng,
-            },
-            southwest: {
-              lat: geocodeData.geometry.viewport.southwest.lat,
-              lng: geocodeData.geometry.viewport.southwest.lng,
-            },
+            northeast: geocodeData.geometry.viewport.northeast,
+            southwest: geocodeData.geometry.viewport.southwest,
           },
           formatted_address: geocodeData.formatted_address,
           place_id: geocodeData.place_id,
         };
+
+        // Update geocode data and bounds in contexts
         setGeocodeData(formattedData);
+        setBounds(formattedData.bounds); // Update bounds in context
+
+        // Pass geocode data to the parent component
+        onPlaceSelected?.(formattedData);
 
         if (isRedirectEnabled) {
           // Navigate to search page with geocode data
@@ -116,7 +114,7 @@ export default function SearchInput({
 
       if (response.data.status === 'OK' && response.data.predictions.length > 0) {
         setPopupSuggestions(response.data.predictions);
-        setIsPopupOpen(true); // Show modal
+        setIsPopupOpen(true);
       } else {
         console.warn('No suggestions available.');
         setPopupSuggestions([]);
@@ -179,7 +177,6 @@ export default function SearchInput({
         </Button>
       </div>
 
-      {/* Suggestions Dropdown */}
       {suggestions.length > 0 && (
         <ul
           style={{
@@ -215,7 +212,6 @@ export default function SearchInput({
         </ul>
       )}
 
-      {/* Popup Modal for Invalid Address */}
       <Modal
         opened={isPopupOpen}
         onClose={() => setIsPopupOpen(false)}

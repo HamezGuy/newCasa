@@ -1,20 +1,20 @@
 'use client';
 
 import PropertyList from '@/components/paragon/PropertyList';
+import { useGeocode } from '@/components/search/GeocodeContext'; // Use GeocodeContext
 import SearchFilters from '@/components/search/SearchFilters';
 import SearchInput from '@/components/search/SearchInput';
 import { SearchResultsMap } from '@/components/search/SearchResultsMap';
+import { useBounds } from '@/components/search/boundscontext'; // Use BoundsContext
 import { useEffect, useRef, useState } from 'react';
 
 export default function Search() {
   const [filteredProperties, setFilteredProperties] = useState([]); // Properties displayed on the map
-  const [selectedGeometry, setSelectedGeometry] = useState<{
-    bounds?: google.maps.LatLngBounds;
-    polygonCoords?: google.maps.LatLngLiteral[];
-  } | undefined>(undefined); // Geometry bounds for map focus
   const [loading, setLoading] = useState(false);
 
   const hasFetched = useRef(false); // Prevents duplicate fetches
+  const { setGeocodeData } = useGeocode(); // Access GeocodeContext
+  const { setBounds } = useBounds(); // Access BoundsContext
 
   // Fetch properties from API
   const fetchProperties = async (zipCode?: string) => {
@@ -46,35 +46,24 @@ export default function Search() {
   }, []);
 
   // Handle place selection from SearchInput
-  const handlePlaceSelected = (geometry: any) => {
-    const boundsLiteral = geometry.geometry?.bounds;
+  const handlePlaceSelected = (geocodeData: any) => {
+    if (!geocodeData || !geocodeData.bounds) {
+      console.error('Invalid geocode data received:', geocodeData);
+      return;
+    }
 
-    if (boundsLiteral) {
-      const bounds = new google.maps.LatLngBounds(
-        boundsLiteral.southwest,
-        boundsLiteral.northeast
-      );
+    console.log('Setting geocode data and bounds:', geocodeData);
+    setGeocodeData(geocodeData); // Update GeocodeContext
+    setBounds(geocodeData.bounds); // Update BoundsContext
 
-      const polygonCoords = [
-        bounds.getSouthWest().toJSON(),
-        bounds.getNorthEast().toJSON(),
-      ];
+    // Fetch properties near the selected location
+    const zipCode = geocodeData?.address_components?.find((component: any) =>
+      component.types.includes('postal_code')
+    )?.long_name;
 
-      setSelectedGeometry({ bounds, polygonCoords });
-
-      // Fetch properties near the selected location
-      if (geometry.address_components) {
-        const zipCodeComponent = geometry.address_components.find((component: any) =>
-          component.types.includes('postal_code')
-        );
-        if (zipCodeComponent) {
-          const zipCode = zipCodeComponent.long_name;
-          console.log('Fetching properties for zip code:', zipCode);
-          fetchProperties(zipCode);
-        }
-      }
-    } else {
-      setSelectedGeometry(undefined);
+    if (zipCode) {
+      console.log('Fetching properties for zip code:', zipCode);
+      fetchProperties(zipCode);
     }
   };
 
@@ -95,10 +84,7 @@ export default function Search() {
       <div className="flex flex-grow w-full h-full">
         {/* Map View */}
         <div className="w-full lg:w-2/3 h-full">
-          <SearchResultsMap
-            properties={filteredProperties}
-            selectedGeometry={selectedGeometry} // Pass bounds and geometry to map
-          />
+          <SearchResultsMap properties={filteredProperties} />
         </div>
 
         {/* Property List */}

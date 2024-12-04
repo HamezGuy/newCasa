@@ -1,5 +1,6 @@
 'use client';
 
+import { useBounds } from '@/components/search/boundscontext'; // Import BoundsContext
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useGeocode } from './GeocodeContext'; // Correct import
@@ -14,6 +15,7 @@ interface SearchResultsProps {
 function SearchResults({ query }: SearchResultsProps) {
   const searchParams = useSearchParams();
   const { setGeocodeData } = useGeocode(); // Only need `setGeocodeData`
+  const { setBounds } = useBounds(); // Access setBounds from BoundsContext
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,7 +50,8 @@ function SearchResults({ query }: SearchResultsProps) {
     };
 
     console.log('Formatted geocode data to set:', formattedData);
-    setGeocodeData(formattedData);
+    setGeocodeData(formattedData); // Update geocode data in context
+    setBounds(formattedData.bounds); // Update bounds in context
   };
 
   useEffect(() => {
@@ -60,6 +63,7 @@ function SearchResults({ query }: SearchResultsProps) {
           const parsedGeocodeData = JSON.parse(decodeURIComponent(geocode));
           console.log('Parsed geocode data from query:', parsedGeocodeData);
           setGeocodeData(parsedGeocodeData);
+          setBounds(parsedGeocodeData.bounds); // Sync bounds with geocode data
         } else {
           console.warn('No geocode data found in search params.');
         }
@@ -69,7 +73,7 @@ function SearchResults({ query }: SearchResultsProps) {
     };
 
     parseGeocode();
-  }, [searchParams, setGeocodeData]);
+  }, [searchParams, setGeocodeData, setBounds]);
 
   if (loading) {
     console.log('Loading state: properties are being fetched.');
@@ -78,6 +82,7 @@ function SearchResults({ query }: SearchResultsProps) {
 
   return (
     <div className={`${style.searchResults} md:flex`}>
+      {/* Search Input */}
       <div className="p-4">
         <SearchInput
           onPlaceSelected={handlePlaceSelected}
@@ -86,8 +91,9 @@ function SearchResults({ query }: SearchResultsProps) {
         />
       </div>
 
+      {/* Map View */}
       <div className={`${style.searchResultsMap} relative flex-auto md:basis-7/12`}>
-        <SearchResultsMap properties={[]} /> {/* Removed `selectedGeocodeData` prop */}
+        <SearchResultsMap properties={[]} />
       </div>
     </div>
   );
