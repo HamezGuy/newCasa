@@ -1,93 +1,50 @@
 'use client';
 
+import { useBounds } from '@/components/search/boundscontext';
 import IParagonProperty from '@/types/IParagonProperty';
 import { Polygon } from '@react-google-maps/api';
-import {
-  AdvancedMarker,
-  AdvancedMarkerProps,
-  APIProvider,
-  InfoWindow,
-  Map,
-  Pin,
-  useAdvancedMarkerRef,
-} from '@vis.gl/react-google-maps';
+import { APIProvider, InfoWindow, Map, Marker, useMap } from '@vis.gl/react-google-maps';
 import { useCallback, useEffect, useState } from 'react';
 import PropertySearchResultCard from '../paragon/PropertySearchResultCard';
+import { useGeocode } from './GeocodeContext';
 
-// Utility function to calculate map center
-function getMapCenter(properties: IParagonProperty[], fallback: { lat: number; lng: number }) {
-  const validProperties = properties.filter(
-    (property) => property.Latitude !== undefined && property.Longitude !== undefined
-  );
-
-  if (validProperties.length === 0) {
-    console.warn('Could not locate map center. Defaulting to fallback center.');
-    return fallback;
-  }
-
-  const sumLat = validProperties.reduce((acc, property) => acc + property.Latitude!, 0);
-  const sumLng = validProperties.reduce((acc, property) => acc + property.Longitude!, 0);
-
-  return { lat: sumLat / validProperties.length, lng: sumLng / validProperties.length };
-}
-
-// AdvancedMarker wrapper with reference handling
-export const AdvancedMarkerWithRef = (
-  props: AdvancedMarkerProps & {
-    onMarkerClick: (marker: google.maps.marker.AdvancedMarkerElement) => void;
-  }
-) => {
-  const { children, onMarkerClick, ...advancedMarkerProps } = props;
-  const [markerRef, marker] = useAdvancedMarkerRef();
-
-  return (
-    <AdvancedMarker
-      onClick={() => marker && onMarkerClick(marker)}
-      ref={markerRef}
-      {...advancedMarkerProps}
-    >
-      {children}
-    </AdvancedMarker>
-  );
-};
+const GOOGLE_MAPS_LIBRARIES = ['places'];
 
 export function SearchResultsMap({
   properties,
   selectedGeometry,
+  onSearchComplete,
 }: {
   properties: IParagonProperty[];
   selectedGeometry?: {
     bounds?: google.maps.LatLngBounds;
     polygonCoords?: google.maps.LatLngLiteral[];
   };
+  onSearchComplete?: () => void;
 }) {
+  const { geocodeData: selectedGeocodeData } = useGeocode();
+  const { setBounds } = useBounds();
   const [infoWindowShown, setInfoWindowShown] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
-  const [selectedMarker, setSelectedMarker] =
-    useState<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Use useMap to access the Google Maps instance
+  const map = useMap();
 
   const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
-
   if (!GOOGLE_MAPS_API_KEY) {
     console.error('Google Maps API key is missing. Check your .env.local configuration.');
     return <p>Error: Google Maps API key is not provided.</p>;
   }
 
-  const defaultCenter = { lat: 43.0731, lng: -89.4012 }; // Default to Madison, WI
+  const defaultCenter = { lat: 43.0731, lng: -89.4012 };
 
   const handleMarkerClick = useCallback(
-    (propertyId: string, marker: google.maps.marker.AdvancedMarkerElement) => {
-      if (selectedProperty?.ListingId === propertyId && infoWindowShown) {
-        setInfoWindowShown(false);
-        return;
-      }
-
-      const property = properties.find((p) => p.ListingId === propertyId);
-      setSelectedProperty(property || null);
-      setSelectedMarker(marker || null);
+    (property: IParagonProperty) => {
+      setSelectedProperty(property);
       setInfoWindowShown(true);
     },
-    [selectedProperty, infoWindowShown, properties]
+    []
   );
 
   const onMapClick = useCallback(() => {
@@ -95,77 +52,121 @@ export function SearchResultsMap({
     setInfoWindowShown(false);
   }, []);
 
-  const mapCenter = selectedGeometry?.bounds
-    ? {
-        lat:
-          (selectedGeometry.bounds.getNorthEast().lat() +
-            selectedGeometry.bounds.getSouthWest().lat()) /
-          2,
-        lng:
-          (selectedGeometry.bounds.getNorthEast().lng() +
-            selectedGeometry.bounds.getSouthWest().lng()) /
-          2,
+  const handleMapIdle = useCallback(() => {
+    if (map) {
+      const bounds = map.getBounds();
+      if (bounds) {
+        setBounds({
+          southwest: bounds.getSouthWest().toJSON(),
+          northeast: bounds.getNorthEast().toJSON(),
+        });
       }
-    : getMapCenter(properties, defaultCenter);
+    }
+  }, [map, setBounds]);
 
   useEffect(() => {
-    if (mapCenter.lat === defaultCenter.lat && mapCenter.lng === defaultCenter.lng) {
-      console.warn('Using fallback map center due to missing property data or bounds.');
+    if (selectedGeometry?.bounds) {
+      console.log('Snapping map to geometry bounds:', selectedGeometry.bounds);
+      const boundsCenter = selectedGeometry.bounds.getCenter().toJSON();
+      setMapCenter(boundsCenter);
+      onSearchComplete?.();
+    } else if (selectedGeocodeData?.location) {
+      console.log('Snapping map to geocode location:', selectedGeocodeData.location);
+      setMapCenter({
+        lat: selectedGeocodeData.location.lat,
+        lng: selectedGeocodeData.location.lng,
+      });
+      onSearchComplete?.();
+    } else {
+      console.log('Using default center.');
+      setMapCenter(defaultCenter);
     }
-  }, [mapCenter]);
+  }, [selectedGeometry, selectedGeocodeData, onSearchComplete]);
+
+  useEffect(() => {
+    if (map) {
+      const idleListener = map.addListener('idle', handleMapIdle);
+      return () => google.maps.event.removeListener(idleListener);
+    }
+  }, [map, handleMapIdle]);
+
+  const polygonCoords = selectedGeometry?.polygonCoords;
 
   return (
-    <APIProvider apiKey={GOOGLE_MAPS_API_KEY}>
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} libraries={GOOGLE_MAPS_LIBRARIES}>
       <Map
-        defaultCenter={mapCenter}
+        center={mapCenter || defaultCenter}
         defaultZoom={12}
         disableDefaultUI={true}
         onClick={onMapClick}
-        mapId="8c1f1e07f191046d"
         style={{ minHeight: '400px', minWidth: '100%' }}
       >
-        {/* Render Property Markers */}
-        {properties.map(
-          (property) =>
-            property.Latitude &&
-            property.Longitude && (
-              <AdvancedMarkerWithRef
-                key={property.ListingId}
-                position={{ lat: property.Latitude, lng: property.Longitude }}
-                onMarkerClick={(marker) => handleMarkerClick(property.ListingId, marker)}
-              >
-                <Pin />
-              </AdvancedMarkerWithRef>
-            )
-        )}
-
-        {/* Render Polygon for Location Outline */}
-        {selectedGeometry?.polygonCoords && (
-          <Polygon
-            paths={selectedGeometry.polygonCoords}
-            options={{
-              fillColor: '#22ccff',
-              fillOpacity: 0.2,
-              strokeColor: '#1e89a1',
-              strokeOpacity: 0.8,
-              strokeWeight: 2,
-            }}
-          />
-        )}
-
-        {/* Render Info Window for Selected Property */}
-        {infoWindowShown && selectedMarker && selectedProperty && (
-          <InfoWindow
-            position={{
-              lat: selectedProperty.Latitude ?? 0,
-              lng: selectedProperty.Longitude ?? 0,
-            }}
-            onCloseClick={() => setInfoWindowShown(false)}
-          >
-            <PropertySearchResultCard property={selectedProperty} size="sm" />
-          </InfoWindow>
-        )}
+        <MapContent
+          properties={properties}
+          polygonCoords={polygonCoords}
+          onMarkerClick={handleMarkerClick}
+          infoWindowShown={infoWindowShown}
+          selectedProperty={selectedProperty}
+          onCloseInfoWindow={() => setInfoWindowShown(false)}
+        />
       </Map>
     </APIProvider>
+  );
+}
+
+function MapContent({
+  properties,
+  polygonCoords,
+  onMarkerClick,
+  infoWindowShown,
+  selectedProperty,
+  onCloseInfoWindow,
+}: {
+  properties: IParagonProperty[];
+  polygonCoords?: { lat: number; lng: number }[];
+  onMarkerClick: (property: IParagonProperty) => void;
+  infoWindowShown: boolean;
+  selectedProperty: IParagonProperty | null;
+  onCloseInfoWindow: () => void;
+}) {
+  return (
+    <>
+      {properties.map(
+        (property) =>
+          property.Latitude &&
+          property.Longitude && (
+            <Marker
+              key={property.ListingId}
+              position={{ lat: property.Latitude, lng: property.Longitude }}
+              onClick={() => onMarkerClick(property)}
+            />
+          )
+      )}
+
+      {polygonCoords && (
+        <Polygon
+          paths={polygonCoords}
+          options={{
+            fillColor: '#22ccff',
+            fillOpacity: 0.2,
+            strokeColor: '#1e89a1',
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+          }}
+        />
+      )}
+
+      {infoWindowShown && selectedProperty && (
+        <InfoWindow
+          position={{
+            lat: selectedProperty.Latitude ?? 0,
+            lng: selectedProperty.Longitude ?? 0,
+          }}
+          onCloseClick={onCloseInfoWindow}
+        >
+          <PropertySearchResultCard property={selectedProperty} size="sm" />
+        </InfoWindow>
+      )}
+    </>
   );
 }

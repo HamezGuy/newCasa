@@ -1,5 +1,6 @@
 'use client';
 
+import { useBounds } from '@/components/search/boundscontext'; // Import BoundsContext
 import IParagonProperty from '@/types/IParagonProperty';
 import PropertySearchResultCard from './PropertySearchResultCard';
 
@@ -21,32 +22,48 @@ export default function PropertyList({
   className,
   reduced = false,
 }: PropertyListProps) {
+  const { bounds } = useBounds(); // Access bounds from context
+
+  // Filter properties based on the current bounds
+  const filteredProperties = properties?.filter((property) => {
+    if (
+      !property.Latitude ||
+      !property.Longitude ||
+      !bounds ||
+      !bounds.southwest ||
+      !bounds.northeast
+    ) {
+      return false;
+    }
+    const { southwest, northeast } = bounds;
+    const { Latitude, Longitude } = property;
+
+    // Check if the property is within bounds
+    return (
+      Latitude >= southwest.lat &&
+      Latitude <= northeast.lat &&
+      Longitude >= southwest.lng &&
+      Longitude <= northeast.lng
+    );
+  });
+
   const baseClass = reduced
     ? 'grid grid-cols-1 lg:grid-cols-2 items-stretch gap-6'
     : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-stretch gap-6';
 
   return (
     <div className={`${baseClass} ${className}`}>
-      {properties
-        ? properties.map((property) => (
-            <PropertySearchResultCard
-              key={property.ListingKey}
-              property={property}
-              size={reduced ? 'sm' : 'md'}
-            />
-          ))
-        : propertyGroups?.map((group) => (
-            <div key={group.title}>
-              {group.title && <h3>{group.title}</h3>}
-              {group.properties.map((property) => (
-                <PropertySearchResultCard
-                  key={property.ListingKey}
-                  property={property}
-                  size={reduced ? 'sm' : 'md'}
-                />
-              ))}
-            </div>
-          ))}
+      {filteredProperties && filteredProperties.length > 0 ? (
+        filteredProperties.map((property) => (
+          <PropertySearchResultCard
+            key={property.ListingKey}
+            property={property}
+            size={reduced ? 'sm' : 'md'}
+          />
+        ))
+      ) : (
+        <p className="text-center text-gray-500 mt-4">No properties in the current view.</p>
+      )}
     </div>
   );
 }

@@ -8,21 +8,24 @@ import styles from './HeroSearch.module.css';
 import SearchInput from './SearchInput';
 
 export default function MainPageSearch() {
-  const [loading, setLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false); // Track readiness
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API || '',
     libraries: ['places'],
   });
 
+  // Check when Maps script is loaded
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    if (isLoaded) {
+      setIsReady(true);
+    }
+  }, [isLoaded]);
 
+  // Handle load error
   if (loadError) {
-    console.error('Google Maps script load error:', loadError);
-    return <p>Error loading Google Maps script.</p>;
+    console.error('Google Maps script failed to load:', loadError);
+    return <p className="text-center text-red-500">Failed to load Google Maps. Please try again later.</p>;
   }
 
   return (
@@ -45,13 +48,12 @@ export default function MainPageSearch() {
       >
         Find your next home
       </Title>
+
       <div className="flex justify-center w-full">
-        {loading ? (
-          <p className="text-center text-gray-500">Loading search input...</p>
-        ) : isLoaded ? (
-          <SearchInput />
-        ) : (
+        {!isReady ? (
           <p className="text-center text-gray-500">Initializing maps...</p>
+        ) : (
+          <SearchInput />
         )}
       </div>
     </div>

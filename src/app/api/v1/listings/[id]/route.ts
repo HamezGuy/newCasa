@@ -3,26 +3,35 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id?: string } }
 ) {
-  const id = params.id;
+  console.log("Triggered: /api/v1/listings/[id]");
+
+  const { id } = params;
+
+  if (!id) {
+    console.warn("Property ID is missing in request.");
+    return NextResponse.json({ error: "Property ID is required" }, { status: 400 });
+  }
+
+  console.log(`Fetching property with ID: ${id}`);
 
   try {
-    // Fetches a specific property
-    // TODO: Get the primary photo properly
+    // Fetch property by ID
     const property = await paragonApiClient.getPropertyById(id);
 
     if (!property) {
-      return new NextResponse(`Could not find property`, {
-        status: 404,
-      });
+      console.warn(`No property found with ID: ${id}`);
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
+    console.log(`Successfully fetched property with ID: ${id}`);
     return NextResponse.json(property, { status: 200 });
-  } catch (e: any) {
-    console.log(`${e.message}`);
-    return new NextResponse(`Failed to fetch listings`, {
-      status: 500,
-    });
+  } catch (error: any) {
+    console.error(`Error fetching property with ID ${id}:`, error.message);
+    return NextResponse.json(
+      { error: "Failed to fetch property" },
+      { status: 500 }
+    );
   }
 }
