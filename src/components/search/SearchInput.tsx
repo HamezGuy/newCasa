@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
 import { useGeocode } from './GeocodeContext';
 
-// Utility to remove trailing ", USA" or other display suffixes
+// Utility to remove trailing ", USA" or suffix
 function sanitizeAddress(address: string): string {
   return address.replace(/,\s*USA\s*$/i, '').trim();
 }
@@ -27,21 +27,21 @@ export default function SearchInput({
   const router = useRouter();
   const { setGeocodeData } = useGeocode();
   const { setBounds } = useBounds();
+
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // Local loading state for validating addresses
   const [loading, setLoading] = useState(false);
 
-  // Used to store the suggestions returned by /api/v1/autocomplete
+  // Suggestions from /api/v1/autocomplete
   const [suggestions, setSuggestions] = useState<any[]>([]);
+
+  // State for invalid-address fallback popup
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [popupSuggestions, setPopupSuggestions] = useState<any[]>([]);
 
-  // We'll store an ID each time we request suggestions to avoid race conditions
+  // For debounced autocomplete => handle race conditions
   const requestIdRef = useRef<number>(0);
-
-  // This set will contain addresses we've already attempted to geocode
-  // so we don't keep re-trying them in an infinite loop.
-  const triedAddressesRef = useRef<Set<string>>(new Set());
 
   // ----------------------------------
   // Debounced Autocomplete
@@ -71,6 +71,7 @@ export default function SearchInput({
           console.log('[Autocomplete] Old response, ignoring results.');
           return;
         }
+
         if (response.data.status === 'OK' && response.data.predictions.length > 0) {
           // If the user changed input in the meantime, skip
           if (currentValue.startsWith(input)) {
@@ -79,7 +80,7 @@ export default function SearchInput({
             console.log('[Autocomplete] Current input does not match old response, ignoring.');
           }
         } else {
-          console.warn('No autocomplete suggestions found for input:', input);
+          console.warn('No autocomplete suggestions found for:', input);
           setSuggestions([]);
         }
       } catch (error) {
@@ -97,13 +98,6 @@ export default function SearchInput({
     const address = sanitizeAddress(originalAddress);
     console.log('[SearchInput] validateAddress =>', address);
 
-    // If we already tried this exact address, skip to avoid infinite loop
-    if (triedAddressesRef.current.has(address)) {
-      console.warn(`[SearchInput] We already tried geocoding "${address}" — skipping to prevent loop`);
-      return;
-    }
-    triedAddressesRef.current.add(address);
-
     setLoading(true);
 
     try {
@@ -111,18 +105,10 @@ export default function SearchInput({
       const response = await axios.get('/api/v1/geocode', { params: { address } });
       console.log('[SearchInput] Geocode API response =>', response.data);
 
-      // Google’s normal shape => { status: 'OK', results: [...] }
-      // If your endpoint returns an array, adapt accordingly
       const apiData = response.data;
-
       if (apiData.status === 'OK' && apiData.results && apiData.results.length > 0) {
         // Typically the best match is the first result
         const geocodeData = apiData.results[0];
-
-        const partialMatch = geocodeData.partial_match;
-        if (partialMatch) {
-          console.warn(`[SearchInput] Google returned partial_match for "${address}".`);
-        }
 
         // Build a custom object
         const formattedData = {
@@ -134,16 +120,17 @@ export default function SearchInput({
         };
         console.log('[SearchInput] Formatted data =>', formattedData);
 
-        // Update global context if we're staying on the same page
+        // Update global contexts
         setGeocodeData(formattedData);
         setBounds(formattedData.bounds);
 
+        // If parent wants to do something else on success
         if (onPlaceSelected) {
           onPlaceSelected(formattedData);
         }
 
-        // 2) Extract info from address_components
-        const comps = geocodeData.address_components;
+        // 2) If `isRedirectEnabled`, figure out which param to use
+        const comps = geocodeData.address_components || [];
         const zipCode = comps.find((c: any) => c.types.includes('postal_code'))?.long_name;
         const streetName = comps.find((c: any) => c.types.includes('route'))?.long_name;
         const city = comps.find(
@@ -152,37 +139,30 @@ export default function SearchInput({
         const county = comps.find((c: any) => c.types.includes('administrative_area_level_2'))
           ?.long_name;
 
-        // 3) Decide which param to use
         if (isRedirectEnabled) {
           if (zipCode) {
-            console.log('[SearchInput] Redirecting to "/search?zipCode="', zipCode);
             router.push(`/search?zipCode=${encodeURIComponent(zipCode)}`);
           } else if (city) {
-            console.log('[SearchInput] Redirecting to "/search?city="', city);
             router.push(`/search?city=${encodeURIComponent(city)}`);
           } else if (streetName) {
-            console.log('[SearchInput] Redirecting to "/search?streetName="', streetName);
             router.push(`/search?streetName=${encodeURIComponent(streetName)}`);
           } else if (county) {
-            console.log('[SearchInput] Redirecting to "/search?county="', county);
             router.push(`/search?county=${encodeURIComponent(county)}`);
-          } else {
-            console.log('[SearchInput] No recognized param => no route param used.');
           }
 
-          // (Optional) Clear the input after successful selection:
+          // (Optional) Clear the input after success:
           if (inputRef.current) {
             inputRef.current.value = '';
           }
         }
       } else {
-        console.warn('[SearchInput] Geocode returned no valid results for =>', address);
+        console.warn('[SearchInput] Geocode returned no valid results => show popup suggestions');
         // fallback => fetch popup suggestions
         await fetchPopupSuggestions(address);
       }
     } catch (error) {
       console.error('[SearchInput] Error in validateAddress:', error);
-      // fallback => fetch popup suggestions
+      // fallback => always fetch popup suggestions
       await fetchPopupSuggestions(address);
     } finally {
       setLoading(false);
@@ -195,12 +175,7 @@ export default function SearchInput({
   const fetchPopupSuggestions = async (input: string) => {
     console.log('[SearchInput] fetchPopupSuggestions =>', input);
 
-    if (triedAddressesRef.current.has(input)) {
-      console.warn(`[SearchInput] Already tried fallback for "${input}" — skipping popup loop`);
-      return;
-    }
-    triedAddressesRef.current.add(input);
-
+    // Always show fallback suggestions if geocode fails
     try {
       const response = await axios.get('/api/v1/autocomplete', {
         params: { input, types: '(regions)' },
@@ -211,7 +186,7 @@ export default function SearchInput({
         setPopupSuggestions(response.data.predictions);
         setIsPopupOpen(true);
       } else {
-        console.warn('[SearchInput] No popup suggestions available for invalid address:', input);
+        console.warn('[SearchInput] No popup suggestions for invalid address:', input);
         setPopupSuggestions([]);
         setIsPopupOpen(true);
       }
@@ -231,12 +206,13 @@ export default function SearchInput({
     if (inputRef.current) {
       inputRef.current.value = fullDescription;
     }
-    // Clear suggestions
+    // Clear the normal suggestions
     setSuggestions([]);
+    // Clear popup state & suggestions
     setPopupSuggestions([]);
     setIsPopupOpen(false);
 
-    // Now attempt geocoding the selection
+    // Attempt geocoding that selection
     validateAddress(fullDescription);
   };
 

@@ -12,9 +12,6 @@ export async function GET(request: NextRequest) {
   const city = searchParams.get("city");
   const county = searchParams.get("county");
 
-  // ------------------------------------------------
-  // OLD CODE => Search by param
-  // ------------------------------------------------
   console.log("Query parameters received:", {
     zipCode,
     streetName,
@@ -26,6 +23,7 @@ export async function GET(request: NextRequest) {
   try {
     let properties = [];
 
+    // If user wants a single property by ID => do it
     if (zipCode) {
       console.log(`Fetching properties for zipCode: ${zipCode}`);
       const response = await paragonApiClient.searchByZipCode(zipCode);
@@ -52,12 +50,18 @@ export async function GET(request: NextRequest) {
       properties = response?.value || [];
       console.log(`Fetched ${properties.length} properties for county: ${county}`);
     } else {
-      console.log("No valid query parameters provided. Returning empty response.");
-      return NextResponse.json([], { status: 200 });
+      // CHANGED:
+      // Instead of returning empty, fetch everything
+      console.log("No valid query parameters => fetching ALL properties...");
+      const all = await paragonApiClient.getAllProperty(); 
+      // (If you prefer a limited number, e.g. getAllProperty(100) => top 100)
+      properties = all || [];
+      console.log(`Fetched ${properties.length} total properties (no query).`);
     }
 
     console.log(`Successfully fetched ${properties.length} properties.`);
     return NextResponse.json(properties, { status: 200 });
+
   } catch (error: any) {
     console.error("Error in /api/v1/listings:", {
       message: error.message,

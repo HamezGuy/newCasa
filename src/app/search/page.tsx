@@ -18,9 +18,7 @@ export default function Search() {
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
-  // ------------------------------------------------
   // 1) fetchProperties => called whenever query changes
-  // ------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
     streetName?: string,
@@ -58,9 +56,7 @@ export default function Search() {
     }
   };
 
-  // ------------------------------------------------
   // 2) parse geocode=... from URL if present
-  // ------------------------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get('geocode');
     if (geocodeStr) {
@@ -76,9 +72,7 @@ export default function Search() {
     }
   }, [searchParams, setGeocodeData, setBounds]);
 
-  // ------------------------------------------------
-  // 3) whenever the user’s URL changes (zip, city, etc.), fetch
-  // ------------------------------------------------
+  // 3) whenever the user’s URL changes, fetch
   useEffect(() => {
     const zipCode = searchParams.get('zipCode') || undefined;
     const streetName = searchParams.get('streetName') || undefined;
@@ -91,9 +85,9 @@ export default function Search() {
     } else {
       fetchProperties(zipCode, streetName, city, county);
     }
-  }, [searchParams]); // re-run when searchParams changes
+  }, [searchParams]);
 
-  // 4) If the user does a new search from within the /search page
+  // 4) If user does a new search from within /search page
   const handlePlaceSelected = (geocodeData: any) => {
     if (!geocodeData || !geocodeData.bounds) {
       console.error('[Search] handlePlaceSelected => invalid geocode data:', geocodeData);
@@ -109,7 +103,6 @@ export default function Search() {
     const city = comps.find((c: any) => c.types.includes('locality'))?.long_name;
     const county = comps.find((c: any) => c.types.includes('administrative_area_level_2'))?.long_name;
 
-    // We can just call fetchProperties directly or do something else:
     if (zipCode) {
       fetchProperties(zipCode);
     } else if (route) {
@@ -131,13 +124,13 @@ export default function Search() {
     <main className="flex flex-col w-full h-screen">
       {/* Top bar => user can do a new search or use filters */}
       <div className="flex flex-wrap w-full p-4 gap-4 bg-gray-100 shadow-md z-10">
-        {/* Because isRedirectEnabled={false}, the user is already on /search */}
         <SearchInput size="sm" onPlaceSelected={handlePlaceSelected} isRedirectEnabled={false} />
         <SearchFilters onUpdate={handleFiltersUpdate} />
       </div>
 
       <div className="flex flex-grow w-full h-full">
         <div className="w-full lg:w-2/3 h-full">
+          {/* Using the updated GoogleMapsClientProvider => only loads script once */}
           <GoogleMapsClientProvider>
             <SearchResultsMap properties={filteredProperties} />
           </GoogleMapsClientProvider>
