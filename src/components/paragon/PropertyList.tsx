@@ -1,6 +1,6 @@
 'use client';
 
-import { useBounds } from '@/components/search/boundscontext'; // Import BoundsContext
+import { useBounds } from '@/components/search/boundscontext';
 import IParagonProperty from '@/types/IParagonProperty';
 import PropertySearchResultCard from './PropertySearchResultCard';
 
@@ -24,7 +24,7 @@ export default function PropertyList({
 }: PropertyListProps) {
   const { bounds } = useBounds(); // Access bounds from context
 
-  // Filter properties based on the current bounds
+  // Filter properties based on the map's current bounds
   const filteredProperties = properties?.filter((property) => {
     if (
       !property.Latitude ||
@@ -38,7 +38,6 @@ export default function PropertyList({
     const { southwest, northeast } = bounds;
     const { Latitude, Longitude } = property;
 
-    // Check if the property is within bounds
     return (
       Latitude >= southwest.lat &&
       Latitude <= northeast.lat &&

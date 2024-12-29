@@ -10,7 +10,11 @@ interface GeocodeData {
   };
   formatted_address: string;
   place_id: string;
+
+  // NEW => Make it optional if we want
+  address_components?: any[];
 }
+
 
 interface GeocodeContextProps {
   geocodeData: GeocodeData | null;

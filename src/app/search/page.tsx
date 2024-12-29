@@ -1,102 +1,155 @@
 'use client';
 
-import PropertyList from '@/components/paragon/PropertyList';
-import { useGeocode } from '@/components/search/GeocodeContext'; // Use GeocodeContext
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useGeocode } from '@/components/search/GeocodeContext';
+import { useBounds } from '@/components/search/boundscontext';
 import SearchFilters from '@/components/search/SearchFilters';
 import SearchInput from '@/components/search/SearchInput';
 import { SearchResultsMap } from '@/components/search/SearchResultsMap';
-import { useBounds } from '@/components/search/boundscontext'; // Use BoundsContext
-import { useEffect, useRef, useState } from 'react';
+import PropertyList from '@/components/paragon/PropertyList';
+import GoogleMapsClientProvider from '@/components/core/GoogleMapsClientProvider';
 
 export default function Search() {
-  const [filteredProperties, setFilteredProperties] = useState([]); // Properties displayed on the map
+  const [filteredProperties, setFilteredProperties] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const hasFetched = useRef(false); // Prevents duplicate fetches
-  const { setGeocodeData } = useGeocode(); // Access GeocodeContext
-  const { setBounds } = useBounds(); // Access BoundsContext
+  const { setGeocodeData } = useGeocode();
+  const { setBounds } = useBounds();
+  const searchParams = useSearchParams();
 
-  // Fetch properties from API
-  const fetchProperties = async (zipCode?: string) => {
-    if (hasFetched.current) return; // Avoid unnecessary fetches
-    hasFetched.current = true;
-
+  // ------------------------------------------------
+  // 1) fetchProperties => called whenever query changes
+  // ------------------------------------------------
+  const fetchProperties = async (
+    zipCode?: string,
+    streetName?: string,
+    city?: string,
+    county?: string
+  ) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/v1/listings${zipCode ? `?zipCode=${zipCode}` : ''}`);
+      let url = '/api/v1/listings';
+      const queries: string[] = [];
+      if (zipCode) queries.push(`zipCode=${encodeURIComponent(zipCode)}`);
+      if (streetName) queries.push(`streetName=${encodeURIComponent(streetName)}`);
+      if (city) queries.push(`city=${encodeURIComponent(city)}`);
+      if (county) queries.push(`county=${encodeURIComponent(county)}`);
+
+      if (queries.length > 0) {
+        url += `?${queries.join('&')}`;
+      }
+
+      console.log('[Search Page] fetchProperties =>', url);
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        console.log('Fetched properties:', data);
+        console.log('[Search Page] fetchProperties => data:', data);
         setFilteredProperties(data);
       } else {
-        console.error('Failed to fetch properties:', await response.text());
+        console.error('[Search Page] fetchProperties => error:', await response.text());
         setFilteredProperties([]);
       }
     } catch (error) {
-      console.error('Error fetching properties:', error);
+      console.error('[Search Page] fetchProperties => exception:', error);
       setFilteredProperties([]);
     } finally {
       setLoading(false);
     }
   };
 
+  // ------------------------------------------------
+  // 2) parse geocode=... from URL if present
+  // ------------------------------------------------
   useEffect(() => {
-    // Initial fetch of all properties
-    fetchProperties();
-  }, []);
+    const geocodeStr = searchParams.get('geocode');
+    if (geocodeStr) {
+      try {
+        const decoded = decodeURIComponent(geocodeStr);
+        const parsed = JSON.parse(decoded);
+        console.log('[Search Page] parsed geocode from URL =>', parsed);
+        setGeocodeData(parsed);
+        if (parsed.bounds) setBounds(parsed.bounds);
+      } catch (err) {
+        console.error('[Search Page] Error parsing geocode param:', err);
+      }
+    }
+  }, [searchParams, setGeocodeData, setBounds]);
 
-  // Handle place selection from SearchInput
+  // ------------------------------------------------
+  // 3) whenever the user’s URL changes (zip, city, etc.), fetch
+  // ------------------------------------------------
+  useEffect(() => {
+    const zipCode = searchParams.get('zipCode') || undefined;
+    const streetName = searchParams.get('streetName') || undefined;
+    const city = searchParams.get('city') || undefined;
+    const county = searchParams.get('county') || undefined;
+
+    if (!zipCode && !streetName && !city && !county) {
+      console.log('[Search Page] No query param => fetch all');
+      fetchProperties();
+    } else {
+      fetchProperties(zipCode, streetName, city, county);
+    }
+  }, [searchParams]); // re-run when searchParams changes
+
+  // 4) If the user does a new search from within the /search page
   const handlePlaceSelected = (geocodeData: any) => {
     if (!geocodeData || !geocodeData.bounds) {
-      console.error('Invalid geocode data received:', geocodeData);
+      console.error('[Search] handlePlaceSelected => invalid geocode data:', geocodeData);
       return;
     }
+    console.log('[Search] handlePlaceSelected => setting geocode data:', geocodeData);
+    setGeocodeData(geocodeData);
+    setBounds(geocodeData.bounds);
 
-    console.log('Setting geocode data and bounds:', geocodeData);
-    setGeocodeData(geocodeData); // Update GeocodeContext
-    setBounds(geocodeData.bounds); // Update BoundsContext
+    const comps = geocodeData.address_components || [];
+    const zipCode = comps.find((c: any) => c.types.includes('postal_code'))?.long_name;
+    const route = comps.find((c: any) => c.types.includes('route'))?.long_name;
+    const city = comps.find((c: any) => c.types.includes('locality'))?.long_name;
+    const county = comps.find((c: any) => c.types.includes('administrative_area_level_2'))?.long_name;
 
-    // Fetch properties near the selected location
-    const zipCode = geocodeData?.address_components?.find((component: any) =>
-      component.types.includes('postal_code')
-    )?.long_name;
-
+    // We can just call fetchProperties directly or do something else:
     if (zipCode) {
-      console.log('Fetching properties for zip code:', zipCode);
       fetchProperties(zipCode);
+    } else if (route) {
+      fetchProperties(undefined, route);
+    } else if (city) {
+      fetchProperties(undefined, undefined, city);
+    } else if (county) {
+      fetchProperties(undefined, undefined, undefined, county);
+    } else {
+      console.warn('[Search] handlePlaceSelected => no recognized param => no new fetch');
     }
   };
 
   const handleFiltersUpdate = (filters: any) => {
-    console.log('Filters updated:', filters);
-    // Logic to apply filters (if necessary)
+    console.log('[Search] handleFiltersUpdate =>', filters);
   };
 
   return (
     <main className="flex flex-col w-full h-screen">
-      {/* Search Bar, Filters */}
+      {/* Top bar => user can do a new search or use filters */}
       <div className="flex flex-wrap w-full p-4 gap-4 bg-gray-100 shadow-md z-10">
-        <SearchInput size="sm" onPlaceSelected={handlePlaceSelected} />
+        {/* Because isRedirectEnabled={false}, the user is already on /search */}
+        <SearchInput size="sm" onPlaceSelected={handlePlaceSelected} isRedirectEnabled={false} />
         <SearchFilters onUpdate={handleFiltersUpdate} />
       </div>
 
-      {/* Map and Property List */}
       <div className="flex flex-grow w-full h-full">
-        {/* Map View */}
         <div className="w-full lg:w-2/3 h-full">
-          <SearchResultsMap properties={filteredProperties} />
+          <GoogleMapsClientProvider>
+            <SearchResultsMap properties={filteredProperties} />
+          </GoogleMapsClientProvider>
         </div>
 
-        {/* Property List */}
         <div className="w-full lg:w-1/3 h-full overflow-y-auto p-4 bg-white shadow-inner">
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
           ) : filteredProperties.length > 0 ? (
             <PropertyList properties={filteredProperties} />
           ) : (
-            <p className="text-center text-gray-500 mt-4">
-              No properties found. Adjust your search or filters.
-            </p>
+            <p className="text-center text-gray-500 mt-4">No properties found.</p>
           )}
         </div>
       </div>

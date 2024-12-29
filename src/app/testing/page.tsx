@@ -20,28 +20,13 @@ interface Property {
   Price: string;
 }
 
-// Mock property data for testing
-const mockProperties: Property[] = [
-  {
-    ListingId: '1',
-    Latitude: 43.073051,
-    Longitude: -89.40123,
-    Address: '123 Main St, Madison, WI',
-    Price: '$350,000',
-  },
-  {
-    ListingId: '2',
-    Latitude: 43.083051,
-    Longitude: -89.41123,
-    Address: '456 Elm St, Madison, WI',
-    Price: '$450,000',
-  },
-];
-
 const TestMapWithSearch = () => {
-  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<{ lat: number; lng: number } | null>(
+    null
+  );
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [polygonCoords, setPolygonCoords] = useState<{ lat: number; lng: number }[] | null>(null);
+  const [properties, setProperties] = useState<Property[]>([]);
 
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
@@ -50,7 +35,8 @@ const TestMapWithSearch = () => {
     height: '100vh',
   };
 
-  const mapCenter = selectedLocation || { lat: 43.0731, lng: -89.4012 }; // Default to Madison, WI
+  // Default to Madison, WI
+  const mapCenter = selectedLocation || { lat: 43.0731, lng: -89.4012 };
 
   const polygonOptions = {
     fillColor: '#22ccff',
@@ -60,13 +46,15 @@ const TestMapWithSearch = () => {
     strokeWeight: 2,
   };
 
+  // --------------------------------------------------
+  // Handle user-typed search in the Autocomplete bar
+  // --------------------------------------------------
   const handleSearch = useCallback(() => {
     if (autocompleteRef.current) {
       const place = autocompleteRef.current.getPlace();
 
       if (place?.geometry?.location) {
         const location = place.geometry.location;
-
         if (location) {
           setSelectedLocation({
             lat: location.lat(),
@@ -93,6 +81,67 @@ const TestMapWithSearch = () => {
     }
   }, []);
 
+  // --------------------------------------------------
+  // (Optional) Single call to fetch properties w/ certain queries
+  // --------------------------------------------------
+  const fetchProperties = async (queryParams: string) => {
+    try {
+      const response = await fetch(`/api/v1/listings?${queryParams}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log('Fetched properties:', data);
+        setProperties(data);
+      } else {
+        console.error('Failed to fetch properties:', data.message);
+        setProperties([]);
+      }
+    } catch (error) {
+      console.error('Error fetching properties:', error);
+      setProperties([]);
+    }
+  };
+
+  // --------------------------------------------------
+  // Test multiple queries, including city=Madison
+  // --------------------------------------------------
+  const testQueries = async () => {
+    const queries = [
+      { name: 'zipCode=53713', query: 'zipCode=53713' },
+      { name: 'streetName=Monroe', query: 'streetName=Monroe' },
+
+      // NEW: city-based test
+      { name: 'city=Madison', query: 'city=Madison' },
+
+      // (Optional) county-based test (e.g. "Dane" if your data supports it):
+      { name: 'county=Dane', query: 'county=Dane' },
+
+      // all properties => no query param
+      { name: 'all properties', query: '' },
+    ];
+
+    for (const { name, query } of queries) {
+      console.log(`Fetching properties for ${name}...`);
+      try {
+        const response = await fetch(`/api/v1/listings?${query}`);
+        const data = await response.json();
+
+        if (response.ok) {
+          console.log(`Successfully fetched ${data.length} properties for ${name}.`);
+        } else {
+          console.error(
+            `Error for ${name}: ${response.status} - ${data.message || 'Unknown error'}`
+          );
+        }
+      } catch (error) {
+        console.error(`Error for ${name}:`, error);
+      }
+    }
+  };
+
+  // --------------------------------------------------
+  // Marker logic
+  // --------------------------------------------------
   const handleMarkerClick = useCallback((property: Property) => {
     setSelectedProperty(property);
   }, []);
@@ -101,14 +150,23 @@ const TestMapWithSearch = () => {
     setSelectedProperty(null);
   }, []);
 
+  // --------------------------------------------------
+  // Render
+  // --------------------------------------------------
   return (
     <div style={{ height: '100vh', width: '100%' }}>
-      <LoadScript
-        googleMapsApiKey={GOOGLE_MAPS_API_KEY}
-        libraries={['places']}
-      >
+      <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY} libraries={['places']}>
         {/* Search Bar */}
-        <div style={{ position: 'absolute', zIndex: 10, top: 10, left: 10, display: 'flex', alignItems: 'center' }}>
+        <div
+          style={{
+            position: 'absolute',
+            zIndex: 10,
+            top: 10,
+            left: 10,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
           <Autocomplete onLoad={(ref) => (autocompleteRef.current = ref)}>
             <input
               type="text"
@@ -132,6 +190,17 @@ const TestMapWithSearch = () => {
           >
             Search
           </button>
+          <button
+            onClick={testQueries}
+            style={{
+              marginLeft: '10px',
+              height: '40px',
+              fontSize: '16px',
+              cursor: 'pointer',
+            }}
+          >
+            Test API
+          </button>
         </div>
 
         {/* Google Map */}
@@ -145,7 +214,7 @@ const TestMapWithSearch = () => {
           {polygonCoords && <Polygon paths={polygonCoords} options={polygonOptions} />}
 
           {/* Render Property Markers */}
-          {mockProperties.map((property) => (
+          {properties.map((property) => (
             <Marker
               key={property.ListingId}
               position={{ lat: property.Latitude, lng: property.Longitude }}

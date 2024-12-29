@@ -355,21 +355,18 @@ export class ParagonApiClient {
     return response;
   }
 
-  public async searchByStreetName(): Promise<{
-    '@odata.context': string;
-    '@odata.nextLink': string;
-    value: IParagonProperty[];
-  }> {
-    const url = `${this.__baseUrl}/Property?$filter=contains(StreetName, 'Kenosha')`;
+  public async searchByStreetName(
+    streetName: string,
+    includeMedia: boolean = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+    const encodedStreet = encodeURIComponent(streetName);
+    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(StreetName, '${encodedStreet}')`;
 
-    const headers: HeadersInit = {};
-    headers['Accept'] = 'application/json';
-    headers['Authorization'] = await this.__getAuthHeaderValue();
-
-    const options: RequestInit = { method: 'GET', headers: headers };
-    const response = await fetch(url, options);
-
-    return await response.json();
+    const response = await this.get<ParagonPropertyWithMedia>(url);
+    if (response.value && includeMedia) {
+      response.value = await this.populatePropertyMedia(response.value);
+    }
+    return response;
   }
 
   public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
@@ -393,6 +390,52 @@ export class ParagonApiClient {
     }
 
     return response.value;
+  }
+
+  public async searchByCity(
+    city: string,
+    includeMedia: boolean = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+    if (MOCK_DATA) {
+      console.log('Using mock data for searchByCity');
+      const properties_mock = require('../../data/properties.json');
+      // If you want to filter the mock data to only match `city`, do so here
+      return properties_mock;
+    }
+
+    const encodedCity = encodeURIComponent(city);
+    // Replace "City" with the actual MLS field name that stores the city value
+    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(City, '${encodedCity}')`;
+
+    const response = await this.get<ParagonPropertyWithMedia>(url);
+
+    if (response.value && includeMedia) {
+      response.value = await this.populatePropertyMedia(response.value);
+    }
+    return response;
+  }
+
+  public async searchByCounty(
+    county: string,
+    includeMedia: boolean = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+    if (MOCK_DATA) {
+      console.log('Using mock data for searchByCounty');
+      const properties_mock = require('../../data/properties.json');
+      // If you want to filter the mock data to only match `county`, do so here
+      return properties_mock;
+    }
+
+    const encodedCounty = encodeURIComponent(county);
+    // Many MLS systems store county in a "CountyOrParish" field
+    const url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(CountyOrParish, '${encodedCounty}')`;
+
+    const response = await this.get<ParagonPropertyWithMedia>(url);
+
+    if (response.value && includeMedia) {
+      response.value = await this.populatePropertyMedia(response.value);
+    }
+    return response;
   }
 
   public async getAllPropertyWithMedia(
