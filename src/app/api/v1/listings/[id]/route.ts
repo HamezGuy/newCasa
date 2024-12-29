@@ -9,7 +9,7 @@ export async function GET(
     params,
   }: {
     params: {
-      id?: string; // or just id: string if it’s guaranteed
+      id: string; // <-- Make this required (no '?')
     };
   }
 ) {
