@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { LoadScript } from '@react-google-maps/api';
-import { GOOGLE_MAPS_LIBRARIES } from '@/lib/constants'; 
-import React, { useEffect, useState } from 'react';
+import { LoadScript } from "@react-google-maps/api";
+import { GOOGLE_MAPS_LIBRARIES } from "@/lib/constants"; 
+import React, { useEffect, useState } from "react";
 
-// NEW: keep track if we already loaded the Google script
+// Keep track if we already loaded the script once
 let scriptAlreadyLoaded = false;
 
 export default function GoogleMapsClientProvider({
@@ -12,13 +12,13 @@ export default function GoogleMapsClientProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API || '';
+  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API || "";
 
-  // We start `shouldLoad` as TRUE only if script was never loaded
+  // Start off loading only if we haven't loaded it before
   const [shouldLoad, setShouldLoad] = useState(!scriptAlreadyLoaded);
 
   useEffect(() => {
-    // If script wasn't loaded before, mark it. Otherwise, skip re-load
+    // If script was not loaded before, mark it. Otherwise skip re-load
     if (!scriptAlreadyLoaded) {
       scriptAlreadyLoaded = true;
     } else {
@@ -27,6 +27,7 @@ export default function GoogleMapsClientProvider({
   }, []);
 
   if (!shouldLoad) {
+    // The script is presumably already loaded, so just render children
     return <>{children}</>;
   }
 
