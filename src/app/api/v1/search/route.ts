@@ -47,13 +47,13 @@ export async function GET(request: Request) {
     console.log(`Fetched ${properties.length} properties (raw).`);
 
     // -----------------------------------------
-    // TEMPORARY CAP AT 100 FOR TESTING PURPOSES
+    // TEMPORARY CAP AT 10 FOR TESTING PURPOSES
     // -----------------------------------------
-    properties = properties.slice(0, 100);
+    properties = properties.slice(0, 10);
     console.log(
-      `Capped the results to 100 for testing. Final length = ${properties.length}.`
+      `Capped the results to 10 for testing. Final length = ${properties.length}.`
     );
-    // (Remove the .slice(...) call when you no longer need the 100 cap)
+    // (Remove the .slice(...) call when you no longer need the 10 cap)
 
     return NextResponse.json(properties, { status: 200 });
   } catch (error: any) {
