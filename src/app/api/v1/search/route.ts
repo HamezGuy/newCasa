@@ -4,7 +4,8 @@ import { NextResponse } from "next/server";
 import paragonApiClient from "@/lib/ParagonApiClient";
 
 export async function GET(request: Request) {
-  console.log("Triggered: /api/v1/listings");
+  // ADDED LOGGING
+  console.log("[GET /api/v1/listings] => Endpoint triggered.");
 
   const { searchParams } = new URL(request.url);
   const zipCode = searchParams.get("zipCode");
@@ -13,7 +14,8 @@ export async function GET(request: Request) {
   const city = searchParams.get("city");
   const county = searchParams.get("county");
 
-  console.log("Query parameters received:", {
+  // ADDED LOGGING
+  console.log("[GET /api/v1/listings] => Query params:", {
     zipCode,
     streetName,
     propertyId,
@@ -24,42 +26,68 @@ export async function GET(request: Request) {
   try {
     let properties = [];
 
-    // Various conditionals:
+    // ADDED LOGGING
+    console.log("[GET /api/v1/listings] => Starting property fetch logic...");
+
     if (zipCode) {
+      // ADDED LOGGING
+      console.log(`[GET /api/v1/listings] => searchByZipCode("${zipCode}")`);
       const response = await paragonApiClient.searchByZipCode(zipCode);
       properties = response?.value || [];
+      console.log(`[GET /api/v1/listings] => searchByZipCode found ${properties.length} props.`);
     } else if (streetName) {
+      // ADDED LOGGING
+      console.log(`[GET /api/v1/listings] => searchByStreetName("${streetName}")`);
       const response = await paragonApiClient.searchByStreetName(streetName);
       properties = response?.value || [];
+      console.log(`[GET /api/v1/listings] => searchByStreetName found ${properties.length} props.`);
     } else if (propertyId) {
+      // ADDED LOGGING
+      console.log(`[GET /api/v1/listings] => getPropertyById("${propertyId}")`);
       const property = await paragonApiClient.getPropertyById(propertyId);
       properties = property ? [property] : [];
+      console.log(`[GET /api/v1/listings] => getPropertyById => found ${properties.length} prop(s).`);
     } else if (city) {
+      // ADDED LOGGING
+      console.log(`[GET /api/v1/listings] => searchByCity("${city}")`);
       const response = await paragonApiClient.searchByCity(city);
       properties = response?.value || [];
+      console.log(`[GET /api/v1/listings] => searchByCity found ${properties.length} props.`);
     } else if (county) {
+      // ADDED LOGGING
+      console.log(`[GET /api/v1/listings] => searchByCounty("${county}")`);
       const response = await paragonApiClient.searchByCounty(county);
       properties = response?.value || [];
+      console.log(`[GET /api/v1/listings] => searchByCounty found ${properties.length} props.`);
     } else {
-      properties = new Array(1);
+      // ADDED LOGGING
+      console.log("[GET /api/v1/listings] => No query => returning array(1) as a placeholder.");
+      properties = new Array(1).fill({ testItem: true });
     }
 
-    console.log(`Fetched ${properties.length} properties (raw).`);
+    // ADDED LOGGING
+    console.log(`[GET /api/v1/listings] => Fetched raw count = ${properties.length}`);
 
-    // -----------------------------------------
     // TEMPORARY CAP AT 10 FOR TESTING PURPOSES
-    // -----------------------------------------
     properties = properties.slice(0, 10);
     console.log(
-      `Capped the results to 10 for testing. Final length = ${properties.length}.`
+      `[GET /api/v1/listings] => Capped results at 10 => final length: ${properties.length}`
     );
-    // (Remove the .slice(...) call when you no longer need the 10 cap)
 
+    // ADDED LOGGING
+    console.log("[GET /api/v1/listings] => Returning JSON response now...");
     return NextResponse.json(properties, { status: 200 });
+
   } catch (error: any) {
-    console.error("Error in /api/v1/listings:", error);
+    // ADDED LOGGING
+    console.error("[GET /api/v1/listings] => CAUGHT ERROR =>", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
+
     return NextResponse.json(
-      { error: "Failed to fetch properties from API" },
+      { error: "Failed to fetch properties from API", details: error.message },
       { status: 500 }
     );
   }

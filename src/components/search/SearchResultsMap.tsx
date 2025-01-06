@@ -53,7 +53,7 @@ export function SearchResultsMap({
   const [infoWindowShown, setInfoWindowShown] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
 
-  // NEW => track if map & clusterer are fully ready
+  // new => track if map & clusterer are fully ready
   const [mapIsReady, setMapIsReady] = useState(false);
 
   // ------------------------------------------------------------------------
@@ -94,16 +94,17 @@ export function SearchResultsMap({
   // onMapLoad => create MarkerClusterer
   // ------------------------------------------------------------------------
   const onMapLoad = useCallback((map: google.maps.Map) => {
+    console.log("[SearchResultsMap] onMapLoad => map loaded, creating clusterer...");
     mapRef.current = map;
     setLastSnapSignature(null);
 
     // Safely create the clusterer once the map is loaded
     try {
       markerClusterRef.current = new MarkerClusterer({ map, markers: [] });
-      // Mark the map as “ready”
+      console.log("[SearchResultsMap] MarkerClusterer created successfully");
       setMapIsReady(true);
     } catch (err) {
-      console.error("Error creating MarkerClusterer =>", err);
+      console.error("[SearchResultsMap] Error creating MarkerClusterer =>", err);
       markerClusterRef.current = null;
       setMapIsReady(false);
     }
@@ -113,6 +114,7 @@ export function SearchResultsMap({
   // handleMapDragEnd & handleMapZoomChanged => update global bounds
   // ------------------------------------------------------------------------
   const handleMapDragEnd = useCallback(() => {
+    console.log("[SearchResultsMap] handleMapDragEnd triggered");
     if (!mapRef.current) return;
     const googleBounds = mapRef.current.getBounds();
     if (!googleBounds) return;
@@ -127,10 +129,12 @@ export function SearchResultsMap({
         lng: googleBounds.getNorthEast()?.lng() ?? 0,
       },
     };
+    console.log("[SearchResultsMap] handleMapDragEnd => setting new bounds:", newBounds);
     setBounds(newBounds);
   }, [setBounds]);
 
   const handleMapZoomChanged = useCallback(() => {
+    console.log("[SearchResultsMap] handleMapZoomChanged triggered");
     if (!mapRef.current) return;
     const googleBounds = mapRef.current.getBounds();
     if (!googleBounds) return;
@@ -145,6 +149,7 @@ export function SearchResultsMap({
         lng: googleBounds.getNorthEast()?.lng() ?? 0,
       },
     };
+    console.log("[SearchResultsMap] handleMapZoomChanged => setting new bounds:", newBounds);
     setBounds(newBounds);
   }, [setBounds]);
 
@@ -152,12 +157,14 @@ export function SearchResultsMap({
   // Marker click => show InfoWindow
   // ------------------------------------------------------------------------
   const handleMarkerClick = useCallback((property: IParagonProperty) => {
+    console.log("[SearchResultsMap] handleMarkerClick => property:", property);
     setSelectedProperty(property);
     setInfoWindowShown(true);
   }, []);
 
   // Map click => close InfoWindow
   const handleMapClick = useCallback(() => {
+    console.log("[SearchResultsMap] handleMapClick => closing InfoWindow");
     setInfoWindowShown(false);
     setSelectedProperty(null);
   }, []);
@@ -171,6 +178,7 @@ export function SearchResultsMap({
       const resp = await axios.get("/api/v1/overpass-boundary", {
         params: { place: cityName },
       });
+      console.log("[SearchResultsMap] Overpass boundary result => polygons:", resp.data.polygons);
       setOverpassPolygons(resp.data.polygons || []);
     } catch (err) {
       console.error("[SearchResultsMap] Overpass fetch error =>", err);
@@ -182,11 +190,16 @@ export function SearchResultsMap({
   // Snap to bounding box or location when geocode changes
   // ------------------------------------------------------------------------
   useEffect(() => {
+    console.log("[SearchResultsMap] useEffect => geocode or selectedGeometry changed");
     // Wait until the map & clusterer are ready
-    if (!mapIsReady || !mapRef.current) return;
+    if (!mapIsReady || !mapRef.current) {
+      console.log("[SearchResultsMap] mapIsReady is false or mapRef not set. Skipping...");
+      return;
+    }
 
     // 1) If there's selectedGeometry => priority
     if (selectedGeometry?.bounds) {
+      console.log("[SearchResultsMap] we have selectedGeometry.bounds => trying to snap");
       const geometrySig = `BBOX:${
         selectedGeometry.bounds.getSouthWest().lat()
       },${selectedGeometry.bounds.getSouthWest().lng()},${selectedGeometry.bounds
@@ -194,7 +207,7 @@ export function SearchResultsMap({
         .lat()},${selectedGeometry.bounds.getNorthEast().lng()}`;
 
       if (geometrySig !== lastSnapSignature) {
-        console.log("[SearchResultsMap] snapping to selectedGeometry bounds");
+        console.log("[SearchResultsMap] snapping to selectedGeometry bounds, geometrySig:", geometrySig);
         mapRef.current.setZoom(4);
         mapRef.current.fitBounds(selectedGeometry.bounds, 150);
         setLastSnapSignature(geometrySig);
@@ -205,8 +218,10 @@ export function SearchResultsMap({
 
     // 2) Otherwise, snap to bounding box or lat-lng from geocode
     const snapSig = makeSnapSignature(basicGeocodeData);
+    console.log("[SearchResultsMap] snapSig for geocode =>", snapSig);
+
     if (!snapSig) {
-      // If there's no geocode data => show default center
+      console.log("[SearchResultsMap] no geocode data => default center");
       if (lastSnapSignature !== "DEFAULT") {
         console.log("[SearchResultsMap] snapping to default =>", defaultCenter);
         mapRef.current.setCenter(defaultCenter);
@@ -218,6 +233,7 @@ export function SearchResultsMap({
 
     // If we already snapped to this place, do nothing
     if (snapSig === lastSnapSignature) {
+      console.log("[SearchResultsMap] Already snapped to this place. Doing nothing.");
       return;
     }
 
@@ -246,8 +262,10 @@ export function SearchResultsMap({
     const comps = geocodeData?.address_components || [];
     const city = comps.find((c: any) => c.types.includes("locality"))?.long_name;
     if (city) {
+      console.log("[SearchResultsMap] found city =>", city, " => calling fetchOverpassBoundary");
       fetchOverpassBoundary(city);
     } else {
+      console.log("[SearchResultsMap] no city found in geocodeData => resetting overpassPolygons");
       setOverpassPolygons([]);
     }
   }, [
@@ -257,34 +275,45 @@ export function SearchResultsMap({
     onSearchComplete,
     lastSnapSignature,
     defaultCenter,
-    mapIsReady, // watch for readiness
+    mapIsReady // watch for readiness
   ]);
 
   // ------------------------------------------------------------------------
   // Rebuild Markers (for clustering) when `properties` changes
   // ------------------------------------------------------------------------
   useEffect(() => {
+    console.log("[SearchResultsMap] useEffect => properties changed. properties.length:", properties.length);
     // If the map or markerCluster isn't ready, skip
     if (!mapIsReady || !mapRef.current || !markerClusterRef.current) {
+      console.log("[SearchResultsMap] map is not ready => skipping marker build");
       return;
     }
 
     // Attempt to clear existing markers
+    console.log("[SearchResultsMap] clearing existing markers from cluster...");
     try {
       markerClusterRef.current.clearMarkers();
     } catch (error) {
-      console.error("Could not clear markers from clusterer:", error);
+      console.error("[SearchResultsMap] Could not clear markers from clusterer:", error);
       // If clearing fails, bail out
       return;
     }
 
     // Remove from map if any leftover
+    console.log("[SearchResultsMap] removing leftover markers from map...");
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
-    // 2) Create new markers from property lat/lng
+    // Create new markers from property lat/lng
+    console.log("[SearchResultsMap] building new markers from property lat/lng...");
     const newMarkers: google.maps.Marker[] = properties
-      .filter((p) => p.Latitude && p.Longitude)
+      .filter((p) => {
+        // Extra logging
+        if (!p.Latitude || !p.Longitude) {
+          console.log("[SearchResultsMap] property missing lat/long =>", p);
+        }
+        return p.Latitude && p.Longitude;
+      })
       .map((p) => {
         const marker = new google.maps.Marker({
           position: { lat: p.Latitude!, lng: p.Longitude! },
@@ -294,12 +323,14 @@ export function SearchResultsMap({
       });
 
     markersRef.current = newMarkers;
+    console.log("[SearchResultsMap] new markers built =>", newMarkers.length);
 
-    // 3) Add them to the cluster
+    // Add them to the cluster
     try {
+      console.log("[SearchResultsMap] adding new markers to cluster...");
       markerClusterRef.current.addMarkers(newMarkers);
     } catch (error) {
-      console.error("Could not add markers to clusterer:", error);
+      console.error("[SearchResultsMap] Could not add markers to clusterer:", error);
     }
   }, [properties, handleMarkerClick, mapIsReady]);
 
@@ -360,7 +391,10 @@ export function SearchResultsMap({
               lat: selectedProperty.Latitude ?? 0,
               lng: selectedProperty.Longitude ?? 0,
             }}
-            onCloseClick={() => setInfoWindowShown(false)}
+            onCloseClick={() => {
+              console.log("[SearchResultsMap] InfoWindow onCloseClick => closing window");
+              setInfoWindowShown(false);
+            }}
           >
             <PropertySearchResultCard property={selectedProperty} size="sm" />
           </InfoWindow>
