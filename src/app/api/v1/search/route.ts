@@ -1,4 +1,4 @@
-// src/app/api/v1/search/route.ts
+// src/app/api/v1/listings/route.ts
 
 import { NextResponse } from "next/server";
 import paragonApiClient from "@/lib/ParagonApiClient";
@@ -41,14 +41,21 @@ export async function GET(request: Request) {
       const response = await paragonApiClient.searchByCounty(county);
       properties = response?.value || [];
     } else {
-      // Fallback: fetch all
-      const allProps = await paragonApiClient.getAllProperty();
-      properties = allProps || [];
+      properties = new Array(1);
     }
 
-    console.log(`Fetched ${properties.length} properties.`);
-    return NextResponse.json(properties, { status: 200 });
+    console.log(`Fetched ${properties.length} properties (raw).`);
 
+    // -----------------------------------------
+    // TEMPORARY CAP AT 100 FOR TESTING PURPOSES
+    // -----------------------------------------
+    properties = properties.slice(0, 100);
+    console.log(
+      `Capped the results to 100 for testing. Final length = ${properties.length}.`
+    );
+    // (Remove the .slice(...) call when you no longer need the 100 cap)
+
+    return NextResponse.json(properties, { status: 200 });
   } catch (error: any) {
     console.error("Error in /api/v1/listings:", error);
     return NextResponse.json(
