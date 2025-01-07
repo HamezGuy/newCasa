@@ -60,20 +60,10 @@ export async function GET(request: Request) {
       properties = response?.value || [];
       console.log(`[GET /api/v1/listings] => searchByCounty found ${properties.length} props.`);
     } else {
-      // ADDED LOGGING
-      console.log("[GET /api/v1/listings] => No query => returning array(1) as a placeholder.");
-      properties = new Array(1).fill({ testItem: true });
+      const response = await paragonApiClient.getAllProperty();
+      properties = response ? Array.from(response.values()) : [];
     }
-
-    // ADDED LOGGING
-    console.log(`[GET /api/v1/listings] => Fetched raw count = ${properties.length}`);
-
-    // TEMPORARY CAP AT 10 FOR TESTING PURPOSES
-    properties = properties.slice(0, 10);
-    console.log(
-      `[GET /api/v1/listings] => Capped results at 10 => final length: ${properties.length}`
-    );
-
+    
     // ADDED LOGGING
     console.log("[GET /api/v1/listings] => Returning JSON response now...");
     return NextResponse.json(properties, { status: 200 });
@@ -84,6 +74,7 @@ export async function GET(request: Request) {
       name: error.name,
       message: error.message,
       stack: error.stack,
+
     });
 
     return NextResponse.json(
