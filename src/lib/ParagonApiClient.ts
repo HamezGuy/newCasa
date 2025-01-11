@@ -14,7 +14,7 @@ const zipCodes = serverRuntimeConfig.zipCodes || [];
 
 const MOCK_DATA = process.env.MOCK_DATA && process.env.MOCK_DATA === "true";
 
-/* 
+/*
 if (
   !process.env.RESO_BASE_URL ||
   !process.env.RESO_TOKEN_URL ||
@@ -22,7 +22,7 @@ if (
   !process.env.RESO_CLIENT_SECRET
 ) {
   throw new Error("Missing required RESO environment variables.");
-} 
+}
 TODO: have this in final code, but until env variables fixed, ignore for now
 */
 
@@ -51,12 +51,15 @@ export class ParagonApiClient {
   private __clientSecret: string;
   private __accessToken: string | undefined;
   private __tokenExpiration: Date | undefined;
+
+  // You can still keep 2500 as a max for normal calls if limit is OFF
   private __maxPageSize = 2500;
+  // Concurrency is still 120; you can dial it down if needed
   private __maxConcurrentQueries = 120;
+
   private __zipCodes: string[];
 
-  // NEW => boolean for capping at 20
-  // TODO: Remove for production
+  // True => forcibly limit to 50
   private __limitToTwenty: boolean;
 
   constructor(
@@ -464,17 +467,17 @@ export class ParagonApiClient {
     includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     console.log(`[ParagonApiClient.searchByZipCode] => zipCode=${zipCode}, includeMedia=${includeMedia}`);
-    // If we have limitToTwenty turned on, pass 20 as top param (or do partial filtering):
+    // If we have limitToTwenty turned on, we do partial fetch (50) now:
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.searchByZipCode] => limitToTwenty is TRUE. We'll do partial fetch (20). // TODO: Remove for production");
+      console.log("[ParagonApiClient.searchByZipCode] => limitToTwenty is TRUE. We'll do partial fetch (50).");
     }
 
     const encodedZipCode = encodeURIComponent(zipCode);
     let url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${encodedZipCode}')`;
 
-    // If limit is on, we can add &$top=20 for example
     if (this.__limitToTwenty) {
-      url += `&$top=20`; // TODO: Remove for production
+      // Force top=50
+      url += `&$top=50`;
     }
 
     console.log("[ParagonApiClient.searchByZipCode] => Final URL:", url);
@@ -499,13 +502,13 @@ export class ParagonApiClient {
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     console.log(`[ParagonApiClient.searchByStreetName] => streetName=${streetName}, includeMedia=${includeMedia}`);
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.searchByStreetName] => limitToTwenty is TRUE. Using &$top=20. // TODO: Remove for production");
+      console.log("[ParagonApiClient.searchByStreetName] => limitToTwenty is TRUE. Using &$top=50.");
     }
 
     const encodedStreet = encodeURIComponent(streetName);
     let url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(StreetName, '${encodedStreet}')`;
     if (this.__limitToTwenty) {
-      url += `&$top=20`;
+      url += `&$top=50`;
     }
 
     console.log("[ParagonApiClient.searchByStreetName] => Final URL:", url);
@@ -526,10 +529,10 @@ export class ParagonApiClient {
   // -----------------------------
   public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
     console.log(`[ParagonApiClient.getAllProperty] => Called with top=${top}`);
-    // If the user wants to forcibly limit to 20, override top
+    // If limitToTwenty is on, we do top=50
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.getAllProperty] => limitToTwenty is TRUE => forcing top=20. // TODO: Remove for production");
-      top = 20;
+      console.log("[ParagonApiClient.getAllProperty] => limitToTwenty is TRUE => forcing top=50.");
+      top = 50;
     }
 
     const finalUrl = this.getPropertyUrl(top ? top : this.__maxPageSize);
@@ -538,7 +541,7 @@ export class ParagonApiClient {
     const response = await this.get<IParagonProperty>(finalUrl);
     console.log("[ParagonApiClient.getAllProperty] => fetch success => items:", response.value.length);
 
-    // If top is set (like 20), we skip the nextLink logic:
+    // If top is set, we skip nextLink logic
     if (!top) {
       const count = response["@odata.count"];
       if (count && count > this.__maxPageSize) {
@@ -572,13 +575,13 @@ export class ParagonApiClient {
     }
 
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.searchByCity] => limitToTwenty => forcing &$top=20. // TODO: Remove for production");
+      console.log("[ParagonApiClient.searchByCity] => limitToTwenty => forcing &$top=50.");
     }
 
     const encodedCity = encodeURIComponent(city);
     let url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(City, '${encodedCity}')`;
     if (this.__limitToTwenty) {
-      url += `&$top=20`;
+      url += `&$top=50`;
     }
 
     console.log("[ParagonApiClient.searchByCity] => Final URL:", url);
@@ -609,13 +612,13 @@ export class ParagonApiClient {
     }
 
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.searchByCounty] => limitToTwenty => forcing &$top=20. // TODO: Remove for production");
+      console.log("[ParagonApiClient.searchByCounty] => limitToTwenty => forcing &$top=50.");
     }
 
     const encodedCounty = encodeURIComponent(county);
     let url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(CountyOrParish, '${encodedCounty}')`;
     if (this.__limitToTwenty) {
-      url += `&$top=20`;
+      url += `&$top=50`;
     }
 
     console.log("[ParagonApiClient.searchByCounty] => Final URL:", url);
@@ -646,10 +649,10 @@ export class ParagonApiClient {
       return await geocodeProperties(properties_mock.value);
     }
 
-    // If limitToTwenty is on, we might override top
+    // If limitToTwenty is on, we do top=50
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.getAllPropertyWithMedia] => limitToTwenty => forcing top=20. // TODO: Remove for production");
-      top = 20;
+      console.log("[ParagonApiClient.getAllPropertyWithMedia] => limitToTwenty => forcing top=50.");
+      top = 50;
     }
 
     const properties: ParagonPropertyWithMedia[] = await this.getAllProperty(top);
@@ -678,14 +681,13 @@ const RESO_TOKEN_URL = process.env.RESO_TOKEN_URL ?? "";
 const RESO_CLIENT_ID = process.env.RESO_CLIENT_ID ?? "";
 const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? "";
 
-// If you want to enable the 20-property cap, pass `true` as the last param
-// e.g. new ParagonApiClient(RESO_BASE_URL, RESO_TOKEN_URL, RESO_CLIENT_ID, RESO_CLIENT_SECRET, true);
+// Now pass `true` to enable the forced limit of 50
 const paragonApiClient = new ParagonApiClient(
   RESO_BASE_URL,
   RESO_TOKEN_URL,
   RESO_CLIENT_ID,
   RESO_CLIENT_SECRET,
-  true // <--- set to `true` to enable the 20 max cap (for testing)
+  true // <--- set to `true` to enable the 50 max cap (instead of 20)
 );
 
 export default paragonApiClient;
