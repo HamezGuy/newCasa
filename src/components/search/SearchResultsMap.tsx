@@ -1,7 +1,13 @@
 "use client";
 
 import IParagonProperty from "@/types/IParagonProperty";
-import { GoogleMap, InfoWindow, Polygon } from "@react-google-maps/api";
+import {
+  GoogleMap,
+  InfoWindow,
+  Polygon,
+  // [FIX] Remove useJsApiLoader import
+  // useJsApiLoader,
+} from "@react-google-maps/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PropertySearchResultCard from "../paragon/PropertySearchResultCard";
 import { useGeocode } from "./GeocodeContext";
@@ -55,6 +61,10 @@ export function SearchResultsMap({
 
   // new => track if map & clusterer are fully ready
   const [mapIsReady, setMapIsReady] = useState(false);
+
+  // ------------------------------------------------------------------------
+  // [FIX] Remove useJsApiLoader calls.
+  // We assume the script is already loaded by GoogleMapsClientProvider.
 
   // ------------------------------------------------------------------------
   // Memoized values
@@ -275,7 +285,7 @@ export function SearchResultsMap({
     onSearchComplete,
     lastSnapSignature,
     defaultCenter,
-    mapIsReady // watch for readiness
+    mapIsReady, // watch for readiness
   ]);
 
   // ------------------------------------------------------------------------
