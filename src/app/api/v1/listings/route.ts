@@ -3,6 +3,8 @@ import paragonApiClient from "@/lib/ParagonApiClient";
 import { Redis } from "@upstash/redis";  // <-- NEW
 // If your env vars are named differently, see Upstash docs for config.
 
+export const dynamic = "force-dynamic";
+
 const redis = Redis.fromEnv();  // uses UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN
 
 export async function GET(request: NextRequest) {

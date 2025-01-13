@@ -8,11 +8,28 @@ import * as url from "url";
 import { geocodeProperties } from "./GoogleMaps";
 import { cdn } from "./utils/cdn";
 
-// Fallback mechanism for serverRuntimeConfig
+// -------------------------------------
+// next.config.js: serverRuntimeConfig
+// -------------------------------------
 const { serverRuntimeConfig = {} } = getConfig() || {};
 const zipCodes = serverRuntimeConfig.zipCodes || [];
 
-const MOCK_DATA = process.env.MOCK_DATA && process.env.MOCK_DATA === "true";
+// If set, we load from local JSON data instead of calling the remote API
+const MOCK_DATA = process.env.MOCK_DATA === "true";
+
+// Lazy-loaded variable so we only parse once
+// Always keep it as an array (never null)
+let mockDataCache: IParagonProperty[] = [];
+
+function getMockProperties(): IParagonProperty[] {
+  // If we haven't loaded real data yet, do so.
+  if (mockDataCache.length === 0) {
+    // Adjust path if needed
+    const data = require("../../data/properties.json");
+    mockDataCache = data.value;
+  }
+  return mockDataCache;
+}
 
 /*
 if (
@@ -52,14 +69,14 @@ export class ParagonApiClient {
   private __accessToken: string | undefined;
   private __tokenExpiration: Date | undefined;
 
-  // You can still keep 2500 as a max for normal calls if limit is OFF
+  // You can keep 2500 as a max for normal calls if limit is OFF
   private __maxPageSize = 2500;
-  // Concurrency is still 120; you can dial it down if needed
+  // Concurrency is still 120; can dial it down if needed
   private __maxConcurrentQueries = 120;
 
   private __zipCodes: string[];
 
-  // True => forcibly limit to 50
+  // True => forcibly limit to 50 in some calls
   private __limitToTwenty: boolean;
 
   constructor(
@@ -129,6 +146,11 @@ export class ParagonApiClient {
   }
 
   public async forClientSecret(): Promise<ParagonApiClient> {
+    // If mock data => skip token logic entirely
+    if (MOCK_DATA) {
+      return this;
+    }
+
     console.log("[ParagonApiClient.forClientSecret] => Checking if token is still valid...");
     if (this.__accessToken && this.__tokenExpiration && new Date() < this.__tokenExpiration) {
       console.log("[ParagonApiClient.forClientSecret] => Existing token is valid.");
@@ -151,7 +173,7 @@ export class ParagonApiClient {
       method: "POST",
       headers,
       body: body.toString(),
-      cache: "no-store",
+      cache: "no-store", // Typically no-store because we want a fresh token
     };
 
     console.log("[ParagonApiClient.forClientSecret] => About to fetch token from:", this.__tokenUrl);
@@ -170,7 +192,7 @@ export class ParagonApiClient {
 
   private async __getAuthHeaderValue(): Promise<string> {
     console.log("[ParagonApiClient.__getAuthHeaderValue] => Ensuring valid token via forClientSecret()...");
-    await this.forClientSecret();
+    await this.forClientSecret(); // triggers the logic above
     return `Bearer ${this.__accessToken}`;
   }
 
@@ -178,6 +200,15 @@ export class ParagonApiClient {
   // GET Helpers
   // -----------------------------
   private async get<T>(url: string): Promise<IOdataResponse<T>> {
+    // If we’re in mock mode => do a “dummy” response
+    if (MOCK_DATA) {
+      // Return a blank structure, so the calling method can do the actual filtering in JS
+      return {
+        "@odata.context": "mockData",
+        value: [] as T[],
+      };
+    }
+
     console.log(`[ParagonApiClient.get] => Fetching URL: ${url}`);
     const headers: HeadersInit = {
       Authorization: await this.__getAuthHeaderValue(),
@@ -222,7 +253,7 @@ export class ParagonApiClient {
       response.value = response.value.concat(additional.value);
       delete response["@odata.nextLink"];
     } else {
-      console.log("[ParagonApiClient.getFollowNext] => No nextLink found. Total items so far:", response.value.length);
+      console.log("[ParagonApiClient.getFollowNext] => No nextLink found. Items so far:", response.value.length);
     }
 
     return response;
@@ -259,12 +290,12 @@ export class ParagonApiClient {
     if (skip) params.append("$skip", skip.toString());
     if (filter) params.append("$filter", filter);
 
+    // NOTE: Some lines changed for clarity
     const finalUrl = `${this.__baseUrl}/Media?$select=MediaKey,MediaURL,Order,ResourceRecordKey,ModificationTimestamp&$count=true&${params.toString()}`;
     console.log("[ParagonApiClient.getMediaUrl] => Final media URL:", finalUrl);
     return finalUrl;
   }
 
-  // For building OR-filters on large sets of listing keys
   private generateMediaFilters(listingKeys: string[]): string[] {
     console.log("[ParagonApiClient.generateMediaFilters] => Received listingKeys count:", listingKeys.length);
     const baseURL = this.getMediaUrl(9999999, 9999999, "1");
@@ -323,14 +354,15 @@ export class ParagonApiClient {
       return [];
     }
 
-    const mediaByProperty: Record<string, IParagonMedia[]> = {};
+    // If mock data, skip all Cloudinary/CDN stuff
+    if (MOCK_DATA) {
+      console.log("[ParagonApiClient.populatePropertyMedia] => In mock mode, skipping CDN uploads.");
+      return properties; // just return them
+    }
 
-    const listingKeys = properties.map((p) => {
-      if (!p.ListingKey) {
-        console.error("[ParagonApiClient.populatePropertyMedia] => Property missing ListingKey:", p);
-      }
-      return p.ListingKey!;
-    });
+    const mediaByProperty: Record<string, IParagonMedia[]> = {};
+    const listingKeys = properties.map((p) => p.ListingKey!);
+
     console.log("[ParagonApiClient.populatePropertyMedia] => Listing keys total:", listingKeys.length);
 
     let queryFilters = this.generateMediaFilters(listingKeys);
@@ -347,7 +379,7 @@ export class ParagonApiClient {
         const mediaResponse = await this.get<IParagonMedia>(url);
         const count = mediaResponse["@odata.count"];
         console.log(
-          `[ParagonApiClient.populatePropertyMedia] => Received ${mediaResponse.value.length} media items, count = ${count}`
+          `[ParagonApiClient.populatePropertyMedia] => Received ${mediaResponse.value.length} media items, count=${count}`
         );
 
         // If there's a nextLink scenario
@@ -376,12 +408,18 @@ export class ParagonApiClient {
 
     console.log("[ParagonApiClient.populatePropertyMedia] => Completed media fetch. Next: upload to CDN...");
 
-    // 2) Get which properties are on the CDN
-    const propertiesInCDN = await cdn.getProperties();
-    console.log("[ParagonApiClient.populatePropertyMedia] => propertiesInCDN => length:", propertiesInCDN.length);
+    // 2) Check which properties are already in the CDN
+    let propertiesInCDN: string[] = [];
+    try {
+      propertiesInCDN = await cdn.getProperties();
+      console.log("[ParagonApiClient.populatePropertyMedia] => propertiesInCDN => length:", propertiesInCDN.length);
+    } catch (cdnErr) {
+      console.error("Error listing subfolders in /property:", cdnErr);
+      propertiesInCDN = [];
+    }
 
-    // 3) Upload new ones or retrieve existing
-    const finalList = MOCK_DATA ? properties.slice(0, 3) : properties;
+    // 3) Upload new ones or retrieve existing from CDN
+    const finalList = this.__limitToTwenty ? properties.slice(0, limit || 3) : properties;
     console.log("[ParagonApiClient.populatePropertyMedia] => limit scenario => finalList.length:", finalList.length);
 
     await pMap(
@@ -392,28 +430,36 @@ export class ParagonApiClient {
           console.log(
             `[ParagonApiClient.populatePropertyMedia] => Property ${property.ListingKey} has no associated media.`
           );
-          return; // Just skip
+          return;
         }
 
         if (!propertiesInCDN.includes(property.ListingKey)) {
           console.log(
             `[ParagonApiClient.populatePropertyMedia] => Uploading media to CDN for ListingKey=${property.ListingKey}...`
           );
-          const mediaOnCDN = await cdn.uploadMedia(media);
-          property.Media = mediaOnCDN;
-          console.log(
-            `[ParagonApiClient.populatePropertyMedia] => CDN upload done. Media count for ListingKey=${property.ListingKey}:`,
-            mediaOnCDN.length
-          );
+          try {
+            const mediaOnCDN = await cdn.uploadMedia(media);
+            property.Media = mediaOnCDN;
+            console.log(
+              `[ParagonApiClient.populatePropertyMedia] => CDN upload done. Media count for ListingKey=${property.ListingKey}:`,
+              mediaOnCDN.length
+            );
+          } catch (uploadErr) {
+            console.error("Error uploading media", uploadErr);
+          }
         } else {
           console.log(
             `[ParagonApiClient.populatePropertyMedia] => Already in CDN, retrieving media for ListingKey=${property.ListingKey}...`
           );
-          property.Media = await cdn.getMedia(property.ListingKey);
-          console.log(
-            `[ParagonApiClient.populatePropertyMedia] => getMedia => retrieved media count:`,
-            property.Media?.length || 0
-          );
+          try {
+            property.Media = await cdn.getMedia(property.ListingKey);
+            console.log(
+              `[ParagonApiClient.populatePropertyMedia] => getMedia => retrieved media count:`,
+              property.Media?.length || 0
+            );
+          } catch (cdnGetErr) {
+            console.error("Error retrieving existing media from CDN", cdnGetErr);
+          }
         }
       },
       { concurrency: 5 }
@@ -431,16 +477,16 @@ export class ParagonApiClient {
     includeMedia: boolean = true
   ): Promise<IParagonProperty> {
     console.log(`[ParagonApiClient.getPropertyById] => Called with id=${id}, includeMedia=${includeMedia}`);
+
+    // If mock => filter in-memory
     if (MOCK_DATA) {
       console.log("[ParagonApiClient.getPropertyById] => Using mock data mode for ID:", id);
-      const properties_mock = require("../../data/properties.json");
+      const allProps = getMockProperties();
+      const found = allProps.filter((p) => p.ListingId === id);
+      console.log(`[ParagonApiClient.getPropertyById] => Found ${found.length} in mock data. Geocoding...`);
 
-      const property = properties_mock.value.filter(
-        (p: IParagonProperty) => p.ListingId == id
-      );
-
-      console.log("[ParagonApiClient.getPropertyById] => Found property in mock data, geocoding it now...");
-      return (await geocodeProperties(property))[0];
+      const geocoded = await geocodeProperties(found);
+      return geocoded[0] || null;
     }
 
     const url = `${this.__baseUrl}/Property?$filter=ListingId eq '${id}'`;
@@ -467,16 +513,36 @@ export class ParagonApiClient {
     includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     console.log(`[ParagonApiClient.searchByZipCode] => zipCode=${zipCode}, includeMedia=${includeMedia}`);
-    // If we have limitToTwenty turned on, we do partial fetch (50) now:
+
+    if (MOCK_DATA) {
+      console.log("[ParagonApiClient.searchByZipCode] => Using mock data, filtering by zip code...");
+      const allProps = getMockProperties();
+      const filtered = allProps.filter((p) => p.PostalCode?.includes(zipCode));
+
+      const geocoded = await geocodeProperties(filtered);
+
+      if (!includeMedia) {
+        return {
+          "@odata.context": "mockDataZipCode",
+          value: geocoded,
+        };
+      }
+      const withMedia = await this.populatePropertyMedia(geocoded);
+      return {
+        "@odata.context": "mockDataZipCode",
+        value: withMedia,
+      };
+    }
+
+    // Otherwise, real API
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.searchByZipCode] => limitToTwenty is TRUE. We'll do partial fetch (50).");
+      console.log("[ParagonApiClient.searchByZipCode] => limitToTwenty is TRUE => partial fetch (50).");
     }
 
     const encodedZipCode = encodeURIComponent(zipCode);
     let url = `${this.__baseUrl}/Property?$count=true&$filter=StandardStatus eq 'Active' and contains(PostalCode, '${encodedZipCode}')`;
 
     if (this.__limitToTwenty) {
-      // Force top=50
       url += `&$top=50`;
     }
 
@@ -501,8 +567,30 @@ export class ParagonApiClient {
     includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     console.log(`[ParagonApiClient.searchByStreetName] => streetName=${streetName}, includeMedia=${includeMedia}`);
+
+    if (MOCK_DATA) {
+      console.log("[ParagonApiClient.searchByStreetName] => Using mock data, filtering by StreetName...");
+      const allProps = getMockProperties();
+      const lower = streetName.toLowerCase();
+      const filtered = allProps.filter((p) => p.StreetName?.toLowerCase().includes(lower));
+
+      const geocoded = await geocodeProperties(filtered);
+
+      if (!includeMedia) {
+        return {
+          "@odata.context": "mockDataStreetName",
+          value: geocoded,
+        };
+      }
+      const withMedia = await this.populatePropertyMedia(geocoded);
+      return {
+        "@odata.context": "mockDataStreetName",
+        value: withMedia,
+      };
+    }
+
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.searchByStreetName] => limitToTwenty is TRUE. Using &$top=50.");
+      console.log("[ParagonApiClient.searchByStreetName] => limitToTwenty => using &$top=50.");
     }
 
     const encodedStreet = encodeURIComponent(streetName);
@@ -529,9 +617,20 @@ export class ParagonApiClient {
   // -----------------------------
   public async getAllProperty(top?: number): Promise<IParagonProperty[]> {
     console.log(`[ParagonApiClient.getAllProperty] => Called with top=${top}`);
-    // If limitToTwenty is on, we do top=50
+
+    // If mock => just return entire mock dataset
+    if (MOCK_DATA) {
+      console.log("[ParagonApiClient.getAllProperty] => Using mock data => returning entire file.");
+      let allProps = getMockProperties();
+      if (top && top < allProps.length) {
+        allProps = allProps.slice(0, top);
+      }
+      const geocoded = await geocodeProperties(allProps);
+      return geocoded;
+    }
+
     if (this.__limitToTwenty) {
-      console.log("[ParagonApiClient.getAllProperty] => limitToTwenty is TRUE => forcing top=50.");
+      console.log("[ParagonApiClient.getAllProperty] => limitToTwenty => forcing top=50.");
       top = 50;
     }
 
@@ -568,10 +667,26 @@ export class ParagonApiClient {
     includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     console.log(`[ParagonApiClient.searchByCity] => city=${city}, includeMedia=${includeMedia}`);
+
     if (MOCK_DATA) {
-      console.log("[ParagonApiClient.searchByCity] => Using mock data for city:", city);
-      const properties_mock = require("../../data/properties.json");
-      return properties_mock;
+      console.log("[ParagonApiClient.searchByCity] => Using mock data => filtering by city...");
+      const allProps = getMockProperties();
+      const lower = city.toLowerCase();
+      const filtered = allProps.filter((p) => p.City?.toLowerCase().includes(lower));
+
+      const geocoded = await geocodeProperties(filtered);
+
+      if (!includeMedia) {
+        return {
+          "@odata.context": "mockDataCity",
+          value: geocoded,
+        };
+      }
+      const withMedia = await this.populatePropertyMedia(geocoded);
+      return {
+        "@odata.context": "mockDataCity",
+        value: withMedia,
+      };
     }
 
     if (this.__limitToTwenty) {
@@ -605,10 +720,26 @@ export class ParagonApiClient {
     includeMedia: boolean = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     console.log(`[ParagonApiClient.searchByCounty] => county=${county}, includeMedia=${includeMedia}`);
+
     if (MOCK_DATA) {
-      console.log("[ParagonApiClient.searchByCounty] => Using mock data for county:", county);
-      const properties_mock = require("../../data/properties.json");
-      return properties_mock;
+      console.log("[ParagonApiClient.searchByCounty] => Using mock data => filtering by county...");
+      const allProps = getMockProperties();
+      const lower = county.toLowerCase();
+      const filtered = allProps.filter((p) => p.CountyOrParish?.toLowerCase().includes(lower));
+
+      const geocoded = await geocodeProperties(filtered);
+
+      if (!includeMedia) {
+        return {
+          "@odata.context": "mockDataCounty",
+          value: geocoded,
+        };
+      }
+      const withMedia = await this.populatePropertyMedia(geocoded);
+      return {
+        "@odata.context": "mockDataCounty",
+        value: withMedia,
+      };
     }
 
     if (this.__limitToTwenty) {
@@ -642,14 +773,22 @@ export class ParagonApiClient {
     limit: number = 0
   ): Promise<IParagonProperty[]> {
     console.log("[ParagonApiClient.getAllPropertyWithMedia] => Called with top=", top, "limit=", limit);
+
     if (MOCK_DATA) {
       console.log("[ParagonApiClient.getAllPropertyWithMedia] => Using mock data for everything");
-      const properties_mock = require("../../data/properties.json");
+      let allProps = getMockProperties();
+      if (top && top < allProps.length) {
+        allProps = allProps.slice(0, top);
+      }
+
       console.log("[ParagonApiClient.getAllPropertyWithMedia] => about to geocode mock data...");
-      return await geocodeProperties(properties_mock.value);
+      const geocoded = await geocodeProperties(allProps);
+
+      // In mock data mode, populatePropertyMedia does no-ops for Cloudinary, so that’s safe
+      const final = await this.populatePropertyMedia(geocoded, limit);
+      return final;
     }
 
-    // If limitToTwenty is on, we do top=50
     if (this.__limitToTwenty) {
       console.log("[ParagonApiClient.getAllPropertyWithMedia] => limitToTwenty => forcing top=50.");
       top = 50;
@@ -663,7 +802,7 @@ export class ParagonApiClient {
       geocodeProperties(properties),
     ]);
 
-    // Merge geocode results in
+    // Merge geocode results back in
     const final = withMedia.map((property, index) => {
       property.Latitude = withGeocoding[index].Latitude;
       property.Longitude = withGeocoding[index].Longitude;
@@ -687,7 +826,7 @@ const paragonApiClient = new ParagonApiClient(
   RESO_TOKEN_URL,
   RESO_CLIENT_ID,
   RESO_CLIENT_SECRET,
-  true // <--- set to `true` to enable the 50 max cap (instead of 20)
+  true // set to `true` for 50 max; set to false if not needed
 );
 
 export default paragonApiClient;

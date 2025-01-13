@@ -1,4 +1,5 @@
 // src/app/api/v1/listings/[id]/route.ts
+export const dynamic = "force-dynamic";
 
 import paragonApiClient from "@/lib/ParagonApiClient";
 import { NextRequest, NextResponse } from "next/server";

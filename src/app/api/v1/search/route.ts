@@ -3,6 +3,8 @@
 import { NextResponse } from "next/server";
 import paragonApiClient from "@/lib/ParagonApiClient";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   // ADDED LOGGING
   console.log("[GET /api/v1/listings] => Endpoint triggered.");
@@ -63,7 +65,7 @@ export async function GET(request: Request) {
       const response = await paragonApiClient.getAllProperty();
       properties = response ? Array.from(response.values()) : [];
     }
-    
+
     // ADDED LOGGING
     console.log("[GET /api/v1/listings] => Returning JSON response now...");
     return NextResponse.json(properties, { status: 200 });
