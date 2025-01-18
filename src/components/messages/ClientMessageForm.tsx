@@ -1,80 +1,143 @@
-"use client"; // This marks the component as a Client Component
+"use client";
 
-import { auth } from "@/lib/firebase"; // Firebase auth
-import { sendMessageToRealtor } from "@/lib/utils/sendMessageToRealtor";
 import { useState } from "react";
 
-const ClientMessageForm = ({
+interface ClientMessageFormProps {
+  propertyId: string;
+  realtorEmail: string;
+  realtorPhoneNumber: string;
+}
+
+/**
+ * This is a simple "Zillow-like" message form.
+ * Adjust Tailwind classes as you wish for spacing/colors.
+ */
+export default function ClientMessageForm({
   propertyId,
   realtorEmail,
   realtorPhoneNumber,
-}: {
-  propertyId: string;
-  realtorEmail: string;       // Added props
-  realtorPhoneNumber: string; // Added props
-}) => {
-  const [message, setMessage] = useState<string>(""); // Message state
-  const [error, setError] = useState<string | null>(null); // Error state
-  const [success, setSuccess] = useState<string | null>(null); // Success state
+}: ClientMessageFormProps) {
+  const [userName, setUserName] = useState("");
+  const [userPhone, setUserPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Example "sendMessage" logic (fake)
   const handleSendMessage = async () => {
-    setError(null);
-    setSuccess(null);
-
     if (!message.trim()) {
-      setError("Please enter a message.");
+      setError("Please type a message before sending.");
       return;
     }
-
-    const user = auth.currentUser;
-    if (!user) {
-      setError("You need to be logged in to send a message.");
-      return;
-    }
+    setIsSending(true);
+    setError(null);
+    setSuccess(false);
 
     try {
-      console.log("Sending message to realtor with the following data:", {
+      // Example: you could call /api/sendMessage or similar
+      // This is just a placeholder
+      await fakeApiCall({
         propertyId,
+        realtorEmail,
+        realtorPhoneNumber,
+        userName,
+        userPhone,
         message,
-        clientId: user.uid,
-        clientEmail: user.email,
-        realtorEmail,       // Pass realtorEmail
-        realtorPhoneNumber, // Pass realtorPhoneNumber
       });
 
-      await sendMessageToRealtor({
-        propertyId,
-        message,
-        clientId: user.uid,
-        clientEmail: user.email!,
-        realtorEmail,       // Pass realtorEmail
-        realtorPhoneNumber, // Pass realtorPhoneNumber
-      });
-      setSuccess("Message sent successfully!");
-      setMessage(""); // Clear the message box
-    } catch (err) {
-      console.error("Failed to send message:", err);
-      setError("Failed to send message. Please try again.");
+      setSuccess(true);
+      setMessage("");
+    } catch (err: any) {
+      console.error("Error sending message:", err);
+      setError("Sorry, there was an error sending your message.");
+    } finally {
+      setIsSending(false);
     }
   };
 
-  return (
-    <div className="message-box mt-8">
-      <h3>Contact Realtor</h3>
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Write your message here..."
-        className="w-full p-2 border rounded"
-      />
-      <button onClick={handleSendMessage} className="btn mt-2">
-        Send Message
-      </button>
+  // Just a mock "API call"
+  async function fakeApiCall(payload: any) {
+    return new Promise((resolve) => {
+      console.log("Fake sending message =>", payload);
+      setTimeout(() => {
+        resolve("ok");
+      }, 1000);
+    });
+  }
 
-      {error && <p className="text-red-500">{error}</p>}
-      {success && <p className="text-green-500">{success}</p>}
+  return (
+    <div className="max-w-lg bg-white p-4 rounded shadow-sm border border-gray-200">
+      {/* Title/Intro */}
+      <h3 className="text-lg font-semibold mb-2">Contact the Realtor</h3>
+
+      <p className="text-sm text-gray-500 mb-4">
+        We can get you more info about the property, or schedule a showing.
+      </p>
+
+      {/* If success, show a "Thank you" */}
+      {success && (
+        <div className="mb-4 p-2 bg-green-100 text-green-700 rounded">
+          Message sent! The realtor will be in touch shortly.
+        </div>
+      )}
+
+      {/* If error, show an error box */}
+      {error && (
+        <div className="mb-4 p-2 bg-red-100 text-red-700 rounded">
+          {error}
+        </div>
+      )}
+
+      {/* Name / Phone (optional) */}
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700">
+          Your Name (optional)
+        </label>
+        <input
+          type="text"
+          className="mt-1 w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+          placeholder="John Doe"
+          value={userName}
+          onChange={(e) => setUserName(e.target.value)}
+        />
+      </div>
+
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700">
+          Your Phone Number (optional)
+        </label>
+        <input
+          type="tel"
+          className="mt-1 w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+          placeholder="(555) 123-4567"
+          value={userPhone}
+          onChange={(e) => setUserPhone(e.target.value)}
+        />
+      </div>
+
+      {/* Message textarea */}
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700">
+          Message
+        </label>
+        <textarea
+          className="mt-1 w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+          rows={4}
+          placeholder="Hi, I'd like more info about this listing. Please contact me at..."
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
+      </div>
+
+      {/* Submit button */}
+      <button
+        onClick={handleSendMessage}
+        disabled={isSending}
+        className="w-full bg-blue-600 text-white font-medium py-2 px-4 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+      >
+        {isSending ? "Sending..." : "Send Message"}
+      </button>
     </div>
   );
-};
-
-export default ClientMessageForm;
+}

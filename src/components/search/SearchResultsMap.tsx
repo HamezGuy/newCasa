@@ -25,7 +25,7 @@ interface BasicGeocodeData {
   };
 }
 
-// Export the props interface
+// --- Modified interface to include isPropertiesLoading
 export interface SearchResultsMapProps {
   properties: IParagonProperty[];
   selectedGeometry?: {
@@ -33,12 +33,16 @@ export interface SearchResultsMapProps {
     polygonCoords?: google.maps.LatLngLiteral[];
   };
   onSearchComplete?: () => void;
+
+  // NEW => from the parent, indicates an API fetch is ongoing
+  isPropertiesLoading?: boolean;
 }
 
 export function SearchResultsMap({
   properties,
   selectedGeometry,
   onSearchComplete,
+  isPropertiesLoading = false, // default false if not passed
 }: SearchResultsMapProps) {
   console.log("[SearchResultsMap] rendered with properties.length =", properties.length);
 
@@ -62,8 +66,9 @@ export function SearchResultsMap({
   // Loading indicator for boundary fetch
   const [isBoundaryLoading, setIsBoundaryLoading] = useState(false);
 
-  // Combine into a single flag
-  const isLoading = !mapIsReady || isBoundaryLoading;
+  // Combine => if the map isn't ready OR Overpass boundary is loading OR
+  // the parent is fetching new properties => show the same overlay
+  const isLoading = !mapIsReady || isBoundaryLoading || isPropertiesLoading;
 
   // ------------------------------------------------------------------------
   // Memoized values
@@ -107,7 +112,6 @@ export function SearchResultsMap({
     mapRef.current = map;
     setLastSnapSignature(null);
 
-    // Safely create the clusterer once the map is loaded
     try {
       markerClusterRef.current = new MarkerClusterer({ map, markers: [] });
       console.log("[SearchResultsMap] MarkerClusterer created successfully");
@@ -179,12 +183,11 @@ export function SearchResultsMap({
   }, []);
 
   // ------------------------------------------------------------------------
-  // Overpass fetch => city boundary polygons (with loading indicator)
+  // Overpass fetch => city boundary polygons
   // ------------------------------------------------------------------------
   async function fetchOverpassBoundary(cityName: string) {
     console.log("[SearchResultsMap] fetchOverpassBoundary => city:", cityName);
-    // Turn on boundary loading
-    setIsBoundaryLoading(true);
+    setIsBoundaryLoading(true); // turn on the overpass loading
 
     try {
       const resp = await axios.get("/api/v1/overpass-boundary", {
@@ -196,8 +199,7 @@ export function SearchResultsMap({
       console.error("[SearchResultsMap] Overpass fetch error =>", err);
       setOverpassPolygons([]);
     } finally {
-      // Turn off boundary loading
-      setIsBoundaryLoading(false);
+      setIsBoundaryLoading(false); // turn off overpass loading
     }
   }
 
@@ -218,7 +220,6 @@ export function SearchResultsMap({
       },${selectedGeometry.bounds.getSouthWest().lng()},${selectedGeometry.bounds
         .getNorthEast()
         .lat()},${selectedGeometry.bounds.getNorthEast().lng()}`;
-
       if (geometrySig !== lastSnapSignature) {
         console.log("[SearchResultsMap] snapping to selectedGeometry bounds, geometrySig:", geometrySig);
         mapRef.current.setZoom(4);
@@ -244,7 +245,6 @@ export function SearchResultsMap({
       return;
     }
 
-    // If we already snapped to this place, do nothing
     if (snapSig === lastSnapSignature) {
       console.log("[SearchResultsMap] Already snapped to this place. Doing nothing.");
       return;
@@ -340,17 +340,16 @@ export function SearchResultsMap({
   const polygonCoords = selectedGeometry?.polygonCoords;
 
   return (
-    // Outer container => position: relative, track cursor, etc.
     <div
       style={{
         width: "100%",
         height: "100%",
-        // Show a "wait" cursor if loading, otherwise normal
+        // "wait" cursor if *any* loading is true
         cursor: isLoading ? "wait" : "auto",
         position: "relative",
       }}
     >
-      {/* LOADING OVERLAY (shows when map isn't ready or boundary is loading) */}
+      {/* LOADING OVERLAY => shows for boundary loading, map not ready, or parent's property fetch */}
       {isLoading && (
         <div
           style={{
