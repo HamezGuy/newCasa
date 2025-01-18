@@ -1,6 +1,5 @@
 "use client"; // Marks this as a client component
 
-import ClientMessageForm from "@/components/messages/ClientMessageForm";
 import { auth } from "@/lib/firebase";
 import { getUserRole } from "@/lib/utils/firebaseUtils";
 import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
@@ -12,18 +11,17 @@ export default function PropertyPageClient({
   property: ParagonPropertyWithMedia;
 }) {
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [user, setUser] = useState(auth.currentUser); // Get current user from auth
+  const [user, setUser] = useState(auth.currentUser);
 
   useEffect(() => {
     const fetchUserRole = async () => {
       if (user) {
-        const role = await getUserRole(user.uid); // Fetch user role
+        const role = await getUserRole(user.uid);
         setUserRole(role);
       } else {
         setUserRole(null);
       }
     };
-
     fetchUserRole();
   }, [user]);
 
@@ -32,37 +30,37 @@ export default function PropertyPageClient({
 
   return (
     <div>
-      {/* Conditionally Render Realtor-Only Information */}
       {userRole === "realtor" ? (
         <div className="mt-4 p-4 bg-gray-200">
           <h4 className="font-bold">Realtor-Only Information</h4>
 
           {/* Display Only the Realtor PDF */}
           <h5 className="font-bold">Documents Available</h5>
-          <a href="/RealtorDocument.pdf" target="_blank" rel="noopener noreferrer">
+          <a
+            href="/RealtorDocument.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             Realtor Document (PDF)
           </a>
 
-          {/* Display Realtor Information */}
+          {/* Display Realtor Info */}
           <h5 className="font-bold mt-4">Realtor Information</h5>
-          <p><strong>Listing Agent:</strong> {property.ListAgentFullName}</p>
-          <p><strong>Listing Agent Email:</strong> {realtorEmail}</p>
+          <p>
+            <strong>Listing Agent:</strong> {property.ListAgentFullName}
+          </p>
+          <p>
+            <strong>Listing Agent Email:</strong> {realtorEmail}
+          </p>
         </div>
       ) : (
         <div className="mt-4 p-4 bg-gray-100">
           <p>
-            Additional information is available for realtors. Please log in as a realtor to view this section.
+            Additional information is available for realtors. Please log in as a
+            realtor to view this section.
           </p>
         </div>
       )}
-
-      <div className="mt-8">
-        <ClientMessageForm
-          propertyId={property.ListingId}
-          realtorEmail={realtorEmail}
-          realtorPhoneNumber={realtorPhoneNumber}
-        />
-      </div>
     </div>
   );
 }

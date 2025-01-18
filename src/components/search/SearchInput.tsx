@@ -14,7 +14,6 @@ function sanitizeAddress(address: string): string {
 }
 
 interface SearchInputProps {
-  // NEW => let parent pass an initial value
   defaultValue?: string;
   isLoading?: boolean;
   size?: MantineSize;
@@ -146,6 +145,9 @@ export default function SearchInput({
         if (onPlaceSelected) {
           onPlaceSelected(formattedData);
         }
+
+        // Clear suggestions so dropdown doesn't linger after a successful search
+        setSuggestions([]);
 
         // 2) If `isRedirectEnabled`, figure out which param to use + also pass searchTerm
         const comps = geocodeData.address_components || [];

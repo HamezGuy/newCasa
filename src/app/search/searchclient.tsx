@@ -10,13 +10,11 @@ import SearchInput from "@/components/search/SearchInput";
 import PropertyList from "@/components/paragon/PropertyList";
 import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
 
-// 1) Dynamically import the GoogleMapsClientProvider, with SSR off
 const GoogleMapsClientProviderNoSSR = dynamic(
   () => import("@/components/core/GoogleMapsClientProvider"),
   { ssr: false }
 );
 
-// 2) Dynamically import the named `SearchResultsMap`
 const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
   () =>
     import("@/components/search/SearchResultsMap").then((mod) => ({
@@ -33,7 +31,7 @@ export default function SearchClient() {
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
-  // 1) Grab the raw text from the user (if any) so we can show it in the input
+  // raw typed text from URL if "searchTerm=..."
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
   // ------------------------------
@@ -113,13 +111,35 @@ export default function SearchClient() {
   }, [searchParams]);
 
   // ------------------------------
-  // If user does a new search from within /search page
-  // (Optional if you want immediate fetch on new place)
+  // If user does a new search from within /search page => inline fetch
   // ------------------------------
-  const handlePlaceSelected = (geocodeData: any) => {
-    console.log("[Search] handlePlaceSelected =>", geocodeData);
-    // If you want, do an inline fetch here
-    // Or rely on the user pressing "Search" again. Up to you.
+  const handlePlaceSelected = (geo: any) => {
+    console.log("[Search] handlePlaceSelected =>", geo);
+    if (!geo || !geo.address_components) {
+      console.warn("[Search] handlePlaceSelected => invalid geocode data => skipping fetch");
+      return;
+    }
+    // parse geocode comps
+    const comps = geo.address_components;
+    const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
+    const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
+    const city = comps.find((c: any) => c.types.includes("locality"))?.long_name;
+    const county = comps.find((c: any) =>
+      c.types.includes("administrative_area_level_2")
+    )?.long_name;
+
+    if (zipCode) {
+      fetchProperties(zipCode);
+    } else if (route) {
+      fetchProperties(undefined, route);
+    } else if (city) {
+      fetchProperties(undefined, undefined, city);
+    } else if (county) {
+      fetchProperties(undefined, undefined, undefined, county);
+    } else {
+      console.log("[Search] handlePlaceSelected => no recognized param => fetch all");
+      fetchProperties();
+    }
   };
 
   const handleFiltersUpdate = (filters: any) => {
@@ -127,18 +147,15 @@ export default function SearchClient() {
     // handle filters if needed
   };
 
-  // ------------------------------
-  // Render
-  // ------------------------------
   return (
     <main className="flex flex-col w-full h-screen">
       {/* Top bar => user can do a new search or use filters */}
       <div className="flex flex-wrap w-full p-4 gap-4 bg-gray-100 shadow-md z-10">
         <SearchInput
-          defaultValue={rawSearchTerm}  // <-- Show what user typed
+          defaultValue={rawSearchTerm}
           size="sm"
           onPlaceSelected={handlePlaceSelected}
-          isRedirectEnabled={false}     // <-- No redirect, we are already on /search
+          isRedirectEnabled={false} // no redirect => inline fetch
         />
         <SearchFilters onUpdate={handleFiltersUpdate} />
       </div>
@@ -147,7 +164,10 @@ export default function SearchClient() {
         {/* Left side => MAP */}
         <div className="w-full lg:w-2/3 h-full">
           <GoogleMapsClientProviderNoSSR>
-            <SearchResultsMapNoSSR properties={filteredProperties} />
+            <SearchResultsMapNoSSR
+              properties={filteredProperties}
+              isPropertiesLoading={loading} // pass loading => map overlay
+            />
           </GoogleMapsClientProviderNoSSR>
         </div>
 
