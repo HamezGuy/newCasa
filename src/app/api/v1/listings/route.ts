@@ -84,10 +84,7 @@ export async function GET(request: NextRequest) {
       properties = response?.value || [];
       console.log(`Fetched ${properties.length} properties for county: ${county}`);
     } else {
-      console.log("No valid query parameters => fetching ALL properties...");
-      const all = await paragonApiClient.getAllProperty();
-      properties = all || [];
-      console.log(`Fetched ${properties.length} total properties (no query).`);
+      properties = [];
     }
 
     console.log(`Successfully fetched ${properties.length} properties.`);

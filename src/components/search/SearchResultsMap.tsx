@@ -1,13 +1,7 @@
 "use client";
 
 import IParagonProperty from "@/types/IParagonProperty";
-import {
-  GoogleMap,
-  InfoWindow,
-  Polygon,
-  // [FIX] Remove useJsApiLoader import
-  // useJsApiLoader,
-} from "@react-google-maps/api";
+import { GoogleMap, InfoWindow, Polygon } from "@react-google-maps/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PropertySearchResultCard from "../paragon/PropertySearchResultCard";
 import { useGeocode } from "./GeocodeContext";
@@ -15,6 +9,9 @@ import { useBounds } from "@/components/search/boundscontext";
 import axios from "axios";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 
+// ----------------------------------------------
+// Types
+// ----------------------------------------------
 interface ILatLng {
   lat: number;
   lng: number;
@@ -59,12 +56,14 @@ export function SearchResultsMap({
   const [infoWindowShown, setInfoWindowShown] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
 
-  // new => track if map & clusterer are fully ready
+  // Track if map & clusterer are fully ready
   const [mapIsReady, setMapIsReady] = useState(false);
 
-  // ------------------------------------------------------------------------
-  // [FIX] Remove useJsApiLoader calls.
-  // We assume the script is already loaded by GoogleMapsClientProvider.
+  // Loading indicator for boundary fetch
+  const [isBoundaryLoading, setIsBoundaryLoading] = useState(false);
+
+  // Combine into a single flag
+  const isLoading = !mapIsReady || isBoundaryLoading;
 
   // ------------------------------------------------------------------------
   // Memoized values
@@ -180,10 +179,13 @@ export function SearchResultsMap({
   }, []);
 
   // ------------------------------------------------------------------------
-  // Overpass fetch => city boundary polygons
+  // Overpass fetch => city boundary polygons (with loading indicator)
   // ------------------------------------------------------------------------
   async function fetchOverpassBoundary(cityName: string) {
     console.log("[SearchResultsMap] fetchOverpassBoundary => city:", cityName);
+    // Turn on boundary loading
+    setIsBoundaryLoading(true);
+
     try {
       const resp = await axios.get("/api/v1/overpass-boundary", {
         params: { place: cityName },
@@ -193,6 +195,9 @@ export function SearchResultsMap({
     } catch (err) {
       console.error("[SearchResultsMap] Overpass fetch error =>", err);
       setOverpassPolygons([]);
+    } finally {
+      // Turn off boundary loading
+      setIsBoundaryLoading(false);
     }
   }
 
@@ -201,7 +206,6 @@ export function SearchResultsMap({
   // ------------------------------------------------------------------------
   useEffect(() => {
     console.log("[SearchResultsMap] useEffect => geocode or selectedGeometry changed");
-    // Wait until the map & clusterer are ready
     if (!mapIsReady || !mapRef.current) {
       console.log("[SearchResultsMap] mapIsReady is false or mapRef not set. Skipping...");
       return;
@@ -209,7 +213,6 @@ export function SearchResultsMap({
 
     // 1) If there's selectedGeometry => priority
     if (selectedGeometry?.bounds) {
-      console.log("[SearchResultsMap] we have selectedGeometry.bounds => trying to snap");
       const geometrySig = `BBOX:${
         selectedGeometry.bounds.getSouthWest().lat()
       },${selectedGeometry.bounds.getSouthWest().lng()},${selectedGeometry.bounds
@@ -231,7 +234,7 @@ export function SearchResultsMap({
     console.log("[SearchResultsMap] snapSig for geocode =>", snapSig);
 
     if (!snapSig) {
-      console.log("[SearchResultsMap] no geocode data => default center");
+      // No geocode => default
       if (lastSnapSignature !== "DEFAULT") {
         console.log("[SearchResultsMap] snapping to default =>", defaultCenter);
         mapRef.current.setCenter(defaultCenter);
@@ -293,37 +296,26 @@ export function SearchResultsMap({
   // ------------------------------------------------------------------------
   useEffect(() => {
     console.log("[SearchResultsMap] useEffect => properties changed. properties.length:", properties.length);
-    // If the map or markerCluster isn't ready, skip
     if (!mapIsReady || !mapRef.current || !markerClusterRef.current) {
       console.log("[SearchResultsMap] map is not ready => skipping marker build");
       return;
     }
 
-    // Attempt to clear existing markers
-    console.log("[SearchResultsMap] clearing existing markers from cluster...");
+    // Clear existing markers from cluster
     try {
       markerClusterRef.current.clearMarkers();
     } catch (error) {
       console.error("[SearchResultsMap] Could not clear markers from clusterer:", error);
-      // If clearing fails, bail out
       return;
     }
 
     // Remove from map if any leftover
-    console.log("[SearchResultsMap] removing leftover markers from map...");
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
-    // Create new markers from property lat/lng
-    console.log("[SearchResultsMap] building new markers from property lat/lng...");
+    // Create new markers from properties
     const newMarkers: google.maps.Marker[] = properties
-      .filter((p) => {
-        // Extra logging
-        if (!p.Latitude || !p.Longitude) {
-          console.log("[SearchResultsMap] property missing lat/long =>", p);
-        }
-        return p.Latitude && p.Longitude;
-      })
+      .filter((p) => p.Latitude && p.Longitude)
       .map((p) => {
         const marker = new google.maps.Marker({
           position: { lat: p.Latitude!, lng: p.Longitude! },
@@ -333,11 +325,9 @@ export function SearchResultsMap({
       });
 
     markersRef.current = newMarkers;
-    console.log("[SearchResultsMap] new markers built =>", newMarkers.length);
 
     // Add them to the cluster
     try {
-      console.log("[SearchResultsMap] adding new markers to cluster...");
       markerClusterRef.current.addMarkers(newMarkers);
     } catch (error) {
       console.error("[SearchResultsMap] Could not add markers to clusterer:", error);
@@ -350,7 +340,39 @@ export function SearchResultsMap({
   const polygonCoords = selectedGeometry?.polygonCoords;
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    // Outer container => position: relative, track cursor, etc.
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        // Show a "wait" cursor if loading, otherwise normal
+        cursor: isLoading ? "wait" : "auto",
+        position: "relative",
+      }}
+    >
+      {/* LOADING OVERLAY (shows when map isn't ready or boundary is loading) */}
+      {isLoading && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            zIndex: 9999,
+            backgroundColor: "rgba(255,255,255,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {/* Simple text or a custom spinner */}
+          <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>
+            Loading...
+          </div>
+        </div>
+      )}
+
       <GoogleMap
         mapContainerStyle={containerStyle}
         onLoad={onMapLoad}
@@ -363,8 +385,6 @@ export function SearchResultsMap({
           gestureHandling: "greedy",
         }}
       >
-        {/* MarkerClusterer manages markers => no <Marker> here */}
-
         {/* Overpass polygons => city boundary */}
         {overpassPolygons.map((coords, idx) => (
           <Polygon

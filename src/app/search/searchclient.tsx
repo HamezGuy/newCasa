@@ -33,8 +33,11 @@ export default function SearchClient() {
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
+  // 1) Grab the raw text from the user (if any) so we can show it in the input
+  const rawSearchTerm = searchParams.get("searchTerm") || "";
+
   // ------------------------------
-  // 1) fetchProperties
+  // fetchProperties
   // ------------------------------
   const fetchProperties = async (
     zipCode?: string,
@@ -74,7 +77,7 @@ export default function SearchClient() {
   };
 
   // ------------------------------
-  // 2) parse geocode=... from URL
+  // parse geocode=... from URL
   // ------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get("geocode");
@@ -92,7 +95,7 @@ export default function SearchClient() {
   }, [searchParams, setGeocodeData, setBounds]);
 
   // ------------------------------
-  // 3) Whenever the user’s URL changes, fetch
+  // Whenever the user’s URL changes, fetch
   // ------------------------------
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
@@ -110,39 +113,18 @@ export default function SearchClient() {
   }, [searchParams]);
 
   // ------------------------------
-  // 4) If user does a new search from within /search page
+  // If user does a new search from within /search page
+  // (Optional if you want immediate fetch on new place)
   // ------------------------------
   const handlePlaceSelected = (geocodeData: any) => {
-    if (!geocodeData || !geocodeData.bounds) {
-      console.error("[Search] handlePlaceSelected => invalid geocode data:", geocodeData);
-      return;
-    }
-    console.log("[Search] handlePlaceSelected => setting geocode data:", geocodeData);
-    setGeocodeData(geocodeData);
-    setBounds(geocodeData.bounds);
-
-    const comps = geocodeData.address_components || [];
-    const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
-    const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
-    const city = comps.find((c: any) => c.types.includes("locality"))?.long_name;
-    const county = comps.find((c: any) => c.types.includes("administrative_area_level_2"))?.long_name;
-
-    if (zipCode) {
-      fetchProperties(zipCode);
-    } else if (route) {
-      fetchProperties(undefined, route);
-    } else if (city) {
-      fetchProperties(undefined, undefined, city);
-    } else if (county) {
-      fetchProperties(undefined, undefined, undefined, county);
-    } else {
-      console.warn("[Search] handlePlaceSelected => no recognized param => no new fetch");
-    }
+    console.log("[Search] handlePlaceSelected =>", geocodeData);
+    // If you want, do an inline fetch here
+    // Or rely on the user pressing "Search" again. Up to you.
   };
 
   const handleFiltersUpdate = (filters: any) => {
     console.log("[Search] handleFiltersUpdate =>", filters);
-    // do something with filters
+    // handle filters if needed
   };
 
   // ------------------------------
@@ -152,7 +134,12 @@ export default function SearchClient() {
     <main className="flex flex-col w-full h-screen">
       {/* Top bar => user can do a new search or use filters */}
       <div className="flex flex-wrap w-full p-4 gap-4 bg-gray-100 shadow-md z-10">
-        <SearchInput size="sm" onPlaceSelected={handlePlaceSelected} isRedirectEnabled={false} />
+        <SearchInput
+          defaultValue={rawSearchTerm}  // <-- Show what user typed
+          size="sm"
+          onPlaceSelected={handlePlaceSelected}
+          isRedirectEnabled={false}     // <-- No redirect, we are already on /search
+        />
         <SearchFilters onUpdate={handleFiltersUpdate} />
       </div>
 

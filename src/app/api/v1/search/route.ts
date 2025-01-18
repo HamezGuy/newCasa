@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   });
 
   try {
-    let properties = [];
+    let properties: string | any[] = [];
 
     // ADDED LOGGING
     console.log("[GET /api/v1/listings] => Starting property fetch logic...");
@@ -62,8 +62,7 @@ export async function GET(request: Request) {
       properties = response?.value || [];
       console.log(`[GET /api/v1/listings] => searchByCounty found ${properties.length} props.`);
     } else {
-      const response = await paragonApiClient.getAllProperty();
-      properties = response ? Array.from(response.values()) : [];
+      properties = [];
     }
 
     // ADDED LOGGING

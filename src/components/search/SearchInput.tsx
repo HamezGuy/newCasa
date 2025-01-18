@@ -5,12 +5,7 @@ import { Button, MantineSize, Modal, TextInput } from "@mantine/core";
 import axios from "axios";
 import debounce from "lodash/debounce";
 import { useRouter } from "next/navigation";
-import {
-  useCallback,
-  useRef,
-  useState,
-  useMemo,
-} from "react";
+import { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import { useGeocode } from "./GeocodeContext";
 
 // Utility to remove trailing ", USA"
@@ -18,17 +13,22 @@ function sanitizeAddress(address: string): string {
   return address.replace(/,\s*USA\s*$/i, "").trim();
 }
 
-export default function SearchInput({
-  isLoading,
-  size = "md",
-  onPlaceSelected,
-  isRedirectEnabled = true,
-}: {
+interface SearchInputProps {
+  // NEW => let parent pass an initial value
+  defaultValue?: string;
   isLoading?: boolean;
   size?: MantineSize;
   onPlaceSelected?: (geocodeData: any) => void;
   isRedirectEnabled?: boolean;
-}) {
+}
+
+export default function SearchInput({
+  defaultValue = "", // defaults to empty
+  isLoading,
+  size = "md",
+  onPlaceSelected,
+  isRedirectEnabled = true,
+}: SearchInputProps) {
   const router = useRouter();
   const { setGeocodeData } = useGeocode();
   const { setBounds } = useBounds();
@@ -47,8 +47,17 @@ export default function SearchInput({
   // Debounce => handle race conditions
   const requestIdRef = useRef<number>(0);
 
+  // ----------------------------------------------------------
+  // 1) On mount or when defaultValue changes => set inputRef
+  // ----------------------------------------------------------
+  useEffect(() => {
+    if (inputRef.current && defaultValue) {
+      inputRef.current.value = defaultValue;
+    }
+  }, [defaultValue]);
+
   // ------------------------------------------------------------------------
-  // 1) The actual function that fetches suggestions (not debounced)
+  // The actual function that fetches suggestions (not debounced)
   // ------------------------------------------------------------------------
   const fetchSuggestionsFn = useCallback(
     async (input: string, requestId: number) => {
@@ -77,7 +86,7 @@ export default function SearchInput({
         }
 
         if (response.data.status === "OK" && response.data.predictions.length > 0) {
-          // If the user changed input in the meantime, skip
+          // If the user changed input in the meantime, skip if it no longer matches
           if (currentValue.startsWith(input)) {
             setSuggestions(response.data.predictions);
           } else {
@@ -138,10 +147,10 @@ export default function SearchInput({
           onPlaceSelected(formattedData);
         }
 
-        // 2) If `isRedirectEnabled`, figure out which param to use
+        // 2) If `isRedirectEnabled`, figure out which param to use + also pass searchTerm
         const comps = geocodeData.address_components || [];
         const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
-        const streetName = comps.find((c: any) => c.types.includes("route"))?.long_name;
+        const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
         const city = comps.find(
           (c: any) => c.types.includes("locality") || c.types.includes("sublocality")
         )?.long_name;
@@ -150,15 +159,22 @@ export default function SearchInput({
         )?.long_name;
 
         if (isRedirectEnabled) {
+          const urlParams = new URLSearchParams();
+          // Always keep the raw typed text
+          urlParams.set("searchTerm", originalAddress);
+
+          // Then whichever recognized param you want
           if (zipCode) {
-            router.push(`/search?zipCode=${encodeURIComponent(zipCode)}`);
+            urlParams.set("zipCode", zipCode);
           } else if (city) {
-            router.push(`/search?city=${encodeURIComponent(city)}`);
-          } else if (streetName) {
-            router.push(`/search?streetName=${encodeURIComponent(streetName)}`);
+            urlParams.set("city", city);
+          } else if (route) {
+            urlParams.set("streetName", route);
           } else if (county) {
-            router.push(`/search?county=${encodeURIComponent(county)}`);
+            urlParams.set("county", county);
           }
+
+          router.push(`/search?${urlParams.toString()}`);
 
           // Optionally clear the input after success
           if (inputRef.current) {
