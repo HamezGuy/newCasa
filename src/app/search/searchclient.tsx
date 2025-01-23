@@ -10,11 +10,7 @@ import SearchInput from "@/components/search/SearchInput";
 import PropertyList from "@/components/paragon/PropertyList";
 import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
 
-const GoogleMapsClientProviderNoSSR = dynamic(
-  () => import("@/components/core/GoogleMapsClientProvider"),
-  { ssr: false }
-);
-
+// Dynamically import the map so it only renders client-side
 const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
   () =>
     import("@/components/search/SearchResultsMap").then((mod) => ({
@@ -34,9 +30,9 @@ export default function SearchClient() {
   // raw typed text from URL if "searchTerm=..."
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
-  // ------------------------------
+  // ----------------------------------------------------------------
   // fetchProperties
-  // ------------------------------
+  // ----------------------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
     streetName?: string,
@@ -47,6 +43,7 @@ export default function SearchClient() {
     try {
       let url = "/api/v1/listings";
       const queries: string[] = [];
+
       if (zipCode) queries.push(`zipCode=${encodeURIComponent(zipCode)}`);
       if (streetName) queries.push(`streetName=${encodeURIComponent(streetName)}`);
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
@@ -74,9 +71,9 @@ export default function SearchClient() {
     }
   };
 
-  // ------------------------------
+  // ----------------------------------------------------------------
   // parse geocode=... from URL
-  // ------------------------------
+  // ----------------------------------------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get("geocode");
     if (geocodeStr) {
@@ -92,9 +89,9 @@ export default function SearchClient() {
     }
   }, [searchParams, setGeocodeData, setBounds]);
 
-  // ------------------------------
+  // ----------------------------------------------------------------
   // Whenever the user’s URL changes, fetch
-  // ------------------------------
+  // ----------------------------------------------------------------
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
     const streetName = searchParams.get("streetName") || undefined;
@@ -110,15 +107,16 @@ export default function SearchClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // ------------------------------
-  // If user does a new search from within /search page => inline fetch
-  // ------------------------------
+  // ----------------------------------------------------------------
+  // If user does a new search from within /search => inline fetch
+  // ----------------------------------------------------------------
   const handlePlaceSelected = (geo: any) => {
     console.log("[Search] handlePlaceSelected =>", geo);
     if (!geo || !geo.address_components) {
       console.warn("[Search] handlePlaceSelected => invalid geocode data => skipping fetch");
       return;
     }
+
     // parse geocode comps
     const comps = geo.address_components;
     const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
@@ -160,19 +158,25 @@ export default function SearchClient() {
         <SearchFilters onUpdate={handleFiltersUpdate} />
       </div>
 
-      <div className="flex flex-grow w-full h-full">
-        {/* Left side => MAP */}
-        <div className="w-full lg:w-2/3 h-full">
-          <GoogleMapsClientProviderNoSSR>
-            <SearchResultsMapNoSSR
-              properties={filteredProperties}
-              isPropertiesLoading={loading} // pass loading => map overlay
-            />
-          </GoogleMapsClientProviderNoSSR>
+      {/*
+        MOBILE (default): 
+          - flex-col 
+          - map top (h-1/2), list bottom (h-1/2)
+        DESKTOP (lg:):
+          - flex-row
+          - map left (w-2/3, h-full), list right (w-1/3, h-full)
+      */}
+      <div className="flex flex-col lg:flex-row flex-grow w-full h-full">
+        {/* MAP => top on mobile; left on desktop */}
+        <div className="w-full h-1/2 lg:h-full lg:w-2/3">
+          <SearchResultsMapNoSSR
+            properties={filteredProperties}
+            isPropertiesLoading={loading}
+          />
         </div>
 
-        {/* Right side => Property List */}
-        <div className="w-full lg:w-1/3 h-full overflow-y-auto p-4 bg-white shadow-inner">
+        {/* PROPERTY LIST => bottom on mobile; right on desktop */}
+        <div className="w-full h-1/2 lg:h-full lg:w-1/3 overflow-y-auto p-4 bg-white shadow-inner">
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
           ) : filteredProperties.length > 0 ? (

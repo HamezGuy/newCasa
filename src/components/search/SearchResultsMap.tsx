@@ -8,6 +8,7 @@ import { useGeocode } from "./GeocodeContext";
 import { useBounds } from "@/components/search/boundscontext";
 import axios from "axios";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
+import { Button } from "@mantine/core"; // or any UI library
 
 // ----------------------------------------------
 // Types
@@ -25,7 +26,6 @@ interface BasicGeocodeData {
   };
 }
 
-// --- Modified interface to include isPropertiesLoading
 export interface SearchResultsMapProps {
   properties: IParagonProperty[];
   selectedGeometry?: {
@@ -33,16 +33,14 @@ export interface SearchResultsMapProps {
     polygonCoords?: google.maps.LatLngLiteral[];
   };
   onSearchComplete?: () => void;
-
-  // NEW => from the parent, indicates an API fetch is ongoing
-  isPropertiesLoading?: boolean;
+  isPropertiesLoading?: boolean; // indicates an API fetch is ongoing
 }
 
 export function SearchResultsMap({
   properties,
   selectedGeometry,
   onSearchComplete,
-  isPropertiesLoading = false, // default false if not passed
+  isPropertiesLoading = false,
 }: SearchResultsMapProps) {
   console.log("[SearchResultsMap] rendered with properties.length =", properties.length);
 
@@ -66,8 +64,7 @@ export function SearchResultsMap({
   // Loading indicator for boundary fetch
   const [isBoundaryLoading, setIsBoundaryLoading] = useState(false);
 
-  // Combine => if the map isn't ready OR Overpass boundary is loading OR
-  // the parent is fetching new properties => show the same overlay
+  // Combine => if the map isn't ready OR Overpass boundary is loading OR parent's fetch => show overlay
   const isLoading = !mapIsReady || isBoundaryLoading || isPropertiesLoading;
 
   // ------------------------------------------------------------------------
@@ -127,7 +124,6 @@ export function SearchResultsMap({
   // handleMapDragEnd & handleMapZoomChanged => update global bounds
   // ------------------------------------------------------------------------
   const handleMapDragEnd = useCallback(() => {
-    console.log("[SearchResultsMap] handleMapDragEnd triggered");
     if (!mapRef.current) return;
     const googleBounds = mapRef.current.getBounds();
     if (!googleBounds) return;
@@ -142,12 +138,10 @@ export function SearchResultsMap({
         lng: googleBounds.getNorthEast()?.lng() ?? 0,
       },
     };
-    console.log("[SearchResultsMap] handleMapDragEnd => setting new bounds:", newBounds);
     setBounds(newBounds);
   }, [setBounds]);
 
   const handleMapZoomChanged = useCallback(() => {
-    console.log("[SearchResultsMap] handleMapZoomChanged triggered");
     if (!mapRef.current) return;
     const googleBounds = mapRef.current.getBounds();
     if (!googleBounds) return;
@@ -162,7 +156,6 @@ export function SearchResultsMap({
         lng: googleBounds.getNorthEast()?.lng() ?? 0,
       },
     };
-    console.log("[SearchResultsMap] handleMapZoomChanged => setting new bounds:", newBounds);
     setBounds(newBounds);
   }, [setBounds]);
 
@@ -170,14 +163,12 @@ export function SearchResultsMap({
   // Marker click => show InfoWindow
   // ------------------------------------------------------------------------
   const handleMarkerClick = useCallback((property: IParagonProperty) => {
-    console.log("[SearchResultsMap] handleMarkerClick => property:", property);
     setSelectedProperty(property);
     setInfoWindowShown(true);
   }, []);
 
   // Map click => close InfoWindow
   const handleMapClick = useCallback(() => {
-    console.log("[SearchResultsMap] handleMapClick => closing InfoWindow");
     setInfoWindowShown(false);
     setSelectedProperty(null);
   }, []);
@@ -186,20 +177,17 @@ export function SearchResultsMap({
   // Overpass fetch => city boundary polygons
   // ------------------------------------------------------------------------
   async function fetchOverpassBoundary(cityName: string) {
-    console.log("[SearchResultsMap] fetchOverpassBoundary => city:", cityName);
-    setIsBoundaryLoading(true); // turn on the overpass loading
-
+    setIsBoundaryLoading(true);
     try {
       const resp = await axios.get("/api/v1/overpass-boundary", {
         params: { place: cityName },
       });
-      console.log("[SearchResultsMap] Overpass boundary result => polygons:", resp.data.polygons);
       setOverpassPolygons(resp.data.polygons || []);
     } catch (err) {
       console.error("[SearchResultsMap] Overpass fetch error =>", err);
       setOverpassPolygons([]);
     } finally {
-      setIsBoundaryLoading(false); // turn off overpass loading
+      setIsBoundaryLoading(false);
     }
   }
 
@@ -207,11 +195,7 @@ export function SearchResultsMap({
   // Snap to bounding box or location when geocode changes
   // ------------------------------------------------------------------------
   useEffect(() => {
-    console.log("[SearchResultsMap] useEffect => geocode or selectedGeometry changed");
-    if (!mapIsReady || !mapRef.current) {
-      console.log("[SearchResultsMap] mapIsReady is false or mapRef not set. Skipping...");
-      return;
-    }
+    if (!mapIsReady || !mapRef.current) return;
 
     // 1) If there's selectedGeometry => priority
     if (selectedGeometry?.bounds) {
@@ -230,10 +214,8 @@ export function SearchResultsMap({
       return;
     }
 
-    // 2) Otherwise, snap to bounding box or lat-lng from geocode
+    // 2) Otherwise, bounding box or lat-lng from geocode
     const snapSig = makeSnapSignature(basicGeocodeData);
-    console.log("[SearchResultsMap] snapSig for geocode =>", snapSig);
-
     if (!snapSig) {
       // No geocode => default
       if (lastSnapSignature !== "DEFAULT") {
@@ -244,7 +226,6 @@ export function SearchResultsMap({
       }
       return;
     }
-
     if (snapSig === lastSnapSignature) {
       console.log("[SearchResultsMap] Already snapped to this place. Doing nothing.");
       return;
@@ -278,7 +259,6 @@ export function SearchResultsMap({
       console.log("[SearchResultsMap] found city =>", city, " => calling fetchOverpassBoundary");
       fetchOverpassBoundary(city);
     } else {
-      console.log("[SearchResultsMap] no city found in geocodeData => resetting overpassPolygons");
       setOverpassPolygons([]);
     }
   }, [
@@ -288,7 +268,7 @@ export function SearchResultsMap({
     onSearchComplete,
     lastSnapSignature,
     defaultCenter,
-    mapIsReady, // watch for readiness
+    mapIsReady,
   ]);
 
   // ------------------------------------------------------------------------
@@ -301,7 +281,6 @@ export function SearchResultsMap({
       return;
     }
 
-    // Clear existing markers from cluster
     try {
       markerClusterRef.current.clearMarkers();
     } catch (error) {
@@ -309,11 +288,9 @@ export function SearchResultsMap({
       return;
     }
 
-    // Remove from map if any leftover
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
-    // Create new markers from properties
     const newMarkers: google.maps.Marker[] = properties
       .filter((p) => p.Latitude && p.Longitude)
       .map((p) => {
@@ -326,13 +303,29 @@ export function SearchResultsMap({
 
     markersRef.current = newMarkers;
 
-    // Add them to the cluster
     try {
       markerClusterRef.current.addMarkers(newMarkers);
     } catch (error) {
       console.error("[SearchResultsMap] Could not add markers to clusterer:", error);
     }
   }, [properties, handleMarkerClick, mapIsReady]);
+
+  // ------------------------------------------------------------------------
+  // Zoom Handlers
+  // ------------------------------------------------------------------------
+  const handleZoomIn = useCallback(() => {
+    if (mapRef.current) {
+      const currentZoom = mapRef.current.getZoom() ?? 10;
+      mapRef.current.setZoom(currentZoom + 1);
+    }
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    if (mapRef.current) {
+      const currentZoom = mapRef.current.getZoom() ?? 10;
+      mapRef.current.setZoom(currentZoom - 1);
+    }
+  }, []);
 
   // ------------------------------------------------------------------------
   // Render
@@ -344,12 +337,11 @@ export function SearchResultsMap({
       style={{
         width: "100%",
         height: "100%",
-        // "wait" cursor if *any* loading is true
         cursor: isLoading ? "wait" : "auto",
         position: "relative",
       }}
     >
-      {/* LOADING OVERLAY => shows for boundary loading, map not ready, or parent's property fetch */}
+      {/* LOADING OVERLAY */}
       {isLoading && (
         <div
           style={{
@@ -363,9 +355,9 @@ export function SearchResultsMap({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            // pointerEvents: "none", // optional if you want to allow clicks
           }}
         >
-          {/* Simple text or a custom spinner */}
           <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>
             Loading...
           </div>
@@ -420,15 +412,93 @@ export function SearchResultsMap({
               lat: selectedProperty.Latitude ?? 0,
               lng: selectedProperty.Longitude ?? 0,
             }}
-            onCloseClick={() => {
-              console.log("[SearchResultsMap] InfoWindow onCloseClick => closing window");
-              setInfoWindowShown(false);
-            }}
+            onCloseClick={() => setInfoWindowShown(false)}
           >
             <PropertySearchResultCard property={selectedProperty} size="sm" />
           </InfoWindow>
         )}
       </GoogleMap>
+
+      {/* Custom Zoom Controls */}
+      <div
+        style={{
+          position: "absolute",
+          top: "45%", // Move them a bit higher than dead-center
+          right: "20px",
+          transform: "translateY(-50%)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px", // spacing between + and -
+          zIndex: 9999,
+        }}
+      >
+        {/* ZOOM IN BUTTON */}
+        <Button
+          onClick={handleZoomIn}
+          size="md"
+          className="
+            font-bold
+            text-sm
+            w-8
+            h-8
+            lg:w-12
+            lg:h-12
+            lg:text-xl
+          "
+          styles={{
+            root: {
+              // The background is slightly opaque
+              backgroundColor: "rgba(30, 144, 255, 0.9)",
+              // White text for strong visibility
+              color: "#fff", 
+              border: "1px solid rgba(30, 144, 255, 0.6)",
+              borderRadius: "8px",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+              // Force color to ensure text is white
+              WebkitTextFillColor: "#fff", // sometimes needed
+              width: "auto",  // The .w-* from Tailwind overrides the actual pixel size
+              height: "auto",
+              "&:hover": {
+                backgroundColor: "rgba(30, 144, 255, 1.0)",
+              },
+            },
+          }}
+        >
+          +
+        </Button>
+
+        {/* ZOOM OUT BUTTON */}
+        <Button
+          onClick={handleZoomOut}
+          size="md"
+          className="
+            font-bold
+            text-sm
+            w-8
+            h-8
+            lg:w-12
+            lg:h-12
+            lg:text-xl
+          "
+          styles={{
+            root: {
+              backgroundColor: "rgba(30, 144, 255, 0.9)",
+              color: "#fff",
+              border: "1px solid rgba(30, 144, 255, 0.6)",
+              borderRadius: "8px",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+              WebkitTextFillColor: "#fff", // sometimes needed
+              width: "auto",
+              height: "auto",
+              "&:hover": {
+                backgroundColor: "rgba(30, 144, 255, 1.0)",
+              },
+            },
+          }}
+        >
+          -
+        </Button>
+      </div>
     </div>
   );
 }
