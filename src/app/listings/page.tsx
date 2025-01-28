@@ -1,20 +1,49 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
-import Image from "next/image";
 import IParagonProperty from "@/types/IParagonProperty";
 import PropertyList from "@/components/paragon/PropertyList";
 
-// Checks if user input is likely a zip code (digits, length 4–10)
+// ----------------------------------------------------------------
+// 1) A utility that *checks* if user input looks like a ZIP code
+// ----------------------------------------------------------------
 function isLikelyZip(input: string) {
   return /^[0-9]{4,10}$/.test(input);
 }
 
-/**
- * Input bar that calls onSearch(value) when user presses Enter or clicks Search
- */
+// ----------------------------------------------------------------
+// 2) A function to verify if the given city/zip is valid via Google Geocode
+// ----------------------------------------------------------------
+async function isValidLocation(location: string): Promise<boolean> {
+  if (!location) return false;
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+        location
+      )}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API}`
+    );
+    const data = await res.json();
+    // If status is "OK" and we have at least 1 result => it's valid
+    return data.status === "OK" && data.results && data.results.length > 0;
+  } catch (err) {
+    console.error("[isValidLocation] => error verifying location:", err);
+    return false;
+  }
+}
+
+// ----------------------------------------------------------------
+// 3) Convert a string like "madison" => "Madison"
+//    If you need to handle multi-word city names, we can expand this.
+// ----------------------------------------------------------------
+function toTitleCase(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+// ----------------------------------------------------------------
+// 4) A simple search bar component
+// ----------------------------------------------------------------
 function ListingsSearchBar({ onSearch }: { onSearch: (term: string) => void }) {
   const [value, setValue] = useState("");
 
@@ -43,200 +72,247 @@ function ListingsSearchBar({ onSearch }: { onSearch: (term: string) => void }) {
   );
 }
 
-/**
- * Main listings page with:
- * - Single-size, dark glossy banner with slight shadow
- * - Query param reading (q=)
- * - "Load More" or infinite scrolling
- * - Spinner while loading
- * - No "Active Properties" text
- */
 export default function ListingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // React States
   const initialTerm = searchParams.get("q") || "";
-
   const [searchTerm, setSearchTerm] = useState(initialTerm);
-  const [page, setPage] = useState(1);
+
+  const [allProps, setAllProps] = useState<IParagonProperty[]>([]);
+  const [shownCount, setShownCount] = useState(0);
+
+  // Separate loading states
+  const [isVerifyingLocation, setIsVerifyingLocation] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const [hasMore, setHasMore] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [properties, setProperties] = useState<IParagonProperty[]>([]);
-
-  // Page title & subtitle for the banner
   const [title, setTitle] = useState("Listings");
-  const [subTitle, setSubTitle] = useState("No search yet...");
 
-  // fetchListings => calls /api/v1/listings
-  const fetchListings = useCallback(
-    async (reset: boolean) => {
-      if (reset) {
-        setProperties([]);
-        setPage(1);
-        setHasMore(true);
+  const [verifyError, setVerifyError] = useState("");
+
+  // The chunk size
+  const LIMIT = 6;
+
+  // ----------------------------------------------------------------
+  // 5) On each new searchTerm => verify => fetch => setAllProps
+  // ----------------------------------------------------------------
+  useEffect(() => {
+    if (!searchTerm) {
+      setAllProps([]);
+      setShownCount(0);
+      setHasMore(false);
+      setTitle("Listings");
+      setVerifyError("");
+      return;
+    }
+
+    const doFetch = async () => {
+      // Step A) verify location
+      setVerifyError("");
+      setIsVerifyingLocation(true);
+      const valid = await isValidLocation(searchTerm);
+      setIsVerifyingLocation(false);
+
+      if (!valid) {
+        setAllProps([]);
+        setShownCount(0);
+        setHasMore(false);
+        setTitle("Invalid Location");
+        setVerifyError(`"${searchTerm}" is not recognized. Please try again.`);
+        return;
       }
 
-      // If we skip fetching when there's no searchTerm:
-      if (!searchTerm) return;
-
-      setIsLoading(true);
+      // Step B) location is valid => proceed to fetch
+      setIsSearching(true);
       try {
-        const params: Record<string, any> = {
-          page: reset ? 1 : page,
-          limit: 6,
-        };
+        let params: Record<string, any> = {};
 
-        // Decide if the term is ZIP or City
         if (isLikelyZip(searchTerm)) {
           params.zipCode = searchTerm;
           setTitle(`Listings in ZIP ${searchTerm}`);
-          // Removing "Active Properties" => just clear or set an empty subTitle
-          setSubTitle("");
         } else {
-          params.city = searchTerm;
-          setTitle(`Listings in ${searchTerm}`);
-          setSubTitle("");
+          // ADDED: convert city to Title Case before sending
+          const cityTitleCase = toTitleCase(searchTerm);
+          params.city = cityTitleCase;
+
+          // CHANGED: show that Title Cased city in the banner as well
+          setTitle(`Listings in ${cityTitleCase}`);
         }
 
         const res = await axios.get("/api/v1/listings", { params });
         const data = res.data as IParagonProperty[];
 
-        if (reset) {
-          setProperties(data);
-        } else {
-          setProperties((prev) => [...prev, ...data]);
-        }
+        setAllProps(data);
 
-        // If we got fewer than limit => no more data
-        if (data.length < params.limit) {
-          setHasMore(false);
+        // show first chunk
+        if (data.length > 0) {
+          setShownCount(Math.min(data.length, LIMIT));
+          setHasMore(data.length > LIMIT);
         } else {
-          setHasMore(true);
+          setShownCount(0);
+          setHasMore(false);
         }
       } catch (err) {
         console.error("Error fetching listings:", err);
+        setAllProps([]);
+        setHasMore(false);
       } finally {
-        setIsLoading(false);
+        setIsSearching(false);
       }
-    },
-    [page, searchTerm]
-  );
+    };
 
-  // On mount => do initial search if ?q=...
-  useEffect(() => {
-    if (initialTerm) {
-      setSearchTerm(initialTerm);
-      fetchListings(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    doFetch();
+  }, [searchTerm]);
 
-  // If page changes => fetch more
-  useEffect(() => {
-    if (page > 1) {
-      fetchListings(false);
-    }
-  }, [page, fetchListings]);
-
-  // handleSearch => from input
+  // ----------------------------------------------------------------
+  // 6) The user typed a new city/zip => update URL + state
+  // ----------------------------------------------------------------
   function handleSearch(term: string) {
+    router.push(`/listings?q=${term}`);
     setSearchTerm(term);
-    const newQuery = new URLSearchParams();
-    newQuery.set("q", term);
-    router.push(`/listings?${newQuery.toString()}`);
-
-    setPage(1);
-    fetchListings(true);
+    setVerifyError("");
   }
 
-  // "Load More"
+  // ----------------------------------------------------------------
+  // 7) "Load More" => reveal more from allProps
+  // ----------------------------------------------------------------
   function handleLoadMore() {
-    setPage((prev) => prev + 1);
+    if (isSearching || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setShownCount((prev) => {
+        const nextCount = prev + LIMIT;
+        if (nextCount >= allProps.length) {
+          setHasMore(false);
+        }
+        return nextCount;
+      });
+      setIsLoadingMore(false);
+    }, 500);
   }
 
-  // Intersection Observer for infinite scrolling
+  const displayedProperties = allProps.slice(0, shownCount);
+
+  // ----------------------------------------------------------------
+  // 8) Intersection Observer => infinite scroll
+  // ----------------------------------------------------------------
   const observerRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    const observerElem = observerRef.current;
-    if (!observerElem) return;
+    const el = observerRef.current;
+    if (!el) return;
 
     let observer: IntersectionObserver | null = null;
     if ("IntersectionObserver" in window) {
       observer = new IntersectionObserver((entries) => {
-        const firstEntry = entries[0];
-        if (firstEntry.isIntersecting && hasMore && !isLoading && searchTerm) {
-          console.log("[ListingsPage] Auto-loading next page...", page + 1);
-          setPage((prev) => prev + 1);
+        const first = entries[0];
+        if (
+          first.isIntersecting &&
+          hasMore &&
+          !isSearching &&
+          !isLoadingMore &&
+          displayedProperties.length < allProps.length
+        ) {
+          console.log("[ListingsPage] auto-load next => shownCount + LIMIT");
+          handleLoadMore();
         }
       });
-      observer.observe(observerElem);
+      observer.observe(el);
     }
-
     return () => {
-      if (observer && observerElem) observer.unobserve(observerElem);
+      if (observer && el) observer.unobserve(el);
     };
-  }, [observerRef, hasMore, isLoading, page, searchTerm]);
+  }, [
+    observerRef,
+    hasMore,
+    isSearching,
+    isLoadingMore,
+    displayedProperties.length,
+    allProps.length,
+  ]);
 
-  // If loading => show wait-cursor
-  const pageCursor = isLoading ? "cursor-wait" : "cursor-auto";
+  const isBusy = isVerifyingLocation || isSearching || isLoadingMore;
+  const pageCursor = isBusy ? "cursor-wait" : "cursor-auto";
 
+  // ----------------------------------------------------------------
+  // 9) Render
+  // ----------------------------------------------------------------
   return (
     <main className={`container mx-auto px-4 ${pageCursor}`}>
-      {/*
-        Banner: 
-        - same size at all times, 
-        - darker glossy gradient 
-        - slight shadow (shadow-xl) 
-      */}
+      {/* Dark banner */}
       <div className="relative w-full overflow-hidden text-white mb-8 shadow-xl rounded-md">
-        {/* 
-          Glossy black gradient. 
-          We use an absolute background, plus potential optional image if you want
-        */}
         <div className="absolute inset-0 z-0">
           <div className="h-full w-full bg-gradient-to-b from-gray-900 to-black opacity-90" />
         </div>
         <div className="relative z-10 p-10 sm:p-16 flex flex-col items-center justify-center text-center">
           <h1 className="text-3xl sm:text-5xl font-bold mb-4">{title}</h1>
-          {subTitle && <p className="text-base sm:text-lg">{subTitle}</p>}
         </div>
       </div>
 
       {/* Search bar */}
       <ListingsSearchBar onSearch={handleSearch} />
 
-      {/* If user hasn't searched => short message */}
-      {!searchTerm && properties.length === 0 && (
+      {/* If there's a verification error => display it */}
+      {verifyError && (
+        <p className="text-center text-red-500 my-2">{verifyError}</p>
+      )}
+
+      {/* If verifying => show message */}
+      {isVerifyingLocation && (
+        <p className="text-center text-gray-600 my-2">
+          Verifying location...
+        </p>
+      )}
+
+      {/* If searching => show message */}
+      {isSearching && (
+        <p className="text-center text-gray-600 my-2">
+          Searching listings...
+        </p>
+      )}
+
+      {/* If no search => show message */}
+      {!searchTerm && allProps.length === 0 && (
         <p className="text-center text-gray-600 my-8">
           No search yet — please enter a city or ZIP code above.
         </p>
       )}
 
-      {/* Property list if we have searchTerm or existing props */}
-      {searchTerm || properties.length > 0 ? (
-        <PropertyList properties={properties} className="my-8" searchTerm={searchTerm} />
-      ) : null}
+      {/* Property list */}
+      {(searchTerm || displayedProperties.length > 0) && (
+        <PropertyList
+          properties={displayedProperties}
+          className="my-8"
+          searchTerm={searchTerm}
+          isLoading={isSearching || isVerifyingLocation}
+        />
+      )}
 
-      {/* "Load More" pagination */}
       <div className="flex justify-center items-center flex-col mb-16">
-        {searchTerm && hasMore && !isLoading && (
+        {/* "Load More" button */}
+        {searchTerm && hasMore && !isSearching && !isVerifyingLocation && (
           <button
             className="bg-green-600 text-white px-4 py-2 rounded mt-4 hover:bg-green-500 transition-colors"
             onClick={handleLoadMore}
+            disabled={isLoadingMore}
           >
-            Load More
+            {isLoadingMore ? "Loading more..." : "Load More"}
           </button>
         )}
 
-        {/* spinner if isLoading */}
-        {isLoading && (
+        {/* If currently loading more => show spinner */}
+        {isLoadingMore && (
           <div className="mt-4 flex flex-col items-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-            <p className="text-gray-700 mt-2">Loading...</p>
+            <p className="text-gray-700 mt-2">Loading more...</p>
           </div>
         )}
       </div>
 
-      {/* Intersection observer trigger */}
+      {/* Intersection observer trigger (for infinite scroll) */}
       <div ref={observerRef} style={{ height: 1, marginBottom: 20 }} />
     </main>
   );

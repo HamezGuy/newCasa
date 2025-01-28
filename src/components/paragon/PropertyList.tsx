@@ -14,7 +14,8 @@ interface PropertyListProps {
   propertyGroups?: PropertyGroup[];
   className?: string;
   reduced?: boolean;
-  searchTerm?: string; // <--- optionally pass a searchTerm
+  searchTerm?: string;
+  isLoading?: boolean;
 }
 
 export default function PropertyList({
@@ -23,15 +24,15 @@ export default function PropertyList({
   className = "",
   reduced = false,
   searchTerm = "",
+  isLoading = false,
 }: PropertyListProps) {
   const { bounds } = useBounds();
 
-  // Combine propertyGroups if needed
   const allProps = properties || [];
 
-  // Filter properties based on map bounds
+  console.log("[PropertyList] => Received properties length:", allProps.length);
+
   const filteredProperties = allProps.filter((property) => {
-    // No map bounds => show all
     if (!bounds || !bounds.southwest || !bounds.northeast) {
       return true;
     }
@@ -39,28 +40,40 @@ export default function PropertyList({
       return false;
     }
     const { southwest, northeast } = bounds;
-    const { Latitude, Longitude } = property;
     return (
-      Latitude >= southwest.lat &&
-      Latitude <= northeast.lat &&
-      Longitude >= southwest.lng &&
-      Longitude <= northeast.lng
+      property.Latitude >= southwest.lat &&
+      property.Latitude <= northeast.lat &&
+      property.Longitude >= southwest.lng &&
+      property.Longitude <= northeast.lng
     );
+  });
+
+  console.log("[PropertyList] => Filtered properties length:", filteredProperties.length);
+
+  // For each property, log if there's Media or not
+  filteredProperties.forEach((p: any) => {
+    const hasMedia = p.Media && p.Media.length ? p.Media.length : 0;
+    console.log(`[PropertyList] => ListingKey=${p.ListingKey} => hasMedia=${hasMedia}`);
   });
 
   const baseClass = reduced
     ? "grid grid-cols-1 lg:grid-cols-2 items-stretch gap-6"
     : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-stretch gap-6";
 
-  // If no properties after filtering
-  // Show a different message depending on whether we had a searchTerm or not
   if (filteredProperties.length === 0) {
+    if (isLoading) {
+      return (
+        <div className={`${baseClass} ${className}`}>
+          <p className="text-center text-gray-600 mt-4 col-span-full">
+            Loading...
+          </p>
+        </div>
+      );
+    }
     return (
       <div className={`${baseClass} ${className}`}>
         <p className="text-center text-gray-500 mt-4 col-span-full">
-          {searchTerm
-            ? "No properties match your search in the current view."
-            : "No active search yet."}
+          No properties in the current view.
         </p>
       </div>
     );
