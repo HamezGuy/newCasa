@@ -84,6 +84,10 @@ export async function GET(request: NextRequest) {
       properties = response?.value || [];
       console.log(`Fetched ${properties.length} properties for county: ${county}`);
     } else {
+      // -------------------------------------------
+      // CHANGED: Return empty array if no query
+      // -------------------------------------------
+      console.log("No search param provided => returning empty array.");
       properties = [];
     }
 

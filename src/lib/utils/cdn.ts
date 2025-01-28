@@ -1,5 +1,10 @@
-import IParagonMedia from '@/types/IParagonMedia';
+import IParagonMedia from "@/types/IParagonMedia";
 
+/**
+ * Cloudinary types for Node usage. 
+ * If you have real "cloudinary" installed, typically:
+ *   import { v2 as cloudinary } from "cloudinary";
+ */
 interface CloudinaryConfig {
   config: (configUrl: string | undefined) => void;
   uploader: {
@@ -16,7 +21,9 @@ interface CloudinaryConfig {
     resources_by_asset_folder: (
       path: string,
       options: { fields: string; max_results: number }
-    ) => Promise<{ resources: { secure_url: string; public_id: string }[] }>;
+    ) => Promise<{
+      resources: { secure_url: string; public_id: string }[];
+    }>;
     sub_folders: (path: string) => Promise<{ folders: { name: string }[] }>;
     delete_all_resources: (options: { resource_type: string }) => Promise<void>;
   };
@@ -24,62 +31,86 @@ interface CloudinaryConfig {
 
 let cloudinary: CloudinaryConfig | undefined;
 
-if (typeof window === 'undefined') {
-  cloudinary = require('cloudinary').v2;
+// Only load Cloudinary on the server (Node).
+if (typeof window === "undefined") {
+  cloudinary = require("cloudinary").v2;
 
   if (cloudinary && process.env.CLOUDINARY_URL) {
     cloudinary.config(process.env.CLOUDINARY_URL);
+    console.log("[cdn.ts] => Cloudinary configured with CLOUDINARY_URL.");
+  } else {
+    console.warn("[cdn.ts] => Cloudinary config not found or missing environment variable!");
   }
 }
 
 export const cdn = {
+  /**
+   * Uploads an array of media to Cloudinary (if configured).
+   * If no Cloudinary config, we simply skip and return the original array.
+   */
   async uploadMedia(
     media: IParagonMedia[] | undefined
   ): Promise<IParagonMedia[]> {
-    // Check if media is undefined or empty
+    console.log("[cdn.uploadMedia] => called with media length:", media?.length || 0);
+
     if (!media || !Array.isArray(media) || media.length === 0) {
-      console.warn('No media items provided for upload.');
+      console.warn("[cdn.uploadMedia] => No media items to upload!");
       return [];
     }
 
     if (!cloudinary || !process.env.CLOUDINARY_URL) {
-      console.warn(
-        'Cloudinary config not set or not available on the client. Using source image URLs.'
-      );
+      console.warn("[cdn.uploadMedia] => Cloudinary config not set on server => returning original media");
       return media;
     }
 
-    // Upload Media in Order
+    // Sort by Order, so we have a consistent sequence
     media.sort((a, b) => a.Order - b.Order);
 
-    const uploadResults = media.map(async (mediaItem) => {
-      if (!mediaItem.MediaURL) return mediaItem;
+    const uploadPromises = media.map(async (mediaItem) => {
+      if (!mediaItem.MediaURL) {
+        console.warn("[cdn.uploadMedia] => Media item has no MediaURL, skipping:", mediaItem);
+        return mediaItem;
+      }
 
-      const imageUrl = mediaItem.MediaURL.startsWith('http')
+      // If the URL doesn't start with http, prefix https
+      const imageUrl = mediaItem.MediaURL.startsWith("http")
         ? mediaItem.MediaURL
         : `https:${mediaItem.MediaURL}`;
 
+      console.log("[cdn.uploadMedia] => Attempting upload for:", imageUrl);
+
       try {
-        const uploadResult = await cloudinary!.uploader.upload(imageUrl, {
+        const result = await cloudinary!.uploader.upload(imageUrl, {
           folder: `property/${mediaItem.ResourceRecordKey}`,
           public_id: mediaItem.Order.toString(),
-          metadata: `order=${mediaItem.Order.toString()}`,
+          metadata: `order=${mediaItem.Order}`,
         });
-        mediaItem.MediaURL = uploadResult.url;
+        console.log("[cdn.uploadMedia] => Upload success => new URL:", result.url);
+        // Overwrite the old MediaURL with the new Cloudinary URL
+        mediaItem.MediaURL = result.url;
         return mediaItem;
-      } catch (error) {
-        console.error(`Error uploading media ${imageUrl}:`, error);
-        return mediaItem;
+      } catch (uploadError) {
+        console.error("[cdn.uploadMedia] => Error uploading media item:", imageUrl, uploadError);
+        return mediaItem; // fallback to original URL if it fails
       }
     });
 
-    const results = await Promise.all(uploadResults);
-    return results.filter((item) => item.MediaURL);
+    const results = await Promise.all(uploadPromises);
+    // Filter out any item with no final MediaURL
+    const finalMedia = results.filter((item) => item.MediaURL);
+    console.log("[cdn.uploadMedia] => Final media count after upload:", finalMedia.length);
+
+    return finalMedia;
   },
 
+  /**
+   * getMedia => retrieves existing images from Cloudinary based on subfolder
+   */
   async getMedia(propertyId: string): Promise<IParagonMedia[]> {
+    console.log("[cdn.getMedia] => called with propertyId:", propertyId);
+
     if (!cloudinary) {
-      console.warn('Cloudinary is only available on the server.');
+      console.warn("[cdn.getMedia] => Cloudinary not available on server => returning empty array");
       return [];
     }
 
@@ -87,50 +118,70 @@ export const cdn = {
       const result = await cloudinary!.api.resources_by_asset_folder(
         `property/${propertyId}`,
         {
-          fields: 'public_id,secure_url,width,height,metadata',
+          fields: "public_id,secure_url,width,height,metadata",
           max_results: 20,
         }
       );
 
+      console.log(
+        "[cdn.getMedia] => resources_by_asset_folder => found count:",
+        result.resources?.length || 0
+      );
+
+      // Sort by numeric portion of public_id => ex: "property/123/1" => parse '1'
       result.resources.sort((a, b) => {
-        const orderA = parseInt(a.public_id.split('/')[2]);
-        const orderB = parseInt(b.public_id.split('/')[2]);
+        const orderA = parseInt(a.public_id.split("/").pop() || "0", 10);
+        const orderB = parseInt(b.public_id.split("/").pop() || "0", 10);
         return orderA - orderB;
       });
-      return result.resources.map((resource) => ({
-        MediaURL: resource.secure_url,
+
+      // Convert them into IParagonMedia
+      return result.resources.map((r) => ({
+        MediaURL: r.secure_url,
+        // Possibly set others: e.g. Order, ...
       }));
     } catch (error) {
-      console.error(`Error fetching media for property ${propertyId}:`, error);
+      console.error("[cdn.getMedia] => Error fetching media for property:", propertyId, error);
       return [];
     }
   },
 
+  /**
+   * getProperties => returns a list of sub-folders under /property
+   */
   async getProperties(): Promise<string[]> {
+    console.log("[cdn.getProperties] => listing sub_folders in 'property' folder");
+
     if (!cloudinary) {
-      console.warn('Cloudinary is only available on the server.');
+      console.warn("[cdn.getProperties] => Cloudinary not available => returning []");
       return [];
     }
 
     try {
-      const result = await cloudinary!.api.sub_folders('property');
-      return result.folders.map((folder) => folder.name);
+      const result = await cloudinary!.api.sub_folders("property");
+      console.log("[cdn.getProperties] => found sub_folders:", result.folders?.length || 0);
+
+      return result.folders.map((f) => f.name);
     } catch (error) {
-      console.error('Error listing subfolders in /property:', error);
+      console.error("[cdn.getProperties] => error listing sub_folders:", error);
       return [];
     }
   },
 
+  /**
+   * clearCDN => delete all resources from the Cloudinary account
+   */
   async clearCDN() {
+    console.log("[cdn.clearCDN] => Called => removing all resources from Cloudinary");
     if (!cloudinary) {
-      console.warn('Cloudinary is only available on the server.');
+      console.warn("[cdn.clearCDN] => Cloudinary not available => skipping");
       return;
     }
-
     try {
-      await cloudinary!.api.delete_all_resources({ resource_type: 'image' });
+      await cloudinary!.api.delete_all_resources({ resource_type: "image" });
+      console.log("[cdn.clearCDN] => Cleared all images from Cloudinary");
     } catch (error) {
-      console.error('Error clearing CDN resources:', error);
+      console.error("[cdn.clearCDN] => Error clearing all image resources:", error);
     }
   },
 };

@@ -14,11 +14,13 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "NewCasa",
   description: "NewCasa MVP",
+  viewport: "width=device-width, initial-scale=1",
 };
 
 const mantineTheme = createTheme({
   primaryColor: "blue",
 });
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,10 +30,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <GeocodeProvider>
             <BoundsProvider>
               <Header />
-
-              {/*
-                Wrap children in a separate CLIENT component that loads the Google Maps script.
-              */}
               <ClientLoadScript>
                 {children}
               </ClientLoadScript>

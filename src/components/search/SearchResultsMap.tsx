@@ -206,8 +206,10 @@ export function SearchResultsMap({
         .lat()},${selectedGeometry.bounds.getNorthEast().lng()}`;
       if (geometrySig !== lastSnapSignature) {
         console.log("[SearchResultsMap] snapping to selectedGeometry bounds, geometrySig:", geometrySig);
-        mapRef.current.setZoom(4);
+
+        // REMOVED setZoom(4). We'll just fit the bounds with some padding.
         mapRef.current.fitBounds(selectedGeometry.bounds, 150);
+
         setLastSnapSignature(geometrySig);
         onSearchComplete?.();
       }
@@ -234,12 +236,14 @@ export function SearchResultsMap({
     // bounding box scenario
     if (basicGeocodeData.bounds) {
       console.log("[SearchResultsMap] snapping to bounding box =>", basicGeocodeData.bounds);
-      mapRef.current.setZoom(4);
+
+      // REMOVED setZoom(4). Let fitBounds do its job.
       const literalBounds = new window.google.maps.LatLngBounds(
         basicGeocodeData.bounds.southwest,
         basicGeocodeData.bounds.northeast
       );
       mapRef.current.fitBounds(literalBounds, 150);
+
       setLastSnapSignature(snapSig);
       onSearchComplete?.();
     }
@@ -339,6 +343,8 @@ export function SearchResultsMap({
         height: "100%",
         cursor: isLoading ? "wait" : "auto",
         position: "relative",
+        // Optional if you want to prevent side-scrolling on small screens:
+        overflow: "hidden",
       }}
     >
       {/* LOADING OVERLAY */}
@@ -355,7 +361,6 @@ export function SearchResultsMap({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            // pointerEvents: "none", // optional if you want to allow clicks
           }}
         >
           <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>
@@ -428,7 +433,7 @@ export function SearchResultsMap({
           transform: "translateY(-50%)",
           display: "flex",
           flexDirection: "column",
-          gap: "16px", // spacing between + and -
+          gap: "16px",
           zIndex: 9999,
         }}
       >
@@ -447,16 +452,13 @@ export function SearchResultsMap({
           "
           styles={{
             root: {
-              // The background is slightly opaque
               backgroundColor: "rgba(30, 144, 255, 0.9)",
-              // White text for strong visibility
-              color: "#fff", 
+              color: "#fff",
               border: "1px solid rgba(30, 144, 255, 0.6)",
               borderRadius: "8px",
               boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-              // Force color to ensure text is white
-              WebkitTextFillColor: "#fff", // sometimes needed
-              width: "auto",  // The .w-* from Tailwind overrides the actual pixel size
+              WebkitTextFillColor: "#fff",
+              width: "auto",
               height: "auto",
               "&:hover": {
                 backgroundColor: "rgba(30, 144, 255, 1.0)",
@@ -487,7 +489,7 @@ export function SearchResultsMap({
               border: "1px solid rgba(30, 144, 255, 0.6)",
               borderRadius: "8px",
               boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-              WebkitTextFillColor: "#fff", // sometimes needed
+              WebkitTextFillColor: "#fff",
               width: "auto",
               height: "auto",
               "&:hover": {
@@ -502,3 +504,4 @@ export function SearchResultsMap({
     </div>
   );
 }
+
