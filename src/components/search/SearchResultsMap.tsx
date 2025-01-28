@@ -1,7 +1,7 @@
 "use client";
 
 import IParagonProperty from "@/types/IParagonProperty";
-import { GoogleMap, InfoWindow, Polygon } from "@react-google-maps/api";
+import { GoogleMap, InfoWindow } from "@react-google-maps/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PropertySearchResultCard from "../paragon/PropertySearchResultCard";
 import { useGeocode } from "./GeocodeContext";
@@ -54,14 +54,17 @@ export function SearchResultsMap({
   // Internal state
   // ------------------------------------------------------------------------
   const [lastSnapSignature, setLastSnapSignature] = useState<string | null>(null);
+
+  // We keep Overpass polygons in state, but won't render them
   const [overpassPolygons, setOverpassPolygons] = useState<google.maps.LatLngLiteral[][]>([]);
+
   const [infoWindowShown, setInfoWindowShown] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
 
   // Track if map & clusterer are fully ready
   const [mapIsReady, setMapIsReady] = useState(false);
 
-  // Loading indicator for boundary fetch
+  // Overpass boundary loading
   const [isBoundaryLoading, setIsBoundaryLoading] = useState(false);
 
   // Combine => if the map isn't ready OR Overpass boundary is loading OR parent's fetch => show overlay
@@ -207,7 +210,6 @@ export function SearchResultsMap({
       if (geometrySig !== lastSnapSignature) {
         console.log("[SearchResultsMap] snapping to selectedGeometry bounds, geometrySig:", geometrySig);
 
-        // REMOVED setZoom(4). We'll just fit the bounds with some padding.
         mapRef.current.fitBounds(selectedGeometry.bounds, 150);
 
         setLastSnapSignature(geometrySig);
@@ -233,22 +235,28 @@ export function SearchResultsMap({
       return;
     }
 
-    // bounding box scenario
     if (basicGeocodeData.bounds) {
       console.log("[SearchResultsMap] snapping to bounding box =>", basicGeocodeData.bounds);
 
-      // REMOVED setZoom(4). Let fitBounds do its job.
-      const literalBounds = new window.google.maps.LatLngBounds(
-        basicGeocodeData.bounds.southwest,
-        basicGeocodeData.bounds.northeast
-      );
-      mapRef.current.fitBounds(literalBounds, 150);
+      // If bounding box is huge => clamp
+      const sw = basicGeocodeData.bounds.southwest;
+      const ne = basicGeocodeData.bounds.northeast;
+      const latDiff = Math.abs(ne.lat - sw.lat);
+      const lngDiff = Math.abs(ne.lng - sw.lng);
+      if (latDiff > 15 || lngDiff > 15) {
+        console.warn("[SearchResultsMap] bounding box is huge => fallback to a reasonable zoom");
+        const centerLat = (sw.lat + ne.lat) / 2;
+        const centerLng = (sw.lng + ne.lng) / 2;
+        mapRef.current.setCenter({ lat: centerLat, lng: centerLng });
+        mapRef.current.setZoom(5);
+      } else {
+        const literalBounds = new window.google.maps.LatLngBounds(sw, ne);
+        mapRef.current.fitBounds(literalBounds, 150);
+      }
 
       setLastSnapSignature(snapSig);
       onSearchComplete?.();
-    }
-    // single location scenario
-    else if (basicGeocodeData.location) {
+    } else if (basicGeocodeData.location) {
       console.log("[SearchResultsMap] snapping to location =>", basicGeocodeData.location);
       mapRef.current.setZoom(12);
       mapRef.current.setCenter(basicGeocodeData.location);
@@ -334,6 +342,7 @@ export function SearchResultsMap({
   // ------------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------------
+  // CHANGED => We still retrieve polygonCoords from selectedGeometry, but won't render them.
   const polygonCoords = selectedGeometry?.polygonCoords;
 
   return (
@@ -343,7 +352,6 @@ export function SearchResultsMap({
         height: "100%",
         cursor: isLoading ? "wait" : "auto",
         position: "relative",
-        // Optional if you want to prevent side-scrolling on small screens:
         overflow: "hidden",
       }}
     >
@@ -381,7 +389,7 @@ export function SearchResultsMap({
           gestureHandling: "greedy",
         }}
       >
-        {/* Overpass polygons => city boundary */}
+        {/* REMOVED => Overpass polygons => city boundary 
         {overpassPolygons.map((coords, idx) => (
           <Polygon
             key={idx}
@@ -394,9 +402,9 @@ export function SearchResultsMap({
               strokeWeight: 2,
             }}
           />
-        ))}
+        ))} */}
 
-        {/* If there's a selectedGeometry polygon, show it */}
+        {/* REMOVED => If there's a selectedGeometry polygon, show it 
         {polygonCoords && (
           <Polygon
             paths={polygonCoords}
@@ -408,7 +416,7 @@ export function SearchResultsMap({
               strokeWeight: 2,
             }}
           />
-        )}
+        )} */}
 
         {/* InfoWindow */}
         {infoWindowShown && selectedProperty && (
@@ -428,7 +436,7 @@ export function SearchResultsMap({
       <div
         style={{
           position: "absolute",
-          top: "45%", // Move them a bit higher than dead-center
+          top: "45%",
           right: "20px",
           transform: "translateY(-50%)",
           display: "flex",
@@ -437,7 +445,6 @@ export function SearchResultsMap({
           zIndex: 9999,
         }}
       >
-        {/* ZOOM IN BUTTON */}
         <Button
           onClick={handleZoomIn}
           size="md"
@@ -469,7 +476,6 @@ export function SearchResultsMap({
           +
         </Button>
 
-        {/* ZOOM OUT BUTTON */}
         <Button
           onClick={handleZoomOut}
           size="md"
@@ -504,4 +510,3 @@ export function SearchResultsMap({
     </div>
   );
 }
-
