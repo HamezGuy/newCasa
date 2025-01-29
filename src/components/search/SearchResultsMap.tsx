@@ -195,6 +195,28 @@ export function SearchResultsMap({
   }
 
   // ------------------------------------------------------------------------
+  // CHANGED - Detect Mobile + Clamp Zoom
+  // ------------------------------------------------------------------------
+  // We'll use a simple check for small screens
+  const isMobile = useMemo(() => {
+    // Safely check window in case of SSR/hydration
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 768; // or any breakpoint you prefer
+  }, []);
+
+  // Helper to clamp the final zoom on mobile
+  function clampZoomOnMobile(): void {
+    if (!mapRef.current) return;
+    if (isMobile) {
+      const currentZoom = mapRef.current.getZoom() ?? 10; // fallback if null
+      // For example, don't allow below 12 on mobile
+      if (currentZoom < 12) {
+        mapRef.current.setZoom(12);
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------------
   // Snap to bounding box or location when geocode changes
   // ------------------------------------------------------------------------
   useEffect(() => {
@@ -212,6 +234,9 @@ export function SearchResultsMap({
 
         mapRef.current.fitBounds(selectedGeometry.bounds, 150);
 
+        // CHANGED - clamp mobile zoom after fitBounds
+        clampZoomOnMobile();
+
         setLastSnapSignature(geometrySig);
         onSearchComplete?.();
       }
@@ -226,6 +251,10 @@ export function SearchResultsMap({
         console.log("[SearchResultsMap] snapping to default =>", defaultCenter);
         mapRef.current.setCenter(defaultCenter);
         mapRef.current.setZoom(10);
+
+        // CHANGED - clamp mobile zoom
+        clampZoomOnMobile();
+
         setLastSnapSignature("DEFAULT");
       }
       return;
@@ -237,21 +266,27 @@ export function SearchResultsMap({
 
     if (basicGeocodeData.bounds) {
       console.log("[SearchResultsMap] snapping to bounding box =>", basicGeocodeData.bounds);
-
-      // If bounding box is huge => clamp
       const sw = basicGeocodeData.bounds.southwest;
       const ne = basicGeocodeData.bounds.northeast;
       const latDiff = Math.abs(ne.lat - sw.lat);
       const lngDiff = Math.abs(ne.lng - sw.lng);
+
+      // "Huge" fallback
       if (latDiff > 15 || lngDiff > 15) {
         console.warn("[SearchResultsMap] bounding box is huge => fallback to a reasonable zoom");
         const centerLat = (sw.lat + ne.lat) / 2;
         const centerLng = (sw.lng + ne.lng) / 2;
         mapRef.current.setCenter({ lat: centerLat, lng: centerLng });
-        mapRef.current.setZoom(5);
+        mapRef.current.setZoom(12);
+
+        // CHANGED - clamp mobile zoom
+        clampZoomOnMobile();
       } else {
         const literalBounds = new window.google.maps.LatLngBounds(sw, ne);
         mapRef.current.fitBounds(literalBounds, 150);
+
+        // CHANGED - clamp mobile zoom after fitBounds
+        clampZoomOnMobile();
       }
 
       setLastSnapSignature(snapSig);
@@ -260,6 +295,10 @@ export function SearchResultsMap({
       console.log("[SearchResultsMap] snapping to location =>", basicGeocodeData.location);
       mapRef.current.setZoom(12);
       mapRef.current.setCenter(basicGeocodeData.location);
+
+      // CHANGED - clamp mobile zoom
+      clampZoomOnMobile();
+
       setLastSnapSignature(snapSig);
       onSearchComplete?.();
     }
@@ -281,6 +320,7 @@ export function SearchResultsMap({
     lastSnapSignature,
     defaultCenter,
     mapIsReady,
+    clampZoomOnMobile, // included to avoid warnings in React
   ]);
 
   // ------------------------------------------------------------------------
@@ -342,7 +382,6 @@ export function SearchResultsMap({
   // ------------------------------------------------------------------------
   // Render
   // ------------------------------------------------------------------------
-  // CHANGED => We still retrieve polygonCoords from selectedGeometry, but won't render them.
   const polygonCoords = selectedGeometry?.polygonCoords;
 
   return (
@@ -389,36 +428,6 @@ export function SearchResultsMap({
           gestureHandling: "greedy",
         }}
       >
-        {/* REMOVED => Overpass polygons => city boundary 
-        {overpassPolygons.map((coords, idx) => (
-          <Polygon
-            key={idx}
-            paths={coords}
-            options={{
-              fillColor: "#22ccff",
-              fillOpacity: 0.3,
-              strokeColor: "#22ccff",
-              strokeOpacity: 1,
-              strokeWeight: 2,
-            }}
-          />
-        ))} */}
-
-        {/* REMOVED => If there's a selectedGeometry polygon, show it 
-        {polygonCoords && (
-          <Polygon
-            paths={polygonCoords}
-            options={{
-              fillColor: "#22ccff",
-              fillOpacity: 0.2,
-              strokeColor: "#1e89a1",
-              strokeOpacity: 0.8,
-              strokeWeight: 2,
-            }}
-          />
-        )} */}
-
-        {/* InfoWindow */}
         {infoWindowShown && selectedProperty && (
           <InfoWindow
             position={{
@@ -453,20 +462,30 @@ export function SearchResultsMap({
             text-sm
             w-8
             h-8
+            flex
+            items-center
+            justify-center
             lg:w-12
             lg:h-12
             lg:text-xl
           "
           styles={{
             root: {
+              // Make it a circle
+              borderRadius: "50%",
+              // Remove Mantine's default padding so Tailwind sizing can work
+              padding: 0,
+              minHeight: 0,
+              // Ensure the plus sign is centered and not clipped
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               backgroundColor: "rgba(30, 144, 255, 0.9)",
               color: "#fff",
               border: "1px solid rgba(30, 144, 255, 0.6)",
-              borderRadius: "8px",
               boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
               WebkitTextFillColor: "#fff",
-              width: "auto",
-              height: "auto",
               "&:hover": {
                 backgroundColor: "rgba(30, 144, 255, 1.0)",
               },
@@ -484,20 +503,30 @@ export function SearchResultsMap({
             text-sm
             w-8
             h-8
+            flex
+            items-center
+            justify-center
             lg:w-12
             lg:h-12
             lg:text-xl
           "
           styles={{
             root: {
+              // Make it a circle
+              borderRadius: "50%",
+              // Remove Mantine's default padding so Tailwind sizing can work
+              padding: 0,
+              minHeight: 0,
+              // Ensure the minus sign is centered and not clipped
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               backgroundColor: "rgba(30, 144, 255, 0.9)",
               color: "#fff",
               border: "1px solid rgba(30, 144, 255, 0.6)",
-              borderRadius: "8px",
               boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
               WebkitTextFillColor: "#fff",
-              width: "auto",
-              height: "auto",
               "&:hover": {
                 backgroundColor: "rgba(30, 144, 255, 1.0)",
               },
