@@ -203,6 +203,15 @@ export default function ListingsPage() {
 
   const displayedProperties = allProps.slice(0, shownCount);
 
+  // ----------------------------------------------------------------
+  // CHANGED => Make sure our page is scrollable on mobile
+  // ----------------------------------------------------------------
+  // We add min-h-screen or a large min-height so there's room to scroll.
+  // Also ensure that if there's no bounding parent with overflow hidden,
+  // the IntersectionObserver can see the bottom element.
+  // 
+  // => See final <main> below.
+
   // Intersection observer => infinite scroll
   const observerRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -223,6 +232,9 @@ export default function ListingsPage() {
           console.log("[ListingsPage] auto-load next => shownCount + LIMIT");
           handleLoadMore();
         }
+      }, {
+        root: null,
+        rootMargin: "0px 0px 300px 0px", // CHANGED => give some space so we trigger earlier
       });
       observer.observe(el);
     }
@@ -235,8 +247,7 @@ export default function ListingsPage() {
   const pageCursor = isBusy ? "cursor-wait" : "cursor-auto";
 
   // ----------------------------------------------------------------
-  // ADDED: a function to fetch properties for a given zip
-  //        used for 53703 and 53713
+  // ADDED: a function to fetch properties for a given zip (53703, 53713)
   // ----------------------------------------------------------------
   async function fetchZip(zip: string) {
     try {
@@ -252,10 +263,9 @@ export default function ListingsPage() {
   }
 
   // ----------------------------------------------------------------
-  // ADDED: useEffect => on mount, fetch 53703 and 53713
+  // ADDED: useEffect => on mount, fetch 53703
   // ----------------------------------------------------------------
   useEffect(() => {
-    // fetch 53703
     async function doFetch() {
       setLoading53703(true);
       const data03 = await fetchZip("53703");
@@ -269,12 +279,13 @@ export default function ListingsPage() {
       }
       setLoading53703(false);
     }
-
     doFetch();
   }, []); // only once
 
+  // ----------------------------------------------------------------
+  // ADDED: useEffect => on mount, fetch 53713
+  // ----------------------------------------------------------------
   useEffect(() => {
-    // fetch 53713
     async function doFetch() {
       setLoading53713(true);
       const data13 = await fetchZip("53713");
@@ -288,7 +299,6 @@ export default function ListingsPage() {
       }
       setLoading53713(false);
     }
-
     doFetch();
   }, []); // only once
 
@@ -335,7 +345,13 @@ export default function ListingsPage() {
   // Render
   // ----------------------------------------------------------------
   return (
-    <main className={`container mx-auto px-4 ${pageCursor}`}>
+    <main
+      className={`container mx-auto px-4 min-h-screen ${pageCursor}`}
+      style={{
+        // Let the body/page scroll naturally on mobile
+        overflowY: "auto",
+      }}
+    >
       {/* Dark banner */}
       <div className="relative w-full overflow-hidden text-white mb-8 shadow-xl rounded-md">
         <div className="absolute inset-0 z-0">

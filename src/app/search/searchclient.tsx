@@ -158,9 +158,9 @@ export default function SearchClient() {
         <SearchFilters onUpdate={handleFiltersUpdate} />
       </div>
 
-      {/*
-        MOBILE (default): 
-          - flex-col 
+      {/*  
+        MOBILE (default):
+          - flex-col
           - map top (h-1/2), list bottom (h-1/2)
         DESKTOP (lg:):
           - flex-row
@@ -176,7 +176,13 @@ export default function SearchClient() {
         </div>
 
         {/* PROPERTY LIST => bottom on mobile; right on desktop */}
-        <div className="w-full h-1/2 lg:h-full lg:w-1/3 overflow-y-auto p-4 bg-white shadow-inner">
+        <div
+          className="w-full h-1/2 lg:h-full lg:w-1/3 overflow-y-auto p-4 bg-white shadow-inner"
+          style={{
+            // CHANGED => ensure smooth scrolling on mobile
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
           ) : filteredProperties.length > 0 ? (

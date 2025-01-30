@@ -32,8 +32,10 @@ export default function PropertyList({
 
   console.log("[PropertyList] => Received properties length:", allProps.length);
 
+  // The bounds-based filter
   const filteredProperties = allProps.filter((property) => {
     if (!bounds || !bounds.southwest || !bounds.northeast) {
+      // If no bounds, show everything
       return true;
     }
     if (!property.Latitude || !property.Longitude) {
@@ -50,20 +52,12 @@ export default function PropertyList({
 
   console.log("[PropertyList] => Filtered properties length:", filteredProperties.length);
 
-  // For each property, log if there's Media or not
-  filteredProperties.forEach((p: any) => {
-    const hasMedia = p.Media && p.Media.length ? p.Media.length : 0;
-    console.log(`[PropertyList] => ListingKey=${p.ListingKey} => hasMedia=${hasMedia}`);
-  });
-
-  const baseClass = reduced
-    ? "grid grid-cols-1 lg:grid-cols-2 items-stretch gap-6"
-    : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-stretch gap-6";
-
   if (filteredProperties.length === 0) {
     if (isLoading) {
       return (
-        <div className={`${baseClass} ${className}`}>
+        <div
+          className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}
+        >
           <p className="text-center text-gray-600 mt-4 col-span-full">
             Loading...
           </p>
@@ -71,7 +65,9 @@ export default function PropertyList({
       );
     }
     return (
-      <div className={`${baseClass} ${className}`}>
+      <div
+        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}
+      >
         <p className="text-center text-gray-500 mt-4 col-span-full">
           No properties in the current view.
         </p>
@@ -80,7 +76,13 @@ export default function PropertyList({
   }
 
   return (
-    <div className={`${baseClass} ${className}`}>
+    <div
+      className={`${
+        reduced
+          ? "grid grid-cols-1 lg:grid-cols-2 gap-6"
+          : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      } ${className}`}
+    >
       {filteredProperties.map((property) => (
         <PropertySearchResultCard
           key={property.ListingKey}
