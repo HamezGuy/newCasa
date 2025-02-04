@@ -71,7 +71,9 @@ export default function SearchInput({
         return;
       }
 
-      console.log(`[Autocomplete] Fetching suggestions for "${input}". RequestId=${requestId}`);
+      console.log(
+        `[Autocomplete] Fetching suggestions for "${input}". RequestId=${requestId}`
+      );
       try {
         const response = await axios.get("/api/v1/autocomplete", {
           params: { input, types: "(regions)" },
@@ -89,7 +91,9 @@ export default function SearchInput({
           if (currentValue.startsWith(input)) {
             setSuggestions(response.data.predictions);
           } else {
-            console.log("[Autocomplete] Current input does not match old response, ignoring.");
+            console.log(
+              "[Autocomplete] Current input does not match old response, ignoring."
+            );
           }
         } else {
           console.warn("No autocomplete suggestions found for:", input);
@@ -154,7 +158,8 @@ export default function SearchInput({
         // ----------------------------------------------------------------
         if (isRedirectEnabled) {
           const comps = geocodeData.address_components || [];
-          const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
+          const zipCode = comps.find((c: any) => c.types.includes("postal_code"))
+            ?.long_name;
           const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
           const city = comps.find(
             (c: any) => c.types.includes("locality") || c.types.includes("sublocality")
@@ -188,7 +193,9 @@ export default function SearchInput({
           }
         }
       } else {
-        console.warn("[SearchInput] Geocode returned no valid results => show popup suggestions");
+        console.warn(
+          "[SearchInput] Geocode returned no valid results => show popup suggestions"
+        );
         // fallback => fetch popup suggestions
         await fetchPopupSuggestions(address);
       }
@@ -270,7 +277,14 @@ export default function SearchInput({
   // Render
   // ------------------------------------------------------------------------
   return (
-    <div style={{ maxWidth: "1000px", minWidth: "400px", margin: "0 auto", position: "relative" }}>
+    <div
+      style={{
+        maxWidth: "1000px",
+        minWidth: "400px",
+        margin: "0 auto",
+        position: "relative",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "stretch", width: "100%" }}>
         <TextInput
           ref={inputRef}
@@ -282,10 +296,12 @@ export default function SearchInput({
               handleSearch();
             }
           }}
+          // The important change: set fontSize to at least 16px to prevent mobile auto-zoom
           style={{
             flex: 1,
             borderTopRightRadius: 0,
             borderBottomRightRadius: 0,
+            fontSize: "16px",
           }}
         />
         <Button

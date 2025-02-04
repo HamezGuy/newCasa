@@ -1,3 +1,4 @@
+// File: components/search/SearchClient.tsx
 "use client";
 
 import dynamic from "next/dynamic";
@@ -9,6 +10,7 @@ import SearchFilters from "@/components/search/SearchFilters";
 import SearchInput from "@/components/search/SearchInput";
 import PropertyList from "@/components/paragon/PropertyList";
 import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
+import PropertyModal from "@/components/property/PropertyModal";
 
 // Dynamically import the map so it only renders client‐side
 const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
@@ -27,7 +29,29 @@ export default function SearchClient() {
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
-  // Get the raw search term from URL if present
+  // NEW: State to track whether the property panel is being interacted with (scrolled).
+  const [isPanelInteracting, setIsPanelInteracting] = useState(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // State for property modal popup
+  const [selectedPropertyData, setSelectedPropertyData] = useState<{
+    property: any;
+    userRole: string;
+    userUid: string | null;
+    realtorEmail: string;
+    realtorPhone: string;
+  } | null>(null);
+
+  // When the property list scrolls, we mark interaction for a short period.
+  const handlePanelScroll = () => {
+    setIsPanelInteracting(true);
+    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    scrollTimeoutRef.current = setTimeout(() => {
+      setIsPanelInteracting(false);
+    }, 200);
+  };
+
+  // Get the raw search term from URL if present.
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
   // ----------------------------------------------------------------
@@ -39,7 +63,7 @@ export default function SearchClient() {
       try {
         const decoded = decodeURIComponent(geocodeStr);
         const parsed = JSON.parse(decoded);
-        // Mark that this geocode data came from a redirect
+        // Mark that this geocode data came from a redirect.
         parsed.isFromRedirect = true;
         console.log("[Search Page] parsed geocode from URL =>", parsed);
         setGeocodeData(parsed);
@@ -51,7 +75,7 @@ export default function SearchClient() {
   }, [searchParams, setGeocodeData, setBounds]);
 
   // ----------------------------------------------------------------
-  // Whenever the URL changes, fetch properties
+  // Whenever the URL changes, fetch properties.
   // ----------------------------------------------------------------
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
@@ -84,9 +108,7 @@ export default function SearchClient() {
       if (streetName) queries.push(`streetName=${encodeURIComponent(streetName)}`);
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
-      if (queries.length > 0) {
-        url += `?${queries.join("&")}`;
-      }
+      if (queries.length > 0) url += `?${queries.join("&")}`;
       console.log("[Search Page] fetchProperties =>", url);
       const response = await fetch(url);
       if (response.ok) {
@@ -118,9 +140,7 @@ export default function SearchClient() {
     const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
     const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
     const city = comps.find((c: any) => c.types.includes("locality"))?.long_name;
-    const county = comps.find((c: any) =>
-      c.types.includes("administrative_area_level_2")
-    )?.long_name;
+    const county = comps.find((c: any) => c.types.includes("administrative_area_level_2"))?.long_name;
     if (zipCode) {
       fetchProperties(zipCode);
     } else if (route) {
@@ -143,11 +163,6 @@ export default function SearchClient() {
   // ----------------------------------------------------------------
   // DRAGGABLE BOTTOM SHEET (Mobile Only)
   // ----------------------------------------------------------------
-  // The outer container is locked (100vh, overflow-hidden, overscrollBehavior: "contain").
-  // The map always fills the container.
-  // The bottom sheet (property list) is anchored at the bottom.
-  // Its height (as a percentage) is controlled by panelHeightPct.
-  // Allowed range: minimum 35% to maximum 100%.
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [panelHeightPct, setPanelHeightPct] = useState(35); // default = 35%
 
@@ -161,9 +176,9 @@ export default function SearchClient() {
 
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
+    setIsPanelInteracting(true);
     startYRef.current = "touches" in e ? e.touches[0].clientY : e.clientY;
     startPanelHeightRef.current = panelHeightPct;
-    // Cast the current target as HTMLElement to access style
     (e.currentTarget as HTMLElement).style.touchAction = "none";
     (e.currentTarget as HTMLElement).style.userSelect = "none";
   };
@@ -171,18 +186,37 @@ export default function SearchClient() {
   const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!draggingRef.current || !containerRef.current) return;
     const currentY = "touches" in e ? e.touches[0].clientY : e.clientY;
-    const delta = startYRef.current - currentY; // positive = upward drag
+    const delta = startYRef.current - currentY;
     const containerHeight = containerRef.current.getBoundingClientRect().height;
     const deltaPct = (delta / containerHeight) * 100;
     if (Math.abs(deltaPct) < DRAG_THRESHOLD_PCT) return;
     let newPanelHeight = startPanelHeightRef.current + deltaPct;
-    // Clamp between 35% and 100%
     newPanelHeight = Math.max(35, Math.min(100, newPanelHeight));
     setPanelHeightPct(newPanelHeight);
   };
 
   const handleDragEnd = () => {
     draggingRef.current = false;
+    setIsPanelInteracting(false);
+  };
+
+  // ----------------------------------------------------------------
+  // When a property is clicked in the list, open the modal
+  // ----------------------------------------------------------------
+  const handlePropertyClick = (property: any) => {
+    // For demonstration, assume user role and uid are known or derived
+    const userRole = "user"; // you may get this from your auth context
+    const userUid = null; // set actual uid if available
+    const realtorEmail = property.ListAgentEmail || "realtor@example.com";
+    const realtorPhone = property.ListAgentPreferredPhone || "123-456-7890";
+
+    setSelectedPropertyData({
+      property,
+      userRole,
+      userUid,
+      realtorEmail,
+      realtorPhone,
+    });
   };
 
   return (
@@ -204,12 +238,15 @@ export default function SearchClient() {
 
       {/* Content area */}
       <div className="relative flex-grow w-full">
-        {/* Map Panel: always fills the container (background) */}
+        {/* Map Panel (background) */}
         <div className="absolute top-0 left-0 w-full h-full">
-          <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
+          <SearchResultsMapNoSSR
+            properties={filteredProperties}
+            isPropertiesLoading={loading}
+          />
         </div>
 
-        {/* Draggable Divider: a 35px grab area, anchored at the top edge of the bottom sheet */}
+        {/* Draggable Divider for Mobile */}
         <div
           className="absolute left-0 w-full bg-gray-300 cursor-row-resize lg:hidden"
           style={{
@@ -228,9 +265,9 @@ export default function SearchClient() {
           onMouseLeave={handleDragEnd}
         ></div>
 
-        {/* Properties Panel (Bottom Sheet), anchored at the bottom */}
+        {/* Properties Panel (Bottom Sheet) */}
         <div
-          className="absolute left-0 w-full overflow-y-auto bg-white shadow-inner"
+          className="absolute left-0 w-full shadow-inner bg-white"
           style={{
             bottom: 0,
             height: `${panelHeightPct}%`,
@@ -238,15 +275,33 @@ export default function SearchClient() {
             zIndex: 30,
           }}
         >
-          {loading ? (
-            <p className="text-center text-gray-500 mt-4">Loading properties...</p>
-          ) : filteredProperties.length > 0 ? (
-            <PropertyList properties={filteredProperties} />
-          ) : (
-            <p className="text-center text-gray-500 mt-4">No properties found.</p>
-          )}
+          <div style={{ height: "100%", overflowY: "auto" }} onScroll={handlePanelScroll}>
+            {loading ? (
+              <p className="text-center text-gray-500 mt-4">Loading properties...</p>
+            ) : filteredProperties.length > 0 ? (
+              <PropertyList
+                properties={filteredProperties}
+                onPropertyClick={handlePropertyClick}
+              />
+            ) : (
+              <p className="text-center text-gray-500 mt-4">No properties found.</p>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Render the Property Modal if a property is selected */}
+      {selectedPropertyData && (
+        <PropertyModal
+          opened={!!selectedPropertyData}
+          onClose={() => setSelectedPropertyData(null)}
+          property={selectedPropertyData.property}
+          userRole={selectedPropertyData.userRole}
+          userUid={selectedPropertyData.userUid}
+          realtorEmail={selectedPropertyData.realtorEmail}
+          realtorPhone={selectedPropertyData.realtorPhone}
+        />
+      )}
     </main>
   );
 }

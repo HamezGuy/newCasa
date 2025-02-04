@@ -16,6 +16,7 @@ interface PropertyListProps {
   reduced?: boolean;
   searchTerm?: string;
   isLoading?: boolean;
+  onPropertyClick?: (property: IParagonProperty) => void;
 }
 
 export default function PropertyList({
@@ -25,6 +26,7 @@ export default function PropertyList({
   reduced = false,
   searchTerm = "",
   isLoading = false,
+  onPropertyClick,
 }: PropertyListProps) {
   const { bounds } = useBounds();
 
@@ -35,7 +37,6 @@ export default function PropertyList({
   // The bounds-based filter
   const filteredProperties = allProps.filter((property) => {
     if (!bounds || !bounds.southwest || !bounds.northeast) {
-      // If no bounds, show everything
       return true;
     }
     if (!property.Latitude || !property.Longitude) {
@@ -55,9 +56,7 @@ export default function PropertyList({
   if (filteredProperties.length === 0) {
     if (isLoading) {
       return (
-        <div
-          className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}
-        >
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}>
           <p className="text-center text-gray-600 mt-4 col-span-full">
             Loading...
           </p>
@@ -65,9 +64,7 @@ export default function PropertyList({
       );
     }
     return (
-      <div
-        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}
-      >
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}>
         <p className="text-center text-gray-500 mt-4 col-span-full">
           No properties in the current view.
         </p>
@@ -84,11 +81,16 @@ export default function PropertyList({
       } ${className}`}
     >
       {filteredProperties.map((property) => (
-        <PropertySearchResultCard
+        <div
           key={property.ListingKey}
-          property={property}
-          size={reduced ? "sm" : "md"}
-        />
+          onClick={() => onPropertyClick && onPropertyClick(property)}
+          style={{ cursor: onPropertyClick ? 'pointer' : 'default' }}
+        >
+          <PropertySearchResultCard
+            property={property}
+            size={reduced ? "sm" : "md"}
+          />
+        </div>
       ))}
     </div>
   );
