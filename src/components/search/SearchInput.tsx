@@ -149,21 +149,25 @@ export default function SearchInput({
         // Clear suggestions so dropdown doesn't linger after a successful search
         setSuggestions([]);
 
-        // 2) If `isRedirectEnabled`, figure out which param to use + also pass searchTerm
-        const comps = geocodeData.address_components || [];
-        const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
-        const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
-        const city = comps.find(
-          (c: any) => c.types.includes("locality") || c.types.includes("sublocality")
-        )?.long_name;
-        const county = comps.find((c: any) =>
-          c.types.includes("administrative_area_level_2")
-        )?.long_name;
-
+        // ----------------------------------------------------------------
+        // Modified: When redirect is enabled, include geocode data in URL to prevent mobile zoom issues.
+        // ----------------------------------------------------------------
         if (isRedirectEnabled) {
+          const comps = geocodeData.address_components || [];
+          const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
+          const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
+          const city = comps.find(
+            (c: any) => c.types.includes("locality") || c.types.includes("sublocality")
+          )?.long_name;
+          const county = comps.find((c: any) =>
+            c.types.includes("administrative_area_level_2")
+          )?.long_name;
+
           const urlParams = new URLSearchParams();
           // Always keep the raw typed text
           urlParams.set("searchTerm", originalAddress);
+          // Include geocode data in URL for proper map zoom on redirect
+          urlParams.set("geocode", encodeURIComponent(JSON.stringify(formattedData)));
 
           // Then whichever recognized param you want
           if (zipCode) {

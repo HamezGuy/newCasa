@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { compareArrays } from '@/lib/utils/helpers';
 import {
@@ -7,10 +7,14 @@ import {
   Popover,
   SegmentedControl,
   TextInput,
+  Group,
+  Stack,
 } from '@mantine/core';
 import { useDebounceCallback } from '@mantine/hooks';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
+// (Optional: Import an icon, e.g. from @tabler/icons-react)
+// import { IconFilter } from '@tabler/icons-react';
 
 export default function SearchFilters({
   isLoading,
@@ -22,9 +26,13 @@ export default function SearchFilters({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [saleOrRent, setSaleOrRent] = useState(searchParams.get('rent'));
+  // We'll move minPrice, maxPrice, and types into the popover
   const [minPrice, setMinPrice] = useState(searchParams.get('minPrice'));
   const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice'));
   const [types, setTypes] = useState([...searchParams.getAll('t')]);
+
+  // Popover state to control additional filter dropdown
+  const [opened, setOpened] = useState(false);
 
   const debouncedSetParams = useDebounceCallback(() => {
     const params = new URLSearchParams(searchParams);
@@ -49,7 +57,7 @@ export default function SearchFilters({
 
     if (types && !compareArrays(types, params.getAll('t'))) {
       params.delete('t');
-      types.map((val) => params.append('t', val));
+      types.forEach((val) => params.append('t', val));
     } else if (!types) {
       params.delete('t');
     }
@@ -65,90 +73,87 @@ export default function SearchFilters({
       case 'rent':
         setSaleOrRent(value as string);
         break;
-
       case 'minPrice':
         setMinPrice(value as string);
         break;
-
       case 'maxPrice':
         setMaxPrice(value as string);
         break;
-
       case 'type':
         setTypes(value as string[]);
         break;
-
       default:
         break;
     }
-
     debouncedSetParams();
   };
 
   return (
-    <>
-      {/* Sale or Rent */}
+    <Group style={{ width: '100%', justifyContent: 'space-between' }}>
+      {/* For Sale / For Rent Segmented Control */}
       <SegmentedControl
-        value={saleOrRent == 'y' ? 'rent' : 'sale'}
-        onChange={(e) => handleFilterChange('rent', e == 'rent' ? 'y' : null)}
+        value={saleOrRent === 'y' ? 'rent' : 'sale'}
+        onChange={(val) => handleFilterChange('rent', val === 'rent' ? 'y' : null)}
         data={[
           { label: 'For Sale', value: 'sale' },
           { label: 'For Rent', value: 'rent' },
         ]}
       />
-      {/* Price */}
-      <Popover width={300} trapFocus position="bottom" withArrow shadow="md">
+
+      {/* Filter Button with Popover for additional options */}
+      <Popover
+        opened={opened}
+        onClose={() => setOpened(false)}
+        position="bottom"
+        withArrow
+        shadow="md"
+        width={300}
+      >
         <Popover.Target>
-          <Button>Any Price</Button>
-        </Popover.Target>
-        <Popover.Dropdown display="flex">
-          <TextInput
-            value={minPrice ?? ''}
-            label="Minimum"
-            placeholder="Mininum Price"
-            type="number"
-            size="xs"
-            onChange={(e) => handleFilterChange('minPrice', e.target.value)}
-          />
-          <TextInput
-            value={maxPrice ?? ''}
-            label="Maximum"
-            placeholder="Maximum Price"
-            type="number"
-            size="xs"
-            ml="xs"
-            onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
-          />
-        </Popover.Dropdown>
-      </Popover>
-      {/* Type */}
-      <Popover width={300} trapFocus position="bottom" withArrow shadow="md">
-        <Popover.Target>
-          <Button>Any Type</Button>
+          <Button variant="outline" onClick={() => setOpened((o) => !o)}>
+            {/* Optionally, you can add an icon here */}
+            Filters
+          </Button>
         </Popover.Target>
         <Popover.Dropdown>
-          <Checkbox.Group
-            value={types}
-            onChange={(e) => handleFilterChange('type', e)}
-          >
-            <Checkbox value="house" label="House" mb="sm" />
-            <Checkbox value="townhouse" label="Townhouse" mb="sm" />
-            <Checkbox value="condo" label="Condo" mb="sm" />
-            <Checkbox value="co-op" label="Co-op" mb="sm" />
-            <Checkbox value="multi-family" label="Multi-family" mb="sm" />
-            <Checkbox value="lot" label="Lots / Land" mb="sm" />
-            <Checkbox
-              value="manufactured"
-              label="Mobile / Manufactured"
-              mb="sm"
+          <Stack style={{ gap: '8px' }}>
+            {/* Price Inputs */}
+            <TextInput
+              value={minPrice ?? ''}
+              label="Minimum Price"
+              placeholder="Minimum Price"
+              type="number"
+              size="xs"
+              onChange={(e) => handleFilterChange('minPrice', e.target.value)}
             />
-            <Checkbox value="commercial" label="Commercial" mb="sm" />
-            <Checkbox value="other" label="Other" mb="sm" />
-          </Checkbox.Group>
+            <TextInput
+              value={maxPrice ?? ''}
+              label="Maximum Price"
+              placeholder="Maximum Price"
+              type="number"
+              size="xs"
+              onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+            />
+
+            {/* Type Checkboxes */}
+            <Checkbox.Group
+              value={types}
+              onChange={(vals) => handleFilterChange('type', vals)}
+              label="Property Type"
+            >
+              <Checkbox value="house" label="House" />
+              <Checkbox value="townhouse" label="Townhouse" />
+              <Checkbox value="condo" label="Condo" />
+              <Checkbox value="co-op" label="Co-op" />
+              <Checkbox value="multi-family" label="Multi-family" />
+              <Checkbox value="lot" label="Lots / Land" />
+              <Checkbox value="manufactured" label="Mobile / Manufactured" />
+              <Checkbox value="commercial" label="Commercial" />
+              <Checkbox value="other" label="Other" />
+            </Checkbox.Group>
+          </Stack>
         </Popover.Dropdown>
       </Popover>
-      {/* More */}
-      <Button variant="outline">More filters</Button>
-    </>
+    </Group>
   );
 }

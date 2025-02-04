@@ -222,6 +222,21 @@ export function SearchResultsMap({
   useEffect(() => {
     if (!mapIsReady || !mapRef.current) return;
 
+    // NEW: On mobile, if this geocode data is from a redirect, force a fixed zoom level.
+    if (
+      isMobile &&
+      geocodeData &&
+      (geocodeData as any).isFromRedirect &&
+      basicGeocodeData.location
+    ) {
+      console.log("[SearchResultsMap] Mobile redirect detected. Forcing fixed zoom level.");
+      mapRef.current.setCenter(basicGeocodeData.location);
+      mapRef.current.setZoom(12);
+      setLastSnapSignature(makeSnapSignature(basicGeocodeData));
+      onSearchComplete?.();
+      return;
+    }
+
     // 1) If there's selectedGeometry => priority
     if (selectedGeometry?.bounds) {
       const geometrySig = `BBOX:${
@@ -231,12 +246,9 @@ export function SearchResultsMap({
         .lat()},${selectedGeometry.bounds.getNorthEast().lng()}`;
       if (geometrySig !== lastSnapSignature) {
         console.log("[SearchResultsMap] snapping to selectedGeometry bounds, geometrySig:", geometrySig);
-
         mapRef.current.fitBounds(selectedGeometry.bounds, 150);
-
         // CHANGED - clamp mobile zoom after fitBounds
         clampZoomOnMobile();
-
         setLastSnapSignature(geometrySig);
         onSearchComplete?.();
       }
@@ -251,10 +263,8 @@ export function SearchResultsMap({
         console.log("[SearchResultsMap] snapping to default =>", defaultCenter);
         mapRef.current.setCenter(defaultCenter);
         mapRef.current.setZoom(10);
-
         // CHANGED - clamp mobile zoom
         clampZoomOnMobile();
-
         setLastSnapSignature("DEFAULT");
       }
       return;
@@ -278,27 +288,22 @@ export function SearchResultsMap({
         const centerLng = (sw.lng + ne.lng) / 2;
         mapRef.current.setCenter({ lat: centerLat, lng: centerLng });
         mapRef.current.setZoom(12);
-
         // CHANGED - clamp mobile zoom
         clampZoomOnMobile();
       } else {
         const literalBounds = new window.google.maps.LatLngBounds(sw, ne);
         mapRef.current.fitBounds(literalBounds, 150);
-
         // CHANGED - clamp mobile zoom after fitBounds
         clampZoomOnMobile();
       }
-
       setLastSnapSignature(snapSig);
       onSearchComplete?.();
     } else if (basicGeocodeData.location) {
       console.log("[SearchResultsMap] snapping to location =>", basicGeocodeData.location);
       mapRef.current.setZoom(12);
       mapRef.current.setCenter(basicGeocodeData.location);
-
       // CHANGED - clamp mobile zoom
       clampZoomOnMobile();
-
       setLastSnapSignature(snapSig);
       onSearchComplete?.();
     }
@@ -320,7 +325,8 @@ export function SearchResultsMap({
     lastSnapSignature,
     defaultCenter,
     mapIsReady,
-    clampZoomOnMobile, // included to avoid warnings in React
+    clampZoomOnMobile,
+    isMobile,
   ]);
 
   // ------------------------------------------------------------------------
@@ -410,9 +416,7 @@ export function SearchResultsMap({
             justifyContent: "center",
           }}
         >
-          <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>
-            Loading...
-          </div>
+          <div style={{ fontSize: "1.25rem", fontWeight: "bold" }}>Loading...</div>
         </div>
       )}
 
@@ -471,12 +475,9 @@ export function SearchResultsMap({
           "
           styles={{
             root: {
-              // Make it a circle
               borderRadius: "50%",
-              // Remove Mantine's default padding so Tailwind sizing can work
               padding: 0,
               minHeight: 0,
-              // Ensure the plus sign is centered and not clipped
               lineHeight: 1,
               display: "flex",
               alignItems: "center",
@@ -512,12 +513,9 @@ export function SearchResultsMap({
           "
           styles={{
             root: {
-              // Make it a circle
               borderRadius: "50%",
-              // Remove Mantine's default padding so Tailwind sizing can work
               padding: 0,
               minHeight: 0,
-              // Ensure the minus sign is centered and not clipped
               lineHeight: 1,
               display: "flex",
               alignItems: "center",
