@@ -29,19 +29,15 @@ export default function PropertyList({
   onPropertyClick,
 }: PropertyListProps) {
   const { bounds } = useBounds();
-
   const allProps = properties || [];
 
   console.log("[PropertyList] => Received properties length:", allProps.length);
 
-  // The bounds-based filter
+  // Filter properties based on map bounds.
+  // If bounds are not defined, we return false so that no properties appear.
   const filteredProperties = allProps.filter((property) => {
-    if (!bounds || !bounds.southwest || !bounds.northeast) {
-      return true;
-    }
-    if (!property.Latitude || !property.Longitude) {
-      return false;
-    }
+    if (!bounds || !bounds.southwest || !bounds.northeast) return false;
+    if (!property.Latitude || !property.Longitude) return false;
     const { southwest, northeast } = bounds;
     return (
       property.Latitude >= southwest.lat &&
@@ -57,16 +53,14 @@ export default function PropertyList({
     if (isLoading) {
       return (
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}>
-          <p className="text-center text-gray-600 mt-4 col-span-full">
-            Loading...
-          </p>
+          <p className="text-center text-gray-600 mt-4 col-span-full">Loading...</p>
         </div>
       );
     }
     return (
       <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}>
         <p className="text-center text-gray-500 mt-4 col-span-full">
-          No properties in the current view.
+          Zoom in on the map or select a property to see details.
         </p>
       </div>
     );
@@ -84,12 +78,9 @@ export default function PropertyList({
         <div
           key={property.ListingKey}
           onClick={() => onPropertyClick && onPropertyClick(property)}
-          style={{ cursor: onPropertyClick ? 'pointer' : 'default' }}
+          style={{ cursor: onPropertyClick ? "pointer" : "default" }}
         >
-          <PropertySearchResultCard
-            property={property}
-            size={reduced ? "sm" : "md"}
-          />
+          <PropertySearchResultCard property={property} size={reduced ? "sm" : "md"} />
         </div>
       ))}
     </div>

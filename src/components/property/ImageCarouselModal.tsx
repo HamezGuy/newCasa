@@ -1,7 +1,8 @@
+// File: components/ImageCarouselModal.tsx
 "use client";
 
 import { Modal } from '@mantine/core';
-import Image from "next/image";
+import Image from 'next/image';
 
 interface ImageCarouselModalProps {
   opened: boolean;

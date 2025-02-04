@@ -1,4 +1,3 @@
-// File: components/search/SearchClient.tsx
 "use client";
 
 import dynamic from "next/dynamic";
@@ -12,7 +11,7 @@ import PropertyList from "@/components/paragon/PropertyList";
 import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
 import PropertyModal from "@/components/property/PropertyModal";
 
-// Dynamically import the map so it only renders client‐side
+// Dynamically import the map so it only renders client‑side.
 const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
   () =>
     import("@/components/search/SearchResultsMap").then((mod) => ({
@@ -24,16 +23,15 @@ const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
 export default function SearchClient() {
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-
   const { setGeocodeData, geocodeData } = useGeocode();
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
-  // NEW: State to track whether the property panel is being interacted with (scrolled).
+  // State to track property panel scrolling on mobile.
   const [isPanelInteracting, setIsPanelInteracting] = useState(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // State for property modal popup
+  // State for property modal popup.
   const [selectedPropertyData, setSelectedPropertyData] = useState<{
     property: any;
     userRole: string;
@@ -42,20 +40,10 @@ export default function SearchClient() {
     realtorPhone: string;
   } | null>(null);
 
-  // When the property list scrolls, we mark interaction for a short period.
-  const handlePanelScroll = () => {
-    setIsPanelInteracting(true);
-    if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-    scrollTimeoutRef.current = setTimeout(() => {
-      setIsPanelInteracting(false);
-    }, 200);
-  };
-
-  // Get the raw search term from URL if present.
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
   // ----------------------------------------------------------------
-  // Parse geocode=... from URL and update context
+  // Parse geocode from URL and update context.
   // ----------------------------------------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get("geocode");
@@ -63,7 +51,6 @@ export default function SearchClient() {
       try {
         const decoded = decodeURIComponent(geocodeStr);
         const parsed = JSON.parse(decoded);
-        // Mark that this geocode data came from a redirect.
         parsed.isFromRedirect = true;
         console.log("[Search Page] parsed geocode from URL =>", parsed);
         setGeocodeData(parsed);
@@ -75,7 +62,7 @@ export default function SearchClient() {
   }, [searchParams, setGeocodeData, setBounds]);
 
   // ----------------------------------------------------------------
-  // Whenever the URL changes, fetch properties.
+  // Fetch properties whenever URL parameters change.
   // ----------------------------------------------------------------
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
@@ -92,7 +79,7 @@ export default function SearchClient() {
   }, [searchParams]);
 
   // ----------------------------------------------------------------
-  // fetchProperties
+  // Function to fetch properties.
   // ----------------------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
@@ -128,7 +115,7 @@ export default function SearchClient() {
   };
 
   // ----------------------------------------------------------------
-  // Handle inline search from within /search
+  // Handle inline search (geocode validation).
   // ----------------------------------------------------------------
   const handlePlaceSelected = (geo: any) => {
     console.log("[Search] handlePlaceSelected =>", geo);
@@ -157,26 +144,20 @@ export default function SearchClient() {
 
   const handleFiltersUpdate = (filters: any) => {
     console.log("[Search] handleFiltersUpdate =>", filters);
-    // Handle filter changes if needed
+    // Handle filter changes as needed.
   };
 
-  // ----------------------------------------------------------------
-  // DRAGGABLE BOTTOM SHEET (Mobile Only)
-  // ----------------------------------------------------------------
+  // ---------------------- Mobile Drag Handlers ----------------------
+  // Container ref for mobile calculations.
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [panelHeightPct, setPanelHeightPct] = useState(35); // default = 35%
-
-  // Use refs to track dragging state
+  const [panelHeightPct, setPanelHeightPct] = useState(35); // default mobile bottom sheet height (%)
   const draggingRef = useRef(false);
   const startYRef = useRef(0);
   const startPanelHeightRef = useRef(0);
-
-  // Use a threshold to ignore very tiny moves (1% of container height)
   const DRAG_THRESHOLD_PCT = 1;
 
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
-    setIsPanelInteracting(true);
     startYRef.current = "touches" in e ? e.touches[0].clientY : e.clientY;
     startPanelHeightRef.current = panelHeightPct;
     (e.currentTarget as HTMLElement).style.touchAction = "none";
@@ -197,19 +178,15 @@ export default function SearchClient() {
 
   const handleDragEnd = () => {
     draggingRef.current = false;
-    setIsPanelInteracting(false);
   };
+  // ---------------------- End Mobile Drag Handlers ----------------------
 
-  // ----------------------------------------------------------------
-  // When a property is clicked in the list, open the modal
-  // ----------------------------------------------------------------
+  // When a property is clicked, open the modal.
   const handlePropertyClick = (property: any) => {
-    // For demonstration, assume user role and uid are known or derived
-    const userRole = "user"; // you may get this from your auth context
-    const userUid = null; // set actual uid if available
+    const userRole = "user"; // Replace with actual user role if needed.
+    const userUid = null; // Replace with actual user UID if available.
     const realtorEmail = property.ListAgentEmail || "realtor@example.com";
     const realtorPhone = property.ListAgentPreferredPhone || "123-456-7890";
-
     setSelectedPropertyData({
       property,
       userRole,
@@ -225,34 +202,73 @@ export default function SearchClient() {
       className="flex flex-col w-full h-screen overflow-hidden"
       style={{ overscrollBehavior: "contain" }}
     >
-      {/* Top bar: search input and filters */}
-      <div className="flex flex-wrap w-full p-4 gap-4 bg-gray-100 shadow-md z-10">
-        <SearchInput
-          defaultValue={rawSearchTerm}
-          size="sm"
-          onPlaceSelected={handlePlaceSelected}
-          isRedirectEnabled={false}
-        />
-        <SearchFilters onUpdate={handleFiltersUpdate} />
+      {/* Top Bar: Search Input & Filters */}
+      <div className="w-full p-4 bg-gray-100 shadow-md z-10">
+        <div className="max-w-screen-xl mx-auto flex flex-col lg:flex-row items-center lg:justify-between gap-4">
+          {/* On desktop, search input and filters share the same row */}
+          <div className="flex-grow">
+            <SearchInput
+              defaultValue={rawSearchTerm}
+              size="sm"
+              onPlaceSelected={handlePlaceSelected}
+              isRedirectEnabled={false}
+            />
+          </div>
+          <div className="flex items-center gap-4">
+            <SearchFilters onUpdate={handleFiltersUpdate} />
+          </div>
+        </div>
       </div>
 
-      {/* Content area */}
-      <div className="relative flex-grow w-full">
-        {/* Map Panel (background) */}
-        <div className="absolute top-0 left-0 w-full h-full">
-          <SearchResultsMapNoSSR
-            properties={filteredProperties}
-            isPropertiesLoading={loading}
-          />
+      {/* Main Content Area */}
+      <div className="flex flex-grow relative">
+        {/* Desktop Layout: Map on left, Properties fixed on right */}
+        <div className="hidden lg:block relative w-2/3">
+          <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
+        </div>
+        <div className="hidden lg:block w-1/3 h-full overflow-y-auto">
+          {loading ? (
+            <p className="text-center text-gray-500 mt-4">Loading properties...</p>
+          ) : filteredProperties.length > 0 ? (
+            <PropertyList properties={filteredProperties} onPropertyClick={handlePropertyClick} />
+          ) : (
+            <p className="text-center text-gray-500 mt-4">No properties found.</p>
+          )}
         </div>
 
-        {/* Draggable Divider for Mobile */}
+        {/* Mobile Layout: Map as full-screen background */}
+        <div className="lg:hidden absolute top-0 left-0 w-full h-full">
+          <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
+        </div>
+
+        {/* Mobile Layout: Draggable Properties Panel (Bottom Sheet) */}
         <div
-          className="absolute left-0 w-full bg-gray-300 cursor-row-resize lg:hidden"
+          className="lg:hidden absolute left-0 w-full shadow-inner bg-white"
+          style={{
+            bottom: 0,
+            height: `${panelHeightPct}%`,
+            WebkitOverflowScrolling: "touch",
+            zIndex: 30,
+          }}
+        >
+          <div style={{ height: "100%", overflowY: "auto" }}>
+            {loading ? (
+              <p className="text-center text-gray-500 mt-4">Loading properties...</p>
+            ) : filteredProperties.length > 0 ? (
+              <PropertyList properties={filteredProperties} onPropertyClick={handlePropertyClick} />
+            ) : (
+              <p className="text-center text-gray-500 mt-4">No properties found.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Draggable Divider (Pull Handle) */}
+        <div
+          className="lg:hidden absolute left-0 w-full flex justify-center items-center cursor-row-resize"
           style={{
             height: "35px",
             bottom: `${panelHeightPct}%`,
-            zIndex: 20,
+            zIndex: 40,
             touchAction: "none",
             userSelect: "none",
           }}
@@ -263,34 +279,12 @@ export default function SearchClient() {
           onMouseMove={handleDragMove}
           onMouseUp={handleDragEnd}
           onMouseLeave={handleDragEnd}
-        ></div>
-
-        {/* Properties Panel (Bottom Sheet) */}
-        <div
-          className="absolute left-0 w-full shadow-inner bg-white"
-          style={{
-            bottom: 0,
-            height: `${panelHeightPct}%`,
-            WebkitOverflowScrolling: "touch",
-            zIndex: 30,
-          }}
         >
-          <div style={{ height: "100%", overflowY: "auto" }} onScroll={handlePanelScroll}>
-            {loading ? (
-              <p className="text-center text-gray-500 mt-4">Loading properties...</p>
-            ) : filteredProperties.length > 0 ? (
-              <PropertyList
-                properties={filteredProperties}
-                onPropertyClick={handlePropertyClick}
-              />
-            ) : (
-              <p className="text-center text-gray-500 mt-4">No properties found.</p>
-            )}
-          </div>
+          <div className="w-12 h-1 bg-gray-500 rounded-full"></div>
         </div>
       </div>
 
-      {/* Render the Property Modal if a property is selected */}
+      {/* Property Modal (for both mobile and desktop) */}
       {selectedPropertyData && (
         <PropertyModal
           opened={!!selectedPropertyData}
