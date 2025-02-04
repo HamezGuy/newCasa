@@ -202,21 +202,16 @@ export default function SearchClient() {
       className="flex flex-col w-full h-screen overflow-hidden"
       style={{ overscrollBehavior: "contain" }}
     >
-      {/* Top Bar: Search Input & Filters */}
+      {/* Top Bar: Search Input & Filters (always on top) */}
       <div className="w-full p-4 bg-gray-100 shadow-md z-10">
-        <div className="max-w-screen-xl mx-auto flex flex-col lg:flex-row items-center lg:justify-between gap-4">
-          {/* On desktop, search input and filters share the same row */}
-          <div className="flex-grow">
-            <SearchInput
-              defaultValue={rawSearchTerm}
-              size="sm"
-              onPlaceSelected={handlePlaceSelected}
-              isRedirectEnabled={false}
-            />
-          </div>
-          <div className="flex items-center gap-4">
-            <SearchFilters onUpdate={handleFiltersUpdate} />
-          </div>
+        <div className="max-w-screen-xl mx-auto flex flex-wrap gap-4">
+          <SearchInput
+            defaultValue={rawSearchTerm}
+            size="sm"
+            onPlaceSelected={handlePlaceSelected}
+            isRedirectEnabled={false}
+          />
+          <SearchFilters onUpdate={handleFiltersUpdate} />
         </div>
       </div>
 
@@ -226,7 +221,7 @@ export default function SearchClient() {
         <div className="hidden lg:block relative w-2/3">
           <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
         </div>
-        <div className="hidden lg:block w-1/3 h-full overflow-y-auto">
+        <div className="hidden lg:block w-1/3 overflow-y-auto">
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
           ) : filteredProperties.length > 0 ? (

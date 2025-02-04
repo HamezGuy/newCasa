@@ -34,9 +34,8 @@ export default function PropertyList({
   console.log("[PropertyList] => Received properties length:", allProps.length);
 
   // Filter properties based on map bounds.
-  // If bounds are not defined, we return false so that no properties appear.
   const filteredProperties = allProps.filter((property) => {
-    if (!bounds || !bounds.southwest || !bounds.northeast) return false;
+    if (!bounds || !bounds.southwest || !bounds.northeast) return true;
     if (!property.Latitude || !property.Longitude) return false;
     const { southwest, northeast } = bounds;
     return (
@@ -59,9 +58,7 @@ export default function PropertyList({
     }
     return (
       <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ${className}`}>
-        <p className="text-center text-gray-500 mt-4 col-span-full">
-          Zoom in on the map or select a property to see details.
-        </p>
+        <p className="text-center text-gray-500 mt-4 col-span-full">No properties in the current view.</p>
       </div>
     );
   }
