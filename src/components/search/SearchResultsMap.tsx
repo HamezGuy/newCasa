@@ -1,3 +1,4 @@
+// No apostrophe changes needed here, because the errors appeared in about/page.tsx
 "use client";
 
 import IParagonProperty from "@/types/IParagonProperty";
