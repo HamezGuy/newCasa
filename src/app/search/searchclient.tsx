@@ -11,7 +11,7 @@ import PropertyList from "@/components/paragon/PropertyList";
 import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
 import PropertyModal from "@/components/property/PropertyModal";
 
-// Dynamically import the map so it only renders client‑side.
+// Dynamically import the map so it only renders client-side
 const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
   () =>
     import("@/components/search/SearchResultsMap").then((mod) => ({
@@ -23,15 +23,19 @@ const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
 export default function SearchClient() {
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const { setGeocodeData, geocodeData } = useGeocode();
+  const { setGeocodeData } = useGeocode();
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
-  // State to track property panel scrolling on mobile.
-  const [isPanelInteracting, setIsPanelInteracting] = useState(false);
-  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Bottom sheet (mobile) state
+  const [panelHeightPct, setPanelHeightPct] = useState(35);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef(false);
+  const startYRef = useRef(0);
+  const startPanelHeightRef = useRef(0);
+  const DRAG_THRESHOLD_PCT = 1;
 
-  // State for property modal popup.
+  // For property modal
   const [selectedPropertyData, setSelectedPropertyData] = useState<{
     property: any;
     userRole: string;
@@ -42,9 +46,6 @@ export default function SearchClient() {
 
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
-  // ----------------------------------------------------------------
-  // Parse geocode from URL and update context.
-  // ----------------------------------------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get("geocode");
     if (geocodeStr) {
@@ -52,7 +53,6 @@ export default function SearchClient() {
         const decoded = decodeURIComponent(geocodeStr);
         const parsed = JSON.parse(decoded);
         parsed.isFromRedirect = true;
-        console.log("[Search Page] parsed geocode from URL =>", parsed);
         setGeocodeData(parsed);
         if (parsed.bounds) setBounds(parsed.bounds);
       } catch (err) {
@@ -61,9 +61,6 @@ export default function SearchClient() {
     }
   }, [searchParams, setGeocodeData, setBounds]);
 
-  // ----------------------------------------------------------------
-  // Fetch properties whenever URL parameters change.
-  // ----------------------------------------------------------------
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
     const streetName = searchParams.get("streetName") || undefined;
@@ -71,16 +68,12 @@ export default function SearchClient() {
     const county = searchParams.get("county") || undefined;
 
     if (!zipCode && !streetName && !city && !county) {
-      console.log("[Search Page] No query param => fetch all");
       fetchProperties();
     } else {
       fetchProperties(zipCode, streetName, city, county);
     }
   }, [searchParams]);
 
-  // ----------------------------------------------------------------
-  // Function to fetch properties.
-  // ----------------------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
     streetName?: string,
@@ -96,11 +89,9 @@ export default function SearchClient() {
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
       if (queries.length > 0) url += `?${queries.join("&")}`;
-      console.log("[Search Page] fetchProperties =>", url);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        console.log("[Search Page] fetchProperties => data:", data);
         setFilteredProperties(data);
       } else {
         console.error("[Search Page] fetchProperties => error:", await response.text());
@@ -114,20 +105,15 @@ export default function SearchClient() {
     }
   };
 
-  // ----------------------------------------------------------------
-  // Handle inline search (geocode validation).
-  // ----------------------------------------------------------------
   const handlePlaceSelected = (geo: any) => {
-    console.log("[Search] handlePlaceSelected =>", geo);
-    if (!geo || !geo.address_components) {
-      console.warn("[Search] handlePlaceSelected => invalid geocode data => skipping fetch");
-      return;
-    }
+    if (!geo || !geo.address_components) return;
     const comps = geo.address_components;
     const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
     const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
     const city = comps.find((c: any) => c.types.includes("locality"))?.long_name;
-    const county = comps.find((c: any) => c.types.includes("administrative_area_level_2"))?.long_name;
+    const county = comps.find((c: any) =>
+      c.types.includes("administrative_area_level_2")
+    )?.long_name;
     if (zipCode) {
       fetchProperties(zipCode);
     } else if (route) {
@@ -137,25 +123,16 @@ export default function SearchClient() {
     } else if (county) {
       fetchProperties(undefined, undefined, undefined, county);
     } else {
-      console.log("[Search] handlePlaceSelected => no recognized param => fetch all");
       fetchProperties();
     }
   };
 
   const handleFiltersUpdate = (filters: any) => {
     console.log("[Search] handleFiltersUpdate =>", filters);
-    // Handle filter changes as needed.
+    // If you want to do more with updated filters, do it here
   };
 
-  // ---------------------- Mobile Drag Handlers ----------------------
-  // Container ref for mobile calculations.
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [panelHeightPct, setPanelHeightPct] = useState(35); // default mobile bottom sheet height (%)
-  const draggingRef = useRef(false);
-  const startYRef = useRef(0);
-  const startPanelHeightRef = useRef(0);
-  const DRAG_THRESHOLD_PCT = 1;
-
+  // Mobile Drag Handlers
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
     startYRef.current = "touches" in e ? e.touches[0].clientY : e.clientY;
@@ -179,12 +156,10 @@ export default function SearchClient() {
   const handleDragEnd = () => {
     draggingRef.current = false;
   };
-  // ---------------------- End Mobile Drag Handlers ----------------------
 
-  // When a property is clicked, open the modal.
   const handlePropertyClick = (property: any) => {
-    const userRole = "user"; // Replace with actual user role if needed.
-    const userUid = null; // Replace with actual user UID if available.
+    const userRole = "user";
+    const userUid = null;
     const realtorEmail = property.ListAgentEmail || "realtor@example.com";
     const realtorPhone = property.ListAgentPreferredPhone || "123-456-7890";
     setSelectedPropertyData({
@@ -202,41 +177,55 @@ export default function SearchClient() {
       className="flex flex-col w-full h-screen overflow-hidden"
       style={{ overscrollBehavior: "contain" }}
     >
-      {/* Top Bar: Search Input & Filters (always on top) */}
-      <div className="w-full p-4 bg-gray-100 shadow-md z-10">
-        <div className="max-w-screen-xl mx-auto flex flex-wrap gap-4">
-          <SearchInput
-            defaultValue={rawSearchTerm}
-            size="sm"
-            onPlaceSelected={handlePlaceSelected}
-            isRedirectEnabled={false}
-          />
-          <SearchFilters onUpdate={handleFiltersUpdate} />
+      {/* Top Bar => Place search on the left, filters on the right */}
+      <div className="w-full p-2 bg-gray-100 shadow-md z-10">
+        <div className="max-w-screen-xl mx-auto flex justify-between items-center">
+          {/* Left => Search Input */}
+          <div>
+            <SearchInput
+              defaultValue={rawSearchTerm}
+              size="sm"
+              onPlaceSelected={handlePlaceSelected}
+              isRedirectEnabled={false}
+            />
+          </div>
+
+          {/* Right => Filters */}
+          <div>
+            <SearchFilters onUpdate={handleFiltersUpdate} />
+          </div>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex flex-grow relative">
-        {/* Desktop Layout: Map on left, Properties fixed on right */}
+        {/* Desktop => Map left, Property list right */}
         <div className="hidden lg:block relative w-2/3">
-          <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
+          <SearchResultsMapNoSSR
+            properties={filteredProperties}
+            isPropertiesLoading={loading}
+          />
         </div>
         <div className="hidden lg:block w-1/3 overflow-y-auto">
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
           ) : filteredProperties.length > 0 ? (
-            <PropertyList properties={filteredProperties} onPropertyClick={handlePropertyClick} />
+            <PropertyList
+              properties={filteredProperties}
+              onPropertyClick={handlePropertyClick}
+            />
           ) : (
             <p className="text-center text-gray-500 mt-4">No properties found.</p>
           )}
         </div>
 
-        {/* Mobile Layout: Map as full-screen background */}
+        {/* Mobile => Full-screen map behind a bottom sheet */}
         <div className="lg:hidden absolute top-0 left-0 w-full h-full">
-          <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
+          <SearchResultsMapNoSSR
+            properties={filteredProperties}
+            isPropertiesLoading={loading}
+          />
         </div>
-
-        {/* Mobile Layout: Draggable Properties Panel (Bottom Sheet) */}
         <div
           className="lg:hidden absolute left-0 w-full shadow-inner bg-white"
           style={{
@@ -250,7 +239,10 @@ export default function SearchClient() {
             {loading ? (
               <p className="text-center text-gray-500 mt-4">Loading properties...</p>
             ) : filteredProperties.length > 0 ? (
-              <PropertyList properties={filteredProperties} onPropertyClick={handlePropertyClick} />
+              <PropertyList
+                properties={filteredProperties}
+                onPropertyClick={handlePropertyClick}
+              />
             ) : (
               <p className="text-center text-gray-500 mt-4">No properties found.</p>
             )}
@@ -279,7 +271,7 @@ export default function SearchClient() {
         </div>
       </div>
 
-      {/* Property Modal (for both mobile and desktop) */}
+      {/* Property Modal (both desktop & mobile) */}
       {selectedPropertyData && (
         <PropertyModal
           opened={!!selectedPropertyData}

@@ -1,20 +1,17 @@
 "use client";
 
-import { compareArrays } from '@/lib/utils/helpers';
+import { compareArrays } from "@/lib/utils/helpers";
 import {
   Button,
   Checkbox,
   Popover,
   SegmentedControl,
   TextInput,
-  Group,
   Stack,
-} from '@mantine/core';
-import { useDebounceCallback } from '@mantine/hooks';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
-// (Optional: Import an icon, e.g. from @tabler/icons-react)
-// import { IconFilter } from '@tabler/icons-react';
+} from "@mantine/core";
+import { useDebounceCallback } from "@mantine/hooks";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 export default function SearchFilters({
   isLoading,
@@ -25,11 +22,11 @@ export default function SearchFilters({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [saleOrRent, setSaleOrRent] = useState(searchParams.get('rent'));
+  const [saleOrRent, setSaleOrRent] = useState(searchParams.get("rent"));
   // We'll move minPrice, maxPrice, and types into the popover
-  const [minPrice, setMinPrice] = useState(searchParams.get('minPrice'));
-  const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice'));
-  const [types, setTypes] = useState([...searchParams.getAll('t')]);
+  const [minPrice, setMinPrice] = useState(searchParams.get("minPrice"));
+  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice"));
+  const [types, setTypes] = useState([...searchParams.getAll("t")]);
 
   // Popover state to control additional filter dropdown
   const [opened, setOpened] = useState(false);
@@ -37,29 +34,29 @@ export default function SearchFilters({
   const debouncedSetParams = useDebounceCallback(() => {
     const params = new URLSearchParams(searchParams);
 
-    if (saleOrRent && !params.get('rent')) {
-      params.set('rent', saleOrRent);
+    if (saleOrRent && !params.get("rent")) {
+      params.set("rent", saleOrRent);
     } else if (!saleOrRent) {
-      params.delete('rent');
+      params.delete("rent");
     }
 
-    if (minPrice && minPrice !== params.get('minPrice')) {
-      params.set('minPrice', minPrice);
+    if (minPrice && minPrice !== params.get("minPrice")) {
+      params.set("minPrice", minPrice);
     } else if (!minPrice) {
-      params.delete('minPrice');
+      params.delete("minPrice");
     }
 
-    if (maxPrice && maxPrice !== params.get('maxPrice')) {
-      params.set('maxPrice', maxPrice);
+    if (maxPrice && maxPrice !== params.get("maxPrice")) {
+      params.set("maxPrice", maxPrice);
     } else if (!maxPrice) {
-      params.delete('maxPrice');
+      params.delete("maxPrice");
     }
 
-    if (types && !compareArrays(types, params.getAll('t'))) {
-      params.delete('t');
-      types.forEach((val) => params.append('t', val));
+    if (types && !compareArrays(types, params.getAll("t"))) {
+      params.delete("t");
+      types.forEach((val) => params.append("t", val));
     } else if (!types) {
-      params.delete('t');
+      params.delete("t");
     }
 
     router.replace(`/search?${params.toString()}`);
@@ -70,33 +67,37 @@ export default function SearchFilters({
     value: string | string[] | null
   ) => {
     switch (filterName) {
-      case 'rent':
+      case "rent":
         setSaleOrRent(value as string);
         break;
-      case 'minPrice':
+      case "minPrice":
         setMinPrice(value as string);
         break;
-      case 'maxPrice':
+      case "maxPrice":
         setMaxPrice(value as string);
         break;
-      case 'type':
+      case "type":
         setTypes(value as string[]);
         break;
       default:
         break;
     }
     debouncedSetParams();
+    if (onUpdate) onUpdate({ rent: saleOrRent, minPrice, maxPrice, types });
   };
 
   return (
-    <Group style={{ width: '100%', justifyContent: 'space-between' }}>
+    <div className="flex items-center gap-2">
       {/* For Sale / For Rent Segmented Control */}
       <SegmentedControl
-        value={saleOrRent === 'y' ? 'rent' : 'sale'}
-        onChange={(val) => handleFilterChange('rent', val === 'rent' ? 'y' : null)}
+        size="sm"
+        value={saleOrRent === "y" ? "rent" : "sale"}
+        onChange={(val) =>
+          handleFilterChange("rent", val === "rent" ? "y" : null)
+        }
         data={[
-          { label: 'For Sale', value: 'sale' },
-          { label: 'For Rent', value: 'rent' },
+          { label: "For Sale", value: "sale" },
+          { label: "For Rent", value: "rent" },
         ]}
       />
 
@@ -110,35 +111,38 @@ export default function SearchFilters({
         width={300}
       >
         <Popover.Target>
-          <Button variant="outline" onClick={() => setOpened((o) => !o)}>
-            {/* Optionally, you can add an icon here */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOpened((o) => !o)}
+          >
             Filters
           </Button>
         </Popover.Target>
         <Popover.Dropdown>
-          <Stack style={{ gap: '8px' }}>
+          <Stack style={{ gap: "8px" }}>
             {/* Price Inputs */}
             <TextInput
-              value={minPrice ?? ''}
+              value={minPrice ?? ""}
               label="Minimum Price"
               placeholder="Minimum Price"
               type="number"
               size="xs"
-              onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+              onChange={(e) => handleFilterChange("minPrice", e.target.value)}
             />
             <TextInput
-              value={maxPrice ?? ''}
+              value={maxPrice ?? ""}
               label="Maximum Price"
               placeholder="Maximum Price"
               type="number"
               size="xs"
-              onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+              onChange={(e) => handleFilterChange("maxPrice", e.target.value)}
             />
 
             {/* Type Checkboxes */}
             <Checkbox.Group
               value={types}
-              onChange={(vals) => handleFilterChange('type', vals)}
+              onChange={(vals) => handleFilterChange("type", vals)}
               label="Property Type"
             >
               <Checkbox value="house" label="House" />
@@ -154,6 +158,6 @@ export default function SearchFilters({
           </Stack>
         </Popover.Dropdown>
       </Popover>
-    </Group>
+    </div>
   );
 }

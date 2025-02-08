@@ -22,7 +22,7 @@ interface SearchInputProps {
 }
 
 export default function SearchInput({
-  defaultValue = "", // defaults to empty
+  defaultValue = "",
   isLoading,
   size = "md",
   onPlaceSelected,
@@ -33,47 +33,31 @@ export default function SearchInput({
   const { setBounds } = useBounds();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Local loading state
   const [loading, setLoading] = useState(false);
-
-  // Autocomplete suggestions
   const [suggestions, setSuggestions] = useState<any[]>([]);
-
   // Invalid address fallback modal
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [popupSuggestions, setPopupSuggestions] = useState<any[]>([]);
 
-  // Debounce => handle race conditions
   const requestIdRef = useRef<number>(0);
 
-  // ----------------------------------------------------------
-  // 1) On mount or when defaultValue changes => set inputRef
-  // ----------------------------------------------------------
   useEffect(() => {
     if (inputRef.current && defaultValue) {
       inputRef.current.value = defaultValue;
     }
   }, [defaultValue]);
 
-  // ------------------------------------------------------------------------
-  // The actual function that fetches suggestions (not debounced)
-  // ------------------------------------------------------------------------
   const fetchSuggestionsFn = useCallback(
     async (input: string, requestId: number) => {
       if (!input || input.length < 3) {
-        console.log("Not enough input length for suggestions (min 3 chars).");
         setSuggestions([]);
         return;
       }
       if (!/^[a-zA-Z0-9\s,]+$/.test(input)) {
-        console.warn("Invalid input for autocomplete:", input);
         setSuggestions([]);
         return;
       }
 
-      console.log(
-        `[Autocomplete] Fetching suggestions for "${input}". RequestId=${requestId}`
-      );
       try {
         const response = await axios.get("/api/v1/autocomplete", {
           params: { input, types: "(regions)" },
@@ -82,56 +66,36 @@ export default function SearchInput({
         // Race-condition check
         const currentValue = inputRef.current?.value || "";
         if (requestId !== requestIdRef.current) {
-          console.log("[Autocomplete] Old response, ignoring results.");
           return;
         }
 
         if (response.data.status === "OK" && response.data.predictions.length > 0) {
-          // If the user changed input in the meantime, skip if it no longer matches
           if (currentValue.startsWith(input)) {
             setSuggestions(response.data.predictions);
-          } else {
-            console.log(
-              "[Autocomplete] Current input does not match old response, ignoring."
-            );
           }
         } else {
-          console.warn("No autocomplete suggestions found for:", input);
           setSuggestions([]);
         }
       } catch (error) {
-        console.error("Error fetching autocomplete suggestions:", error);
         setSuggestions([]);
       }
     },
-    [setSuggestions]
+    []
   );
 
-  // 2) Debounce the above function
   const fetchSuggestions = useMemo(() => {
     return debounce(fetchSuggestionsFn, 300);
   }, [fetchSuggestionsFn]);
 
-  // ------------------------------------------------------------------------
-  // Validate (Geocode) the Address
-  // ------------------------------------------------------------------------
   const validateAddress = async (originalAddress: string) => {
     const address = sanitizeAddress(originalAddress);
-    console.log("[SearchInput] validateAddress =>", address);
-
     setLoading(true);
 
     try {
-      // 1) Call your /api/v1/geocode
       const response = await axios.get("/api/v1/geocode", { params: { address } });
-      console.log("[SearchInput] Geocode API response =>", response.data);
-
       const apiData = response.data;
       if (apiData.status === "OK" && apiData.results && apiData.results.length > 0) {
-        // Typically the first result is best
         const geocodeData = apiData.results[0];
-
-        // Build a custom object
         const formattedData = {
           location: geocodeData.geometry.location,
           bounds: geocodeData.geometry.viewport,
@@ -139,27 +103,15 @@ export default function SearchInput({
           place_id: geocodeData.place_id,
           address_components: geocodeData.address_components,
         };
-        console.log("[SearchInput] Formatted data =>", formattedData);
 
-        // Update global contexts
         setGeocodeData(formattedData);
         setBounds(formattedData.bounds);
-
-        // If parent wants to do something else on success
-        if (onPlaceSelected) {
-          onPlaceSelected(formattedData);
-        }
-
-        // Clear suggestions so dropdown doesn't linger after a successful search
+        if (onPlaceSelected) onPlaceSelected(formattedData);
         setSuggestions([]);
 
-        // ----------------------------------------------------------------
-        // Modified: When redirect is enabled, include geocode data in URL to prevent mobile zoom issues.
-        // ----------------------------------------------------------------
         if (isRedirectEnabled) {
           const comps = geocodeData.address_components || [];
-          const zipCode = comps.find((c: any) => c.types.includes("postal_code"))
-            ?.long_name;
+          const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
           const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
           const city = comps.find(
             (c: any) => c.types.includes("locality") || c.types.includes("sublocality")
@@ -169,76 +121,50 @@ export default function SearchInput({
           )?.long_name;
 
           const urlParams = new URLSearchParams();
-          // Always keep the raw typed text
           urlParams.set("searchTerm", originalAddress);
-          // Include geocode data in URL for proper map zoom on redirect
           urlParams.set("geocode", encodeURIComponent(JSON.stringify(formattedData)));
 
-          // Then whichever recognized param you want
-          if (zipCode) {
-            urlParams.set("zipCode", zipCode);
-          } else if (city) {
-            urlParams.set("city", city);
-          } else if (route) {
-            urlParams.set("streetName", route);
-          } else if (county) {
-            urlParams.set("county", county);
-          }
+          if (zipCode) urlParams.set("zipCode", zipCode);
+          else if (city) urlParams.set("city", city);
+          else if (route) urlParams.set("streetName", route);
+          else if (county) urlParams.set("county", county);
 
           router.push(`/search?${urlParams.toString()}`);
 
-          // Optionally clear the input after success
           if (inputRef.current) {
             inputRef.current.value = "";
           }
         }
       } else {
-        console.warn(
-          "[SearchInput] Geocode returned no valid results => show popup suggestions"
-        );
-        // fallback => fetch popup suggestions
         await fetchPopupSuggestions(address);
       }
     } catch (error) {
-      console.error("[SearchInput] Error in validateAddress:", error);
-      // fallback => always fetch popup suggestions
       await fetchPopupSuggestions(address);
     } finally {
       setLoading(false);
     }
   };
 
-  // ------------------------------------------------------------------------
-  // Fallback Suggestions for Invalid
-  // ------------------------------------------------------------------------
   const fetchPopupSuggestions = async (input: string) => {
-    console.log("[SearchInput] fetchPopupSuggestions =>", input);
     try {
       const response = await axios.get("/api/v1/autocomplete", {
         params: { input, types: "(regions)" },
       });
 
       if (response.data.status === "OK" && response.data.predictions.length > 0) {
-        console.log("[SearchInput] Popup suggestions =>", response.data.predictions);
         setPopupSuggestions(response.data.predictions);
         setIsPopupOpen(true);
       } else {
-        console.warn("[SearchInput] No popup suggestions for invalid address:", input);
         setPopupSuggestions([]);
         setIsPopupOpen(true);
       }
     } catch (error) {
-      console.error("[SearchInput] Error fetching popup suggestions:", error);
       setPopupSuggestions([]);
       setIsPopupOpen(true);
     }
   };
 
-  // ------------------------------------------------------------------------
-  // Handling Selected Suggestion
-  // ------------------------------------------------------------------------
   const handleSuggestionSelect = (suggestion: any) => {
-    console.log("[SearchInput] handleSuggestionSelect =>", suggestion);
     const fullDescription = suggestion.description || "";
     if (inputRef.current) {
       inputRef.current.value = fullDescription;
@@ -246,26 +172,14 @@ export default function SearchInput({
     setSuggestions([]);
     setPopupSuggestions([]);
     setIsPopupOpen(false);
-
-    // Attempt geocoding that selection
     validateAddress(fullDescription);
   };
 
-  // ------------------------------------------------------------------------
-  // Actually do the search
-  // ------------------------------------------------------------------------
   const handleSearch = () => {
     const val = inputRef.current?.value?.trim();
-    if (!val) {
-      console.log("[SearchInput] No input to search.");
-      return;
-    }
-    validateAddress(val);
+    if (val) validateAddress(val);
   };
 
-  // ------------------------------------------------------------------------
-  // On input change => fetch suggestions
-  // ------------------------------------------------------------------------
   const handleInputChange = () => {
     const val = inputRef.current?.value?.trim() || "";
     requestIdRef.current += 1;
@@ -273,9 +187,6 @@ export default function SearchInput({
     fetchSuggestions(val, currentId);
   };
 
-  // ------------------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------------------
   return (
     <div
       style={{
@@ -296,7 +207,6 @@ export default function SearchInput({
               handleSearch();
             }
           }}
-          // The important change: set fontSize to at least 16px to prevent mobile auto-zoom
           style={{
             flex: 1,
             borderTopRightRadius: 0,
@@ -318,7 +228,6 @@ export default function SearchInput({
         </Button>
       </div>
 
-      {/* Normal autocomplete dropdown */}
       {suggestions.length > 0 && (
         <ul
           style={{
@@ -354,7 +263,6 @@ export default function SearchInput({
         </ul>
       )}
 
-      {/* Invalid address => popup suggestions in a modal */}
       <Modal
         opened={isPopupOpen}
         onClose={() => setIsPopupOpen(false)}

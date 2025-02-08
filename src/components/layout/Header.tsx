@@ -1,16 +1,16 @@
-"use client"; // Ensure this is a Client Component
+"use client";
 
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { auth } from "../../lib/firebase"; // Ensure this path is correct
+import { auth } from "../../lib/firebase";
 import Logo from "../core/Logo";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
   const [user, setUser] = useState<any>(null);
-
-  // Track mobile dropdown state
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname(); // Get current route
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -31,114 +31,137 @@ export default function Header() {
     setMobileOpen((prev) => !prev);
   }
 
+  // A small helper to see if a given link is the active route
+  function isActiveRoute(route: string) {
+    return pathname === route;
+  }
+
+  // A base set of nav items. You can expand as needed.
+  const navItems = [
+    { label: "Search", href: "/search" },
+    { label: "Listings", href: "/listings" },
+    { label: "About", href: "/about" },
+  ];
+
   return (
-    <header className="app-header flex justify-between items-center py-4 px-8 shadow bg-white relative z-50">
-      {/* LOGO */}
-      <div className="logo-brand min-w-[8rem]">
-        <Logo link="/" />
-      </div>
-
-      {/* MOBILE HAMBURGER BUTTON */}
-      <button
-        className="md:hidden flex flex-col items-center justify-center w-9 h-9 text-white bg-blue-600 rounded transition-colors hover:bg-blue-700 focus:outline-none"
-        onClick={toggleMobileMenu}
-        aria-label="Toggle Menu"
+    <>
+      <header
+        className="
+          relative
+          flex
+          items-center
+          justify-between
+          h-14              /* Slightly taller: 56px */
+          px-4 md:px-8      /* Horizontal padding */
+          bg-black/90       /* Dark, opaque background */
+          text-gray-100
+          shadow
+          z-50
+          animate-fade-down
+          box-border
+        "
+        style={{
+          // Subtle base text shadow for everything
+          textShadow: "0 0 2px rgba(0,255,0,0.2)", 
+        }}
       >
-        {/* Animated hamburger => X transition */}
-        <span
-          className={`block w-6 h-0.5 bg-white mb-1 transform transition-transform ${
-            mobileOpen ? "rotate-45 translate-y-1.5" : ""
-          }`}
-        />
-        <span
-          className={`block w-6 h-0.5 bg-white mb-1 transition-opacity ${
-            mobileOpen ? "opacity-0" : "opacity-100"
-          }`}
-        />
-        <span
-          className={`block w-6 h-0.5 bg-white transform transition-transform ${
-            mobileOpen ? "-rotate-45 -translate-y-1.5" : ""
-          }`}
-        />
-      </button>
+        {/* LOGO */}
+        <div className="logo-brand flex-shrink-0 h-full flex items-center">
+          <Logo link="/" />
+        </div>
 
-      {/* DESKTOP NAV => hidden on mobile */}
-      <nav className="main-nav hidden md:block">
-        <ul className="flex gap-8 list-none no-underline text-gray-800 font-semibold">
-          <li className="hover:text-blue-600 transition-colors">
-            <Link href="/search">Search</Link>
-          </li>
-          <li className="hover:text-blue-600 transition-colors">
-            <Link href="/listings">Listings</Link>
-          </li>
-          <li className="hover:text-blue-600 transition-colors">
-            <Link href="/about">About</Link>
-          </li>
-          {!user ? (
-            <li className="hover:text-blue-600 transition-colors">
-              <Link href="/login">Login</Link>
-            </li>
-          ) : (
-            <>
-              <li className="hover:text-blue-600 transition-colors">
-                <Link href="/messages">Messages</Link>
-              </li>
-              <li className="hover:text-blue-600 transition-colors">
-                <Link href="/profile">Profile</Link>
-              </li>
-              <li>
-                <button
-                  onClick={handleLogout}
-                  className="text-blue-500 hover:text-blue-700 transition-colors"
-                >
-                  Logout
-                </button>
-              </li>
-            </>
-          )}
-        </ul>
-      </nav>
-
-      {/* MOBILE DROPDOWN => only visible on small screens */}
-      {mobileOpen && (
-        <div
-          // CHANGED => right-0 w-60; slightly transparent, blurred background, subtle border
-          className="absolute top-full right-0 w-60 bg-white/80 backdrop-blur-sm shadow-md border border-gray-300/70 md:hidden animate-slide-down"
+        {/* MOBILE HAMBURGER BUTTON */}
+        <button
+          className="
+            md:hidden
+            flex items-center justify-center
+            w-9 h-9
+            bg-gray-700 text-white rounded
+            transition-colors
+            hover:bg-gray-800
+            focus:outline-none
+          "
+          onClick={toggleMobileMenu}
+          aria-label="Toggle Menu"
         >
-          <ul className="flex flex-col gap-4 p-4 list-none no-underline text-gray-800 font-semibold">
-            <li>
-              <Link
-                href="/search"
-                onClick={() => setMobileOpen(false)}
-                className="hover:text-blue-600 transition-colors"
-              >
-                Search
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/listings"
-                onClick={() => setMobileOpen(false)}
-                className="hover:text-blue-600 transition-colors"
-              >
-                Listings
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/about"
-                onClick={() => setMobileOpen(false)}
-                className="hover:text-blue-600 transition-colors"
-              >
-                About
-              </Link>
-            </li>
+          <span
+            className={`
+              block w-5 h-0.5 bg-white mb-1 transform transition-transform
+              ${mobileOpen ? "rotate-45 translate-y-1.5" : ""}
+            `}
+          />
+          <span
+            className={`
+              block w-5 h-0.5 bg-white mb-1 transition-opacity
+              ${mobileOpen ? "opacity-0" : "opacity-100"}
+            `}
+          />
+          <span
+            className={`
+              block w-5 h-0.5 bg-white transform transition-transform
+              ${mobileOpen ? "-rotate-45 -translate-y-1.5" : ""}
+            `}
+          />
+        </button>
+
+        {/* DESKTOP NAV */}
+        <nav className="hidden md:block">
+          <ul className="flex gap-5 list-none m-0 p-0 items-center">
+            {/* Dynamically render nav items */}
+            {navItems.map(({ label, href }) => {
+              const active = isActiveRoute(href);
+              return (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    className={`
+                      relative
+                      text-xl font-medium
+                      transition-all duration-300
+                      px-2
+                      ${
+                        active
+                          ? // Active route gets a brighter neon glow
+                            "text-lime-300 neon-active"
+                          : "text-lime-200 hover:text-lime-300"
+                      }
+                      hover:scale-105 active:scale-95
+                      hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                      focus:outline-none
+                    `}
+                    style={
+                      active
+                        ? {
+                            // Slightly stronger text shadow for the active link
+                            textShadow: "0 0 4px rgba(0,255,0,0.8)",
+                          }
+                        : {
+                            textShadow: "0 0 2px rgba(0,255,0,0.3)",
+                          }
+                    }
+                  >
+                    {label}
+                  </Link>
+                </li>
+              );
+            })}
+
+            {/* Auth-related items */}
             {!user ? (
               <li>
                 <Link
                   href="/login"
-                  onClick={() => setMobileOpen(false)}
-                  className="hover:text-blue-600 transition-colors"
+                  className="
+                    relative
+                    text-xl font-medium
+                    text-lime-200
+                    px-2
+                    hover:text-lime-300
+                    hover:scale-105 active:scale-95
+                    hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                    transition-all duration-300
+                  "
+                  style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
                 >
                   Login
                 </Link>
@@ -148,8 +171,17 @@ export default function Header() {
                 <li>
                   <Link
                     href="/messages"
-                    onClick={() => setMobileOpen(false)}
-                    className="hover:text-blue-600 transition-colors"
+                    className="
+                      relative
+                      text-xl font-medium
+                      text-lime-200
+                      px-2
+                      hover:text-lime-300
+                      hover:scale-105 active:scale-95
+                      hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                      transition-all duration-300
+                    "
+                    style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
                   >
                     Messages
                   </Link>
@@ -157,19 +189,36 @@ export default function Header() {
                 <li>
                   <Link
                     href="/profile"
-                    onClick={() => setMobileOpen(false)}
-                    className="hover:text-blue-600 transition-colors"
+                    className="
+                      relative
+                      text-xl font-medium
+                      text-lime-200
+                      px-2
+                      hover:text-lime-300
+                      hover:scale-105 active:scale-95
+                      hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                      transition-all duration-300
+                    "
+                    style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
                   >
                     Profile
                   </Link>
                 </li>
                 <li>
                   <button
-                    onClick={() => {
-                      handleLogout();
-                      setMobileOpen(false);
-                    }}
-                    className="text-blue-500 hover:text-blue-700 transition-colors"
+                    onClick={handleLogout}
+                    className="
+                      relative
+                      text-xl font-medium
+                      text-lime-200
+                      px-2
+                      hover:text-lime-300
+                      hover:scale-105 active:scale-95
+                      hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                      transition-all duration-300
+                      focus:outline-none
+                    "
+                    style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
                   >
                     Logout
                   </button>
@@ -177,8 +226,185 @@ export default function Header() {
               </>
             )}
           </ul>
-        </div>
-      )}
-    </header>
+        </nav>
+
+        {/* MOBILE DROPDOWN */}
+        {mobileOpen && (
+          <div
+            className="
+              absolute top-full right-0
+              w-48
+              bg-black/90
+              shadow-md border border-gray-700
+              md:hidden
+              animate-slide-down
+              box-border
+              p-3
+            "
+          >
+            <ul className="flex flex-col gap-2 m-0 text-base font-normal text-lime-200">
+              {/* Mobile nav items */}
+              {navItems.map(({ label, href }) => {
+                const active = isActiveRoute(href);
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`
+                        block
+                        relative
+                        text-lg
+                        transition-all duration-300
+                        px-2 py-1
+                        ${
+                          active
+                            ? "text-lime-300"
+                            : "hover:text-lime-300"
+                        }
+                        hover:scale-105 active:scale-95
+                        hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                        focus:outline-none
+                      `}
+                      style={
+                        active
+                          ? {
+                              textShadow: "0 0 4px rgba(0,255,0,0.8)",
+                            }
+                          : {
+                              textShadow: "0 0 2px rgba(0,255,0,0.3)",
+                            }
+                      }
+                    >
+                      {label}
+                    </Link>
+                  </li>
+                );
+              })}
+
+              {/* Mobile Auth items */}
+              {!user ? (
+                <li>
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="
+                      block
+                      relative
+                      text-lg
+                      text-lime-200
+                      px-2 py-1
+                      hover:text-lime-300
+                      hover:scale-105 active:scale-95
+                      hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                      transition-all duration-300
+                    "
+                    style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
+                  >
+                    Login
+                  </Link>
+                </li>
+              ) : (
+                <>
+                  <li>
+                    <Link
+                      href="/messages"
+                      onClick={() => setMobileOpen(false)}
+                      className="
+                        block
+                        relative
+                        text-lg
+                        text-lime-200
+                        px-2 py-1
+                        hover:text-lime-300
+                        hover:scale-105 active:scale-95
+                        hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                        transition-all duration-300
+                      "
+                      style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
+                    >
+                      Messages
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/profile"
+                      onClick={() => setMobileOpen(false)}
+                      className="
+                        block
+                        relative
+                        text-lg
+                        text-lime-200
+                        px-2 py-1
+                        hover:text-lime-300
+                        hover:scale-105 active:scale-95
+                        hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                        transition-all duration-300
+                      "
+                      style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
+                    >
+                      Profile
+                    </Link>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setMobileOpen(false);
+                      }}
+                      className="
+                        block
+                        relative
+                        text-lg
+                        text-lime-200
+                        px-2 py-1
+                        hover:text-lime-300
+                        hover:scale-105 active:scale-95
+                        hover:shadow-[0_0_8px_rgba(0,255,0,0.7)]
+                        transition-all duration-300
+                        focus:outline-none
+                      "
+                      style={{ textShadow: "0 0 2px rgba(0,255,0,0.3)" }}
+                    >
+                      Logout
+                    </button>
+                  </li>
+                </>
+              )}
+            </ul>
+          </div>
+        )}
+      </header>
+
+      {/* Animations via styled JSX (if not using Tailwind @layer) */}
+      <style jsx>{`
+        @keyframes fade-down {
+          0% {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-fade-down {
+          animation: fade-down 0.4s ease-out forwards;
+        }
+        @keyframes slide-down {
+          0% {
+            opacity: 0;
+            transform: translateY(-5px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slide-down {
+          animation: slide-down 0.3s ease-out forwards;
+        }
+      `}</style>
+    </>
   );
 }
