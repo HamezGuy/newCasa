@@ -50,21 +50,29 @@ export function SearchResultsMap({
   const [selectedProperty, setSelectedProperty] = useState<IParagonProperty | null>(null);
   const [mapIsReady, setMapIsReady] = useState(false);
   const [isBoundaryLoading, setIsBoundaryLoading] = useState(false);
+
+  // If the map or boundary is loading => isLoading
   const isLoading = !mapIsReady || isBoundaryLoading || isPropertiesLoading;
 
-  const basicGeocodeData = useMemo<BasicGeocodeData>(() => {
-    return {
-      location: geocodeData?.location,
-      bounds: geocodeData?.bounds,
-    };
-  }, [geocodeData?.location, geocodeData?.bounds]);
+  // This memoizes location & bounds
+  const basicGeocodeData = useMemo<BasicGeocodeData>(() => ({
+    location: geocodeData?.location,
+    bounds: geocodeData?.bounds,
+  }), [geocodeData?.location, geocodeData?.bounds]);
 
   const defaultCenter = useMemo(() => ({ lat: 43.0731, lng: -89.4012 }), []);
   const containerStyle = useMemo(() => ({ width: "100%", height: "100%" }), []);
 
+  // Refs to map, cluster, markers
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerClusterRef = useRef<MarkerClusterer | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
+
+  // Checks if user is on mobile
+  const isMobile = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 768;
+  }, []);
 
   function makeSnapSignature(data: BasicGeocodeData): string | null {
     if (data.bounds) {
@@ -125,20 +133,24 @@ export function SearchResultsMap({
     setBounds(newBounds);
   }, [setBounds]);
 
+  // Called when user clicks a marker => open InfoWindow, center/offset the map
   const handleMarkerClick = useCallback((property: IParagonProperty) => {
     setSelectedProperty(property);
     setInfoWindowShown(true);
 
-    // Optionally center on marker with a horizontal offset
-    if (mapRef.current && property.Latitude && property.Longitude) {
-      mapRef.current.panTo({ lat: property.Latitude, lng: property.Longitude });
-      // Pan left ~200px if your property list is ~1/3 screen on desktop:
-      mapRef.current.panBy(-200, 0);
-      // Optionally zoom in more:
-      // mapRef.current.setZoom(14);
-    }
-  }, []);
+    if (!mapRef.current || !property.Latitude || !property.Longitude) return;
 
+    // Center on the property
+    mapRef.current.panTo({ lat: property.Latitude, lng: property.Longitude });
+
+    // On desktop, offset left so property is visible when the property list is open
+    if (!isMobile) {
+      mapRef.current.panBy(-200, 0); // tweak the offset as needed
+    }
+    // If you want to zoom in more: mapRef.current.setZoom(14);
+  }, [isMobile]);
+
+  // Closes any open InfoWindow
   const handleMapClick = useCallback(() => {
     setInfoWindowShown(false);
     setSelectedProperty(null);
@@ -159,12 +171,6 @@ export function SearchResultsMap({
     }
   }
 
-  // Check if mobile => clamp zoom differently
-  const isMobile = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < 768;
-  }, []);
-
   function clampZoomOnMobile(): void {
     if (!mapRef.current) return;
     if (isMobile) {
@@ -175,16 +181,18 @@ export function SearchResultsMap({
     }
   }
 
+  // Snap the map each time geocodeData changes
   useEffect(() => {
     if (!mapIsReady || !mapRef.current) return;
 
-    // If user came from a redirect on mobile => clamp
+    // If user arrived from redirect on mobile => set center & zoom
     if (
       isMobile &&
       geocodeData &&
       (geocodeData as any).isFromRedirect &&
       basicGeocodeData.location
     ) {
+      console.log("[SearchResultsMap] Mobile redirect => forced zoom=12 center=location");
       mapRef.current.setCenter(basicGeocodeData.location);
       mapRef.current.setZoom(12);
       setLastSnapSignature(makeSnapSignature(basicGeocodeData));
@@ -194,7 +202,9 @@ export function SearchResultsMap({
 
     const snapSig = makeSnapSignature(basicGeocodeData);
     if (!snapSig) {
+      // No bounding data => revert to default
       if (lastSnapSignature !== "DEFAULT") {
+        console.log("[SearchResultsMap] No bounds => default center/zoom");
         mapRef.current.setCenter(defaultCenter);
         mapRef.current.setZoom(10);
         clampZoomOnMobile();
@@ -203,29 +213,38 @@ export function SearchResultsMap({
       return;
     }
 
+    // If we've already snapped to the same place, skip
     if (snapSig === lastSnapSignature) {
       console.log("[SearchResultsMap] Already snapped => do nothing");
       return;
     }
 
-    // If bounding box => fitBounds with custom padding
+    // If bounding box => fit to it
     if (basicGeocodeData.bounds) {
       const sw = basicGeocodeData.bounds.southwest;
       const ne = basicGeocodeData.bounds.northeast;
       if (sw && ne) {
         const literalBounds = new window.google.maps.LatLngBounds(sw, ne);
+
+        // On desktop, apply big right offset for property list => 420
+        // On mobile => no offset
+        const rightPad = isMobile ? 0 : 420;
+
         mapRef.current.fitBounds(literalBounds, {
           top: 0,
           bottom: 0,
           left: 0,
-          right: 420, // Enough to avoid "above" property location, and for the property list panel
+          right: rightPad,
         });
+
         clampZoomOnMobile();
         setLastSnapSignature(snapSig);
         onSearchComplete?.();
       }
-    } else if (basicGeocodeData.location) {
-      // single point
+    }
+    // Else if single lat/lng => center & zoom
+    else if (basicGeocodeData.location) {
+      console.log("[SearchResultsMap] location => center/zoom=12");
       mapRef.current.setZoom(12);
       mapRef.current.setCenter(basicGeocodeData.location);
       clampZoomOnMobile();
@@ -233,7 +252,7 @@ export function SearchResultsMap({
       onSearchComplete?.();
     }
 
-    // Possibly fetch Overpass boundary if city is found
+    // If city is found => fetch boundary polygons
     const comps = geocodeData?.address_components || [];
     const city = comps.find((c: any) => c.types.includes("locality"))?.long_name;
     if (city) {
@@ -251,13 +270,13 @@ export function SearchResultsMap({
     onSearchComplete,
   ]);
 
-  // Rebuild markers whenever properties change
+  // Rebuild markers when the property list changes
   useEffect(() => {
     if (!mapIsReady || !mapRef.current || !markerClusterRef.current) {
       console.log("[SearchResultsMap] map not ready => skipping markers");
       return;
     }
-    // Clear existing markers
+    // Clear existing
     try {
       markerClusterRef.current.clearMarkers();
     } catch (error) {
@@ -267,7 +286,7 @@ export function SearchResultsMap({
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
 
-    // Build new markers
+    // Make new markers
     const newMarkers: google.maps.Marker[] = properties
       .filter((p) => p.Latitude && p.Longitude)
       .map((p) => {
@@ -279,7 +298,6 @@ export function SearchResultsMap({
       });
     markersRef.current = newMarkers;
 
-    // Add them to cluster
     try {
       markerClusterRef.current.addMarkers(newMarkers);
     } catch (error) {
@@ -287,6 +305,7 @@ export function SearchResultsMap({
     }
   }, [properties, handleMarkerClick, mapIsReady]);
 
+  // Zoom in/out
   const handleZoomIn = useCallback(() => {
     if (mapRef.current) {
       const currentZoom = mapRef.current.getZoom() ?? 10;
