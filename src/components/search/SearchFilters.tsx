@@ -88,18 +88,6 @@ export default function SearchFilters({
 
   return (
     <div className="flex items-center gap-2">
-      {/* For Sale / For Rent Segmented Control */}
-      <SegmentedControl
-        size="sm"
-        value={saleOrRent === "y" ? "rent" : "sale"}
-        onChange={(val) =>
-          handleFilterChange("rent", val === "rent" ? "y" : null)
-        }
-        data={[
-          { label: "For Sale", value: "sale" },
-          { label: "For Rent", value: "rent" },
-        ]}
-      />
 
       {/* Filter Button with Popover for additional options */}
       <Popover
