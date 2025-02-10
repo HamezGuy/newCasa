@@ -823,6 +823,57 @@ export class ParagonApiClient {
     console.log("[ParagonApiClient.getAllPropertyWithMedia] => Done => final length:", final.length);
     return final;
   }
+
+  // =================================================================
+  //                    NEW DEBUG METHODS (Raw Data)
+  // =================================================================
+  // These 3 methods skip the typical filters (StandardStatus, etc.).
+  // They fetch minimal raw data for the zip/city so you can see
+  // exactly what is returned by the OData feed.
+  // Just return the raw .value array from each response.
+
+  // Example: debug for zip=53713
+  public async debugRawZip53713(): Promise<any[]> {
+    console.log("[ParagonApiClient.debugRawZip53713] => Doing minimal fetch for zip=53713");
+    // Ensure token
+    await this.forClientSecret();
+
+    // No standard status filter, just contains(PostalCode, '53713')
+    // Return top=50
+    const url = `${this.__baseUrl}/Property?$top=50&$count=true&$filter=contains(PostalCode, '53713')`;
+    console.log("[ParagonApiClient.debugRawZip53713] => Fetching =>", url);
+
+    const resp = await this.get<any>(url);
+    console.log("[ParagonApiClient.debugRawZip53713] => items returned =>", resp.value.length);
+    // Return raw property objects
+    return resp.value;
+  }
+
+  // Example: debug for city=Madison
+  public async debugRawCityMadison(): Promise<any[]> {
+    console.log("[ParagonApiClient.debugRawCityMadison] => Doing minimal fetch for city=Madison");
+    await this.forClientSecret();
+
+    const url = `${this.__baseUrl}/Property?$top=50&$count=true&$filter=contains(City, 'Madison')`;
+    console.log("[ParagonApiClient.debugRawCityMadison] => Fetching =>", url);
+
+    const resp = await this.get<any>(url);
+    console.log("[ParagonApiClient.debugRawCityMadison] => items returned =>", resp.value.length);
+    return resp.value;
+  }
+
+  // Example: debug for zip=53703
+  public async debugRawZip53703(): Promise<any[]> {
+    console.log("[ParagonApiClient.debugRawZip53703] => Doing minimal fetch for zip=53703");
+    await this.forClientSecret();
+
+    const url = `${this.__baseUrl}/Property?$top=50&$count=true&$filter=contains(PostalCode, '53703')`;
+    console.log("[ParagonApiClient.debugRawZip53703] => Fetching =>", url);
+
+    const resp = await this.get<any>(url);
+    console.log("[ParagonApiClient.debugRawZip53703] => items returned =>", resp.value.length);
+    return resp.value;
+  }
 }
 
 // Env config
@@ -832,7 +883,7 @@ const RESO_CLIENT_ID = process.env.RESO_CLIENT_ID ?? "";
 const RESO_CLIENT_SECRET = process.env.RESO_CLIENT_SECRET ?? "";
 
 // CHANGED => set false if you want no limit. If you keep true => 
-// it only attaches media to first 3 or so. 
+// it only attaches media to the first 3 or so. 
 const paragonApiClient = new ParagonApiClient(
   RESO_BASE_URL,
   RESO_TOKEN_URL,

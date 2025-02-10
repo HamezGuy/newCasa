@@ -1,11 +1,10 @@
-// src/app/test/page.tsx
-'use client';
+"use client";
 
-import TestParagonApiClientUI from './TestParagonApiClientUI';
+import TestParagonApiClientUI from "./TestParagonApiClientUI";
 
 export default function TestPage() {
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: "20px" }}>
       <h1>Paragon API Client Test</h1>
       <TestParagonApiClientUI />
     </div>
