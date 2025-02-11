@@ -4,7 +4,6 @@ import paragonApiClient from "@/lib/ParagonApiClient";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  // ADDED LOGGING
   console.log("[GET /api/v1/listings] => Endpoint triggered.");
 
   const { searchParams } = new URL(request.url);
@@ -14,7 +13,6 @@ export async function GET(request: Request) {
   const city = searchParams.get("city");
   const county = searchParams.get("county");
 
-  // ADDED LOGGING
   console.log("[GET /api/v1/listings] => Query params:", {
     zipCode,
     streetName,
@@ -26,7 +24,6 @@ export async function GET(request: Request) {
   try {
     let properties: string | any[] = [];
 
-    // ADDED LOGGING
     console.log("[GET /api/v1/listings] => Starting property fetch logic...");
 
     if (zipCode) {
@@ -43,9 +40,7 @@ export async function GET(request: Request) {
       console.log(`[GET /api/v1/listings] => getPropertyById("${propertyId}")`);
       const property = await paragonApiClient.getPropertyById(propertyId);
       properties = property ? [property] : [];
-      console.log(
-        `[GET /api/v1/listings] => getPropertyById => found ${properties.length} prop(s).`
-      );
+      console.log(`[GET /api/v1/listings] => getPropertyById => found ${properties.length} prop(s).`);
     } else if (city) {
       console.log(`[GET /api/v1/listings] => searchByCity("${city}")`);
       const response = await paragonApiClient.searchByCity(city);
@@ -57,6 +52,7 @@ export async function GET(request: Request) {
       properties = response?.value || [];
       console.log(`[GET /api/v1/listings] => searchByCounty found ${properties.length} props.`);
     } else {
+      // If user didn't specify anything, we might return an empty array or default all
       properties = [];
     }
 

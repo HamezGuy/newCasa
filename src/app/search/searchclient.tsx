@@ -20,22 +20,27 @@ const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
   { ssr: false }
 );
 
-// Helper to apply filters in-memory
+/**
+ * Helper function to apply filters in-memory after receiving
+ * all properties from the server.
+ *
+ * - Price filters remain the same
+ * - Room filters remain the same
+ * - Property Type now uses OR logic for multiple selections
+ */
 function applyClientFilters(
   properties: any[],
   filters: {
-    // REMOVED saleOrRent
     minPrice?: string;
     maxPrice?: string;
-    types?: string[];
-    // Rooms
+    types?: string[]; 
     minRooms?: string;
     maxRooms?: string;
   }
 ) {
   let result = [...properties];
 
-  // 1) Convert price filters
+  // 1) Price filters
   const minVal = filters.minPrice ? parseInt(filters.minPrice, 10) : 0;
   const maxVal = filters.maxPrice ? parseInt(filters.maxPrice, 10) : 0;
 
@@ -46,21 +51,29 @@ function applyClientFilters(
     result = result.filter((p) => (p.ListPrice || 0) <= maxVal);
   }
 
-  // 2) Filter by property types
-  if (filters.types?.length) {
-    result = result.filter((p) => {
-      const propType = (p.PropertySubType || p.PropertyType || "").toLowerCase();
-      return filters.types?.some((t) => propType.includes(t)) ?? false;
+  // 2) Property Type => OR logic across multiple values
+  if (filters.types && filters.types.length > 0) {
+    const unionSet = new Set<any>();
+    const loweredTypes = filters.types.map((t) => t.toLowerCase());
+
+    loweredTypes.forEach((oneType) => {
+      const partialMatches = result.filter((p) => {
+        const propType = (p.PropertySubType || p.PropertyType || "").toLowerCase();
+        return propType.includes(oneType);
+      });
+      for (const item of partialMatches) {
+        unionSet.add(item);
+      }
     });
+
+    result = [...unionSet];
   }
 
-  // 3) Filter by rooms (optional)
+  // 3) Rooms filter => total rooms (bed + full bath + half bath)
   const minRooms = filters.minRooms ? parseInt(filters.minRooms, 10) : 0;
   const maxRooms = filters.maxRooms ? parseInt(filters.maxRooms, 10) : 0;
-
   if (minRooms > 0 || maxRooms > 0) {
     result = result.filter((p) => {
-      // Example: total rooms = bedrooms + full baths + half baths
       const bd = p.BedroomsTotal ?? 0;
       const bf = p.BathroomsFull ?? 0;
       const bh = p.BathroomsHalf ?? 0;
@@ -76,13 +89,13 @@ function applyClientFilters(
 }
 
 export default function SearchClient() {
-  // Store raw fetched properties here
+  // Full property list from API
   const [fetchedProperties, setFetchedProperties] = useState<any[]>([]);
-  // Then store filtered results separately
+  // Filtered results after in-memory filtering
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // REMOVED saleOrRent from our local filter object
+  // Filter settings from <SearchFilters />
   const [filterSettings, setFilterSettings] = useState<{
     minPrice?: string;
     maxPrice?: string;
@@ -95,7 +108,7 @@ export default function SearchClient() {
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
-  // Mobile bottom sheet
+  // Mobile bottom sheet logic
   const [panelHeightPct, setPanelHeightPct] = useState(35);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
@@ -133,7 +146,7 @@ export default function SearchClient() {
   }, [searchParams, setGeocodeData, setBounds]);
 
   // -----------------------------------------------------------
-  // Whenever URL params change => fetch new property set
+  // Whenever URL params change => fetch data from /api/v1/listings
   // -----------------------------------------------------------
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
@@ -146,7 +159,7 @@ export default function SearchClient() {
   }, [searchParams]);
 
   // -----------------------------------------------------------
-  // Whenever fetchedProperties or filterSettings change => re-filter
+  // Each time we get new data OR user changes filters => re-apply
   // -----------------------------------------------------------
   useEffect(() => {
     const newFiltered = applyClientFilters(fetchedProperties, filterSettings);
@@ -154,7 +167,7 @@ export default function SearchClient() {
   }, [fetchedProperties, filterSettings]);
 
   // -----------------------------------------------------------
-  // Fetch function
+  // Actual fetch from server
   // -----------------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
@@ -174,15 +187,17 @@ export default function SearchClient() {
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
       if (propertyId) queries.push(`propertyId=${encodeURIComponent(propertyId)}`);
 
-      if (queries.length > 0) url += `?${queries.join("&")}`;
+      if (queries.length > 0) {
+        url += `?${queries.join("&")}`;
+      }
 
       const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        setFetchedProperties(data);
-      } else {
+      if (!response.ok) {
         console.error("[Search Page] fetchProperties => error:", await response.text());
         setFetchedProperties([]);
+      } else {
+        const data = await response.json();
+        setFetchedProperties(data);
       }
     } catch (error) {
       console.error("[Search Page] fetchProperties => exception:", error);
@@ -192,7 +207,7 @@ export default function SearchClient() {
     }
   };
 
-  // Called when user selects a place in <SearchInput />
+  // Called when user selects a place in the <SearchInput>
   const handlePlaceSelected = (geo: any) => {
     if (!geo || !geo.address_components) return;
     const comps = geo.address_components;
@@ -212,19 +227,18 @@ export default function SearchClient() {
     } else if (county) {
       fetchProperties(undefined, undefined, undefined, county);
     } else {
-      // fallback => fetch everything or none
+      // fallback => fetch everything
       fetchProperties();
     }
   };
 
-  // Called when <SearchFilters /> changes
+  // Called when <SearchFilters> changes
   const handleFiltersUpdate = useCallback((filters: any) => {
-    // store them in local state => triggers re-filter
     setFilterSettings(filters);
   }, []);
 
   // -----------------------------------------------------------
-  // Mobile bottom sheet drag logic
+  // Mobile bottom sheet drag
   // -----------------------------------------------------------
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
@@ -241,6 +255,7 @@ export default function SearchClient() {
     const containerHeight = containerRef.current.getBoundingClientRect().height;
     const deltaPct = (delta / containerHeight) * 100;
     if (Math.abs(deltaPct) < DRAG_THRESHOLD_PCT) return;
+
     let newPanelHeight = startPanelHeightRef.current + deltaPct;
     newPanelHeight = Math.max(35, Math.min(100, newPanelHeight));
     setPanelHeightPct(newPanelHeight);
@@ -273,7 +288,7 @@ export default function SearchClient() {
       className="flex flex-col w-full h-screen overflow-hidden min-h-0"
       style={{ overscrollBehavior: "contain" }}
     >
-      {/* TOP BAR => always at top */}
+      {/* TOP BAR => search input + filter controls */}
       <div className="flex-shrink-0 bg-gray-100 p-2 shadow-md z-10">
         <div className="max-w-screen-xl mx-auto flex justify-between items-center gap-2">
           <SearchInput
@@ -286,7 +301,7 @@ export default function SearchClient() {
         </div>
       </div>
 
-      {/* MAIN CONTENT => flexible area below */}
+      {/* MAIN CONTENT => map + property list */}
       <div className="flex-grow relative flex flex-row min-h-0 overflow-hidden">
         {/* DESKTOP => left side: map, right side: property list */}
         <div className="hidden lg:block relative w-2/3 h-full min-h-0">
@@ -317,7 +332,6 @@ export default function SearchClient() {
             isPropertiesLoading={loading}
           />
         </div>
-        {/* MOBILE => bottom sheet with property list */}
         <div
           className="lg:hidden absolute left-0 w-full shadow-inner bg-white"
           style={{

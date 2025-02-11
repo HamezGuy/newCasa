@@ -14,7 +14,7 @@ export default function SearchFilters({
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
 
-  // Property type filter
+  // Property type filter => If user selects multiple, we do an OR match
   const [types, setTypes] = useState<string[]>([]);
 
   // Room filter states (optional)
@@ -38,7 +38,7 @@ export default function SearchFilters({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Filter Button with Popover for additional options */}
+      {/* Filter Popover */}
       <Popover
         opened={opened}
         onClose={() => setOpened(false)}
@@ -48,11 +48,15 @@ export default function SearchFilters({
         width={300}
       >
         <Popover.Target>
-          <Button variant="outline" size="sm" onClick={() => setOpened((o) => !o)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOpened((o) => !o)}
+            loading={isLoading}
+          >
             More Filters
           </Button>
         </Popover.Target>
-
         <Popover.Dropdown>
           <Stack style={{ gap: "8px" }}>
             {/* Price Inputs */}
@@ -75,12 +79,12 @@ export default function SearchFilters({
               onBlur={emitFilters}
             />
 
-            {/* Type Checkboxes */}
+            {/* Property Type => multiple selection => OR logic */}
             <Checkbox.Group
               value={types}
               onChange={(vals: string[]) => {
                 setTypes(vals);
-                setTimeout(emitFilters, 0);
+                setTimeout(emitFilters, 0); 
               }}
               label="Property Type"
             >
@@ -95,7 +99,7 @@ export default function SearchFilters({
               <Checkbox value="other" label="Other" />
             </Checkbox.Group>
 
-            {/* Optional: Rooms Inputs */}
+            {/* Rooms Inputs */}
             <TextInput
               value={minRooms}
               label="Min. Rooms"

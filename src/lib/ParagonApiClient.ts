@@ -58,8 +58,8 @@ export class ParagonApiClient {
   private __limitToTwenty: boolean;
 
   /**
-   * This controls how many total items we try to accumulate
-   * in our getWithOffset() calls before stopping. Adjust as needed.
+   * Controls how many total items we gather via getWithOffset() 
+   * before stopping. Adjust if needed.
    */
   private __offsetFetchLimit = 200; // default: 200
 
@@ -191,7 +191,7 @@ export class ParagonApiClient {
 
       const chunk = await this.__fetchOdata<T>(pagedUrl);
 
-      // record context only once
+      // Record context from first chunk
       if (!context && chunk["@odata.context"]) {
         context = chunk["@odata.context"];
       }
@@ -226,7 +226,9 @@ export class ParagonApiClient {
 
   // Actually fetch OData
   private async __fetchOdata<T>(url: string): Promise<IOdataResponse<T>> {
-    if (MOCK_DATA) return { "@odata.context": "mockData", value: [] as T[] };
+    if (MOCK_DATA) {
+      return { "@odata.context": "mockData", value: [] as T[] };
+    }
 
     console.log("[__fetchOdata] => fetch =>", url);
     const headers: HeadersInit = { Authorization: await this.__getAuthHeader() };
@@ -306,6 +308,7 @@ export class ParagonApiClient {
 
     const mediaByProp: Record<string, IParagonMedia[]> = {};
 
+    // For each chunk of listing keys, fetch all media results
     await pMap(
       filterChunks,
       async (chunk) => {
@@ -337,6 +340,7 @@ export class ParagonApiClient {
 
     const finalList = this.__limitToTwenty ? properties.slice(0, limit || 3) : properties;
 
+    // Attach media to each property
     await pMap(
       finalList,
       async (p) => {
@@ -358,7 +362,7 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // Debug raw fetch
+  // Debug raw fetch (unchanged logic)
   // ------------------------------------------------------------------
   public async debugRawZip53713(): Promise<any[]> {
     console.log("[debugRawZip53713] => offset => no big filter besides zip=53713");
@@ -388,25 +392,32 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // 1) FILTER-AFTER (in-memory) for zip, city, etc.
+  // 1) FILTER-AFTER (in-memory) => these "searchByX" 
+  //    methods fetch raw data and then filter out rentals 
+  //    (LeaseConsideredYN eq true).
   // ------------------------------------------------------------------
   public async searchByZipCode(zip: string, includeMedia = true): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
     console.log("[searchByZipCode => filter afterwards] => zip=", zip);
 
     if (MOCK_DATA) {
+      // If mocking, do the same approach but in memory
       const all = getMockProperties();
       const raw = all.filter((p) => p.PostalCode?.includes(zip));
       const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockZip", value: geo };
+      if (!includeMedia) {
+        return { "@odata.context": "mockZip", value: geo };
+      }
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockZip", value: withMed };
     }
 
+    // Otherwise, actually fetch from Paragon
     await this.forClientSecret();
     const base = `${this.__baseUrl}/Property?$count=true&$filter=contains(PostalCode, '${encodeURIComponent(zip)}')`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
+    // Filter out rentals
     let final = resp.value.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
 
     if (includeMedia && final.length) {
@@ -428,7 +439,9 @@ export class ParagonApiClient {
       const raw = all.filter((p) => p.City?.toLowerCase().includes(city.toLowerCase()));
       const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockCity", value: geo };
+      if (!includeMedia) {
+        return { "@odata.context": "mockCity", value: geo };
+      }
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockCity", value: withMed };
     }
@@ -461,7 +474,9 @@ export class ParagonApiClient {
       const raw = all.filter((p) => p.StreetName?.toLowerCase().includes(street.toLowerCase()));
       const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockStreet", value: geo };
+      if (!includeMedia) {
+        return { "@odata.context": "mockStreet", value: geo };
+      }
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockStreet", value: withMed };
     }
@@ -491,7 +506,9 @@ export class ParagonApiClient {
       const raw = all.filter((p) => p.CountyOrParish?.toLowerCase().includes(county.toLowerCase()));
       const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockCounty", value: geo };
+      if (!includeMedia) {
+        return { "@odata.context": "mockCounty", value: geo };
+      }
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockCounty", value: withMed };
     }
@@ -606,12 +623,16 @@ export class ParagonApiClient {
 
     const missingInRaw: string[] = [];
     filterKeys.forEach((key) => {
-      if (!rawKeys.has(key)) missingInRaw.push(key);
+      if (!rawKeys.has(key)) {
+        missingInRaw.push(key);
+      }
     });
 
     const missingInFilter: string[] = [];
     rawKeys.forEach((key) => {
-      if (!filterKeys.has(key)) missingInFilter.push(key);
+      if (!filterKeys.has(key)) {
+        missingInFilter.push(key);
+      }
     });
 
     return {
@@ -639,7 +660,9 @@ export class ParagonApiClient {
           p.PostalCode?.includes(zip)
       );
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockZipFilterFirst", value: geo };
+      if (!includeMedia) {
+        return { "@odata.context": "mockZipFilterFirst", value: geo };
+      }
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockZipFilterFirst", value: withMed };
     }
@@ -669,7 +692,9 @@ export class ParagonApiClient {
           p.City?.toLowerCase().includes(c)
       );
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockCityFilterFirst", value: geo };
+      if (!includeMedia) {
+        return { "@odata.context": "mockCityFilterFirst", value: geo };
+      }
       const withMed = await this.populatePropertyMedia(filtered);
       return { "@odata.context": "mockCityFilterFirst", value: withMed };
     }
@@ -699,7 +724,9 @@ export class ParagonApiClient {
           p.StreetName?.toLowerCase().includes(st)
       );
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockStreetFilterFirst", value: geo };
+      if (!includeMedia) {
+        return { "@odata.context": "mockStreetFilterFirst", value: geo };
+      }
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockStreetFilterFirst", value: withMed };
     }
@@ -729,8 +756,10 @@ export class ParagonApiClient {
           p.CountyOrParish?.toLowerCase().includes(c)
       );
       const geo = await geocodeProperties(filtered);
-      if (!includeMedia) return { "@odata.context": "mockCountyFilterFirst", value: geo };
-      const withMed = await this.populatePropertyMedia(geo);
+      if (!includeMedia) {
+        return { "@odata.context": "mockCountyFilterFirst", value: geo };
+      }
+      const withMed = await this.populatePropertyMedia(filtered);
       return { "@odata.context": "mockCountyFilterFirst", value: withMed };
     }
 
@@ -755,10 +784,10 @@ export class ParagonApiClient {
   ): Promise<ParagonPropertyWithMedia | null> {
     console.log(`[ParagonApiClient.getPropertyById] => propertyId=${propertyId}`);
     if (MOCK_DATA) {
-      // Just a local find
+      // Local find in mock
       const all = getMockProperties();
       let found = all.find((p) => p.ListingKey === propertyId);
-      // If we also filter out rentals:
+      // Filter out rentals
       if (found && !(found.LeaseConsideredYN === false || found.LeaseConsideredYN == null)) {
         found = undefined;
       }
@@ -774,7 +803,7 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    // Fetch exactly 1 property by ListingKey
+    // Single property by ListingKey
     const base = `${this.__baseUrl}/Property?$count=true&$filter=ListingKey eq '${encodeURIComponent(
       propertyId
     )}'`;
@@ -784,7 +813,7 @@ export class ParagonApiClient {
       return null;
     }
 
-    // Then filter out rentals
+    // Filter out rentals
     let item = resp.value[0];
     if (!(item.LeaseConsideredYN === false || item.LeaseConsideredYN == null)) {
       return null;
