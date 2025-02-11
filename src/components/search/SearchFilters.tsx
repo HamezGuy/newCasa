@@ -1,16 +1,6 @@
 "use client";
 
-import { compareArrays } from "@/lib/utils/helpers";
-import {
-  Button,
-  Checkbox,
-  Popover,
-  SegmentedControl,
-  TextInput,
-  Stack,
-} from "@mantine/core";
-import { useDebounceCallback } from "@mantine/hooks";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Button, Checkbox, Popover, TextInput, Stack } from "@mantine/core";
 import { useState } from "react";
 
 export default function SearchFilters({
@@ -20,75 +10,34 @@ export default function SearchFilters({
   isLoading?: boolean;
   onUpdate?: (p: any) => void;
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [saleOrRent, setSaleOrRent] = useState(searchParams.get("rent"));
-  // We'll move minPrice, maxPrice, and types into the popover
-  const [minPrice, setMinPrice] = useState(searchParams.get("minPrice"));
-  const [maxPrice, setMaxPrice] = useState(searchParams.get("maxPrice"));
-  const [types, setTypes] = useState([...searchParams.getAll("t")]);
+  // Price filter states
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
 
-  // Popover state to control additional filter dropdown
+  // Property type filter
+  const [types, setTypes] = useState<string[]>([]);
+
+  // Room filter states (optional)
+  const [minRooms, setMinRooms] = useState("");
+  const [maxRooms, setMaxRooms] = useState("");
+
+  // Popover state
   const [opened, setOpened] = useState(false);
 
-  const debouncedSetParams = useDebounceCallback(() => {
-    const params = new URLSearchParams(searchParams);
-
-    if (saleOrRent && !params.get("rent")) {
-      params.set("rent", saleOrRent);
-    } else if (!saleOrRent) {
-      params.delete("rent");
-    }
-
-    if (minPrice && minPrice !== params.get("minPrice")) {
-      params.set("minPrice", minPrice);
-    } else if (!minPrice) {
-      params.delete("minPrice");
-    }
-
-    if (maxPrice && maxPrice !== params.get("maxPrice")) {
-      params.set("maxPrice", maxPrice);
-    } else if (!maxPrice) {
-      params.delete("maxPrice");
-    }
-
-    if (types && !compareArrays(types, params.getAll("t"))) {
-      params.delete("t");
-      types.forEach((val) => params.append("t", val));
-    } else if (!types) {
-      params.delete("t");
-    }
-
-    router.replace(`/search?${params.toString()}`);
-  }, 500);
-
-  const handleFilterChange = (
-    filterName: string,
-    value: string | string[] | null
-  ) => {
-    switch (filterName) {
-      case "rent":
-        setSaleOrRent(value as string);
-        break;
-      case "minPrice":
-        setMinPrice(value as string);
-        break;
-      case "maxPrice":
-        setMaxPrice(value as string);
-        break;
-      case "type":
-        setTypes(value as string[]);
-        break;
-      default:
-        break;
-    }
-    debouncedSetParams();
-    if (onUpdate) onUpdate({ rent: saleOrRent, minPrice, maxPrice, types });
+  // Helper to push updated filters up to the parent
+  const emitFilters = () => {
+    const filters = {
+      minPrice,
+      maxPrice,
+      types,
+      minRooms,
+      maxRooms,
+    };
+    if (onUpdate) onUpdate(filters);
   };
 
   return (
     <div className="flex items-center gap-2">
-
       {/* Filter Button with Popover for additional options */}
       <Popover
         opened={opened}
@@ -99,38 +48,40 @@ export default function SearchFilters({
         width={300}
       >
         <Popover.Target>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setOpened((o) => !o)}
-          >
-            Filters
+          <Button variant="outline" size="sm" onClick={() => setOpened((o) => !o)}>
+            More Filters
           </Button>
         </Popover.Target>
+
         <Popover.Dropdown>
           <Stack style={{ gap: "8px" }}>
             {/* Price Inputs */}
             <TextInput
-              value={minPrice ?? ""}
+              value={minPrice}
               label="Minimum Price"
-              placeholder="Minimum Price"
+              placeholder="Min Price"
               type="number"
               size="xs"
-              onChange={(e) => handleFilterChange("minPrice", e.target.value)}
+              onChange={(e) => setMinPrice(e.target.value)}
+              onBlur={emitFilters}
             />
             <TextInput
-              value={maxPrice ?? ""}
+              value={maxPrice}
               label="Maximum Price"
-              placeholder="Maximum Price"
+              placeholder="Max Price"
               type="number"
               size="xs"
-              onChange={(e) => handleFilterChange("maxPrice", e.target.value)}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              onBlur={emitFilters}
             />
 
             {/* Type Checkboxes */}
             <Checkbox.Group
               value={types}
-              onChange={(vals) => handleFilterChange("type", vals)}
+              onChange={(vals: string[]) => {
+                setTypes(vals);
+                setTimeout(emitFilters, 0);
+              }}
               label="Property Type"
             >
               <Checkbox value="house" label="House" />
@@ -138,11 +89,29 @@ export default function SearchFilters({
               <Checkbox value="condo" label="Condo" />
               <Checkbox value="co-op" label="Co-op" />
               <Checkbox value="multi-family" label="Multi-family" />
-              <Checkbox value="lot" label="Lots / Land" />
-              <Checkbox value="manufactured" label="Mobile / Manufactured" />
+              <Checkbox value="lot" label="Lots/Land" />
+              <Checkbox value="manufactured" label="Mobile/Manufactured" />
               <Checkbox value="commercial" label="Commercial" />
               <Checkbox value="other" label="Other" />
             </Checkbox.Group>
+
+            {/* Optional: Rooms Inputs */}
+            <TextInput
+              value={minRooms}
+              label="Min. Rooms"
+              type="number"
+              size="xs"
+              onChange={(e) => setMinRooms(e.target.value)}
+              onBlur={emitFilters}
+            />
+            <TextInput
+              value={maxRooms}
+              label="Max. Rooms"
+              type="number"
+              size="xs"
+              onChange={(e) => setMaxRooms(e.target.value)}
+              onBlur={emitFilters}
+            />
           </Stack>
         </Popover.Dropdown>
       </Popover>

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useGeocode } from "@/components/search/GeocodeContext";
 import { useBounds } from "@/components/search/boundscontext";
 import SearchFilters from "@/components/search/SearchFilters";
@@ -20,9 +20,77 @@ const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
   { ssr: false }
 );
 
+// Helper to apply filters in-memory
+function applyClientFilters(
+  properties: any[],
+  filters: {
+    // REMOVED saleOrRent
+    minPrice?: string;
+    maxPrice?: string;
+    types?: string[];
+    // Rooms
+    minRooms?: string;
+    maxRooms?: string;
+  }
+) {
+  let result = [...properties];
+
+  // 1) Convert price filters
+  const minVal = filters.minPrice ? parseInt(filters.minPrice, 10) : 0;
+  const maxVal = filters.maxPrice ? parseInt(filters.maxPrice, 10) : 0;
+
+  if (minVal > 0) {
+    result = result.filter((p) => (p.ListPrice || 0) >= minVal);
+  }
+  if (maxVal > 0) {
+    result = result.filter((p) => (p.ListPrice || 0) <= maxVal);
+  }
+
+  // 2) Filter by property types
+  if (filters.types?.length) {
+    result = result.filter((p) => {
+      const propType = (p.PropertySubType || p.PropertyType || "").toLowerCase();
+      return filters.types?.some((t) => propType.includes(t)) ?? false;
+    });
+  }
+
+  // 3) Filter by rooms (optional)
+  const minRooms = filters.minRooms ? parseInt(filters.minRooms, 10) : 0;
+  const maxRooms = filters.maxRooms ? parseInt(filters.maxRooms, 10) : 0;
+
+  if (minRooms > 0 || maxRooms > 0) {
+    result = result.filter((p) => {
+      // Example: total rooms = bedrooms + full baths + half baths
+      const bd = p.BedroomsTotal ?? 0;
+      const bf = p.BathroomsFull ?? 0;
+      const bh = p.BathroomsHalf ?? 0;
+      const totalRooms = bd + bf + bh;
+
+      if (minRooms > 0 && totalRooms < minRooms) return false;
+      if (maxRooms > 0 && totalRooms > maxRooms) return false;
+      return true;
+    });
+  }
+
+  return result;
+}
+
 export default function SearchClient() {
+  // Store raw fetched properties here
+  const [fetchedProperties, setFetchedProperties] = useState<any[]>([]);
+  // Then store filtered results separately
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // REMOVED saleOrRent from our local filter object
+  const [filterSettings, setFilterSettings] = useState<{
+    minPrice?: string;
+    maxPrice?: string;
+    types?: string[];
+    minRooms?: string;
+    maxRooms?: string;
+  }>({});
+
   const { setGeocodeData } = useGeocode();
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
@@ -65,20 +133,25 @@ export default function SearchClient() {
   }, [searchParams, setGeocodeData, setBounds]);
 
   // -----------------------------------------------------------
-  // Whenever URL params change => fetch properties
+  // Whenever URL params change => fetch new property set
   // -----------------------------------------------------------
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
     const streetName = searchParams.get("streetName") || undefined;
     const city = searchParams.get("city") || undefined;
     const county = searchParams.get("county") || undefined;
+    const propertyId = searchParams.get("propertyId") || undefined;
 
-    if (!zipCode && !streetName && !city && !county) {
-      fetchProperties();
-    } else {
-      fetchProperties(zipCode, streetName, city, county);
-    }
+    fetchProperties(zipCode, streetName, city, county, propertyId);
   }, [searchParams]);
+
+  // -----------------------------------------------------------
+  // Whenever fetchedProperties or filterSettings change => re-filter
+  // -----------------------------------------------------------
+  useEffect(() => {
+    const newFiltered = applyClientFilters(fetchedProperties, filterSettings);
+    setFilteredProperties(newFiltered);
+  }, [fetchedProperties, filterSettings]);
 
   // -----------------------------------------------------------
   // Fetch function
@@ -87,35 +160,39 @@ export default function SearchClient() {
     zipCode?: string,
     streetName?: string,
     city?: string,
-    county?: string
+    county?: string,
+    propertyId?: string
   ) => {
     setLoading(true);
     try {
       let url = "/api/v1/listings";
       const queries: string[] = [];
+
       if (zipCode) queries.push(`zipCode=${encodeURIComponent(zipCode)}`);
       if (streetName) queries.push(`streetName=${encodeURIComponent(streetName)}`);
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
+      if (propertyId) queries.push(`propertyId=${encodeURIComponent(propertyId)}`);
+
       if (queries.length > 0) url += `?${queries.join("&")}`;
 
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setFilteredProperties(data);
+        setFetchedProperties(data);
       } else {
         console.error("[Search Page] fetchProperties => error:", await response.text());
-        setFilteredProperties([]);
+        setFetchedProperties([]);
       }
     } catch (error) {
       console.error("[Search Page] fetchProperties => exception:", error);
-      setFilteredProperties([]);
+      setFetchedProperties([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Called when a geocoding result is selected
+  // Called when user selects a place in <SearchInput />
   const handlePlaceSelected = (geo: any) => {
     if (!geo || !geo.address_components) return;
     const comps = geo.address_components;
@@ -135,17 +212,19 @@ export default function SearchClient() {
     } else if (county) {
       fetchProperties(undefined, undefined, undefined, county);
     } else {
+      // fallback => fetch everything or none
       fetchProperties();
     }
   };
 
-  const handleFiltersUpdate = (filters: any) => {
-    console.log("[Search] handleFiltersUpdate =>", filters);
-    // do something if needed
-  };
+  // Called when <SearchFilters /> changes
+  const handleFiltersUpdate = useCallback((filters: any) => {
+    // store them in local state => triggers re-filter
+    setFilterSettings(filters);
+  }, []);
 
   // -----------------------------------------------------------
-  // Mobile bottom sheet drag
+  // Mobile bottom sheet drag logic
   // -----------------------------------------------------------
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
@@ -190,16 +269,8 @@ export default function SearchClient() {
 
   return (
     <main
-      // Make sure parent can shrink (min-h-0) and fill screen for scroll
       ref={containerRef}
-      className="
-        flex
-        flex-col
-        w-full
-        h-screen
-        overflow-hidden
-        min-h-0
-      "
+      className="flex flex-col w-full h-screen overflow-hidden min-h-0"
       style={{ overscrollBehavior: "contain" }}
     >
       {/* TOP BAR => always at top */}
@@ -216,42 +287,17 @@ export default function SearchClient() {
       </div>
 
       {/* MAIN CONTENT => flexible area below */}
-      <div
-        className="
-          flex-grow
-          relative
-          flex
-          flex-row
-          min-h-0
-          overflow-hidden
-        "
-      >
+      <div className="flex-grow relative flex flex-row min-h-0 overflow-hidden">
         {/* DESKTOP => left side: map, right side: property list */}
-        {/* On mobile, the map is behind the bottom sheet anyway */}
-        <div
-          className="
-            hidden
-            lg:block
-            relative
-            w-2/3
-            h-full
-            min-h-0
-          "
-        >
-          <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
+        <div className="hidden lg:block relative w-2/3 h-full min-h-0">
+          <SearchResultsMapNoSSR
+            properties={filteredProperties}
+            isPropertiesLoading={loading}
+          />
         </div>
 
         {/* DESKTOP => property list => scrollable */}
-        <div
-          className="
-            hidden
-            lg:block
-            w-1/3
-            h-full
-            min-h-0
-            overflow-y-auto
-          "
-        >
+        <div className="hidden lg:block w-1/3 h-full min-h-0 overflow-y-auto">
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
           ) : filteredProperties.length > 0 ? (
@@ -266,17 +312,14 @@ export default function SearchClient() {
 
         {/* MOBILE => full-screen map behind bottom sheet */}
         <div className="lg:hidden absolute top-0 left-0 w-full h-full">
-          <SearchResultsMapNoSSR properties={filteredProperties} isPropertiesLoading={loading} />
+          <SearchResultsMapNoSSR
+            properties={filteredProperties}
+            isPropertiesLoading={loading}
+          />
         </div>
+        {/* MOBILE => bottom sheet with property list */}
         <div
-          className="
-            lg:hidden
-            absolute
-            left-0
-            w-full
-            shadow-inner
-            bg-white
-          "
+          className="lg:hidden absolute left-0 w-full shadow-inner bg-white"
           style={{
             bottom: 0,
             height: `${panelHeightPct}%`,
@@ -300,16 +343,7 @@ export default function SearchClient() {
 
         {/* MOBILE => Draggable handle */}
         <div
-          className="
-            lg:hidden
-            absolute
-            left-0
-            w-full
-            flex
-            justify-center
-            items-center
-            cursor-row-resize
-          "
+          className="lg:hidden absolute left-0 w-full flex justify-center items-center cursor-row-resize"
           style={{
             height: "35px",
             bottom: `${panelHeightPct}%`,
