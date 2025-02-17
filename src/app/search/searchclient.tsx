@@ -23,17 +23,13 @@ const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
 /**
  * Helper function to apply filters in-memory after receiving
  * all properties from the server.
- *
- * - Price filters remain the same
- * - Room filters remain the same
- * - Property Type now uses OR logic for multiple selections
  */
 function applyClientFilters(
   properties: any[],
   filters: {
     minPrice?: string;
     maxPrice?: string;
-    types?: string[]; 
+    types?: string[];
     minRooms?: string;
     maxRooms?: string;
   }
@@ -88,6 +84,9 @@ function applyClientFilters(
   return result;
 }
 
+// ----------------------------------------------------------------
+// Component: SearchClient
+// ----------------------------------------------------------------
 export default function SearchClient() {
   // Full property list from API
   const [fetchedProperties, setFetchedProperties] = useState<any[]>([]);

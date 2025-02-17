@@ -1,18 +1,21 @@
 "use client";
 
-import { useBounds } from "@/components/search/boundscontext";
 import { Button, MantineSize, Modal, TextInput } from "@mantine/core";
 import axios from "axios";
 import debounce from "lodash/debounce";
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import { useGeocode } from "./GeocodeContext";
+import { useBounds } from "./boundscontext";
 
 // Utility to remove trailing ", USA"
 function sanitizeAddress(address: string): string {
   return address.replace(/,\s*USA\s*$/i, "").trim();
 }
 
+// ----------------------------------------------------------------
+// Component: SearchInput
+// ----------------------------------------------------------------
 interface SearchInputProps {
   defaultValue?: string;
   isLoading?: boolean;

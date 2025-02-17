@@ -3,6 +3,9 @@ import paragonApiClient from "@/lib/ParagonApiClient";
 
 export const dynamic = "force-dynamic";
 
+// ----------------------------------------------------------------
+// GET /api/v1/listings => Main route handler
+// ----------------------------------------------------------------
 export async function GET(request: Request) {
   console.log("[GET /api/v1/listings] => Endpoint triggered.");
 

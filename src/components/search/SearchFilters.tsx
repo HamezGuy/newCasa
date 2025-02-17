@@ -3,6 +3,9 @@
 import { Button, Checkbox, Popover, TextInput, Stack } from "@mantine/core";
 import { useState } from "react";
 
+// ----------------------------------------------------------------
+// Component: SearchFilters
+// ----------------------------------------------------------------
 export default function SearchFilters({
   isLoading,
   onUpdate,
@@ -84,7 +87,7 @@ export default function SearchFilters({
               value={types}
               onChange={(vals: string[]) => {
                 setTypes(vals);
-                setTimeout(emitFilters, 0); 
+                setTimeout(emitFilters, 0);
               }}
               label="Property Type"
             >

@@ -61,7 +61,7 @@ export class ParagonApiClient {
    * Controls how many total items we gather via getWithOffset() 
    * before stopping. Adjust if needed.
    */
-  private __offsetFetchLimit = 250; // default: 200
+  private __offsetFetchLimit = 200; // default: 200
 
   constructor(
     baseUrl: string,
