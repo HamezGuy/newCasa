@@ -61,7 +61,7 @@ export class ParagonApiClient {
    * Controls how many total items we gather via getWithOffset() 
    * before stopping. Adjust if needed.
    */
-  private __offsetFetchLimit = 200; // default: 200
+  private __offsetFetchLimit = 250; // default: 200
 
   constructor(
     baseUrl: string,
@@ -362,7 +362,7 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // Debug raw fetch (unchanged logic)
+  // Debug raw fetch calls (unchanged)
   // ------------------------------------------------------------------
   public async debugRawZip53713(): Promise<any[]> {
     console.log("[debugRawZip53713] => offset => no big filter besides zip=53713");
@@ -392,18 +392,27 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // 1) FILTER-AFTER (in-memory) => these "searchByX" 
-  //    methods fetch raw data and then filter out rentals 
-  //    (LeaseConsideredYN eq true).
+  // (OLD) FILTER-AFTER "search" methods [renamed for testing]
+  // but now we filter in memory by StandardStatus = Active or Pending
   // ------------------------------------------------------------------
-  public async searchByZipCode(zip: string, includeMedia = true): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-    console.log("[searchByZipCode => filter afterwards] => zip=", zip);
+
+  public async searchByZipCodeFilterAfter(
+    zip: string,
+    includeMedia = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+    console.log("[searchByZipCodeFilterAfter => originally filter AFTER] => zip=", zip);
 
     if (MOCK_DATA) {
-      // If mocking, do the same approach but in memory
+      // 1) All matching the zip in mock
       const all = getMockProperties();
       const raw = all.filter((p) => p.PostalCode?.includes(zip));
-      const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+
+      // 2) Filter in memory for standard status
+      const filtered = raw.filter(
+        (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+      );
+
+      // 3) (optional) geocode & media
       const geo = await geocodeProperties(filtered);
       if (!includeMedia) {
         return { "@odata.context": "mockZip", value: geo };
@@ -412,32 +421,43 @@ export class ParagonApiClient {
       return { "@odata.context": "mockZip", value: withMed };
     }
 
-    // Otherwise, actually fetch from Paragon
+    // Real fetch
     await this.forClientSecret();
-    const base = `${this.__baseUrl}/Property?$count=true&$filter=contains(PostalCode, '${encodeURIComponent(zip)}')`;
+    // No status filter at the OData level => we only filter by zip
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=contains(PostalCode, '${encodeURIComponent(
+      zip
+    )}')`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
-    // Filter out rentals
-    let final = resp.value.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+    // Filter in memory => StandardStatus = Active or Pending
+    let final = resp.value.filter(
+      (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+    );
 
     if (includeMedia && final.length) {
       final = await this.populatePropertyMedia(final);
     }
 
-    console.log(`[searchByZipCode => AFTER filter] => final => ${final.length}`);
+    console.log(`[searchByZipCodeFilterAfter => AFTER filter] => final => ${final.length}`);
     return {
       "@odata.context": resp["@odata.context"] || "filterAfter:Zip",
       value: final,
     };
   }
 
-  public async searchByCity(city: string, includeMedia = true): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-    console.log("[searchByCity => filter afterwards] => city=", city);
+  public async searchByCityFilterAfter(
+    city: string,
+    includeMedia = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+    console.log("[searchByCityFilterAfter => originally filter AFTER] => city=", city);
 
     if (MOCK_DATA) {
       const all = getMockProperties();
       const raw = all.filter((p) => p.City?.toLowerCase().includes(city.toLowerCase()));
-      const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+
+      const filtered = raw.filter(
+        (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+      );
       const geo = await geocodeProperties(filtered);
       if (!includeMedia) {
         return { "@odata.context": "mockCity", value: geo };
@@ -447,32 +467,40 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    const base = `${this.__baseUrl}/Property?$count=true&$filter=contains(City, '${encodeURIComponent(city)}')`;
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=contains(City, '${encodeURIComponent(
+      city
+    )}')`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
-    let final = resp.value.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+    let final = resp.value.filter(
+      (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+    );
 
     if (includeMedia && final.length) {
       final = await this.populatePropertyMedia(final);
     }
 
-    console.log(`[searchByCity => AFTER filter] => final => ${final.length}`);
+    console.log(`[searchByCityFilterAfter => AFTER filter] => final => ${final.length}`);
     return {
       "@odata.context": resp["@odata.context"] || "filterAfter:City",
       value: final,
     };
   }
 
-  public async searchByStreetName(
+  public async searchByStreetNameFilterAfter(
     street: string,
     includeMedia = true
   ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-    console.log("[searchByStreetName => filter afterwards] => street=", street);
+    console.log("[searchByStreetNameFilterAfter => originally filter AFTER] => street=", street);
 
     if (MOCK_DATA) {
       const all = getMockProperties();
-      const raw = all.filter((p) => p.StreetName?.toLowerCase().includes(street.toLowerCase()));
-      const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+      const raw = all.filter((p) =>
+        p.StreetName?.toLowerCase().includes(street.toLowerCase())
+      );
+      const filtered = raw.filter(
+        (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+      );
       const geo = await geocodeProperties(filtered);
       if (!includeMedia) {
         return { "@odata.context": "mockStreet", value: geo };
@@ -482,29 +510,40 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    const base = `${this.__baseUrl}/Property?$count=true&$filter=contains(StreetName, '${encodeURIComponent(street)}')`;
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=contains(StreetName, '${encodeURIComponent(
+      street
+    )}')`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
-    let final = resp.value.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+    let final = resp.value.filter(
+      (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+    );
 
     if (includeMedia && final.length) {
       final = await this.populatePropertyMedia(final);
     }
 
-    console.log(`[searchByStreetName => AFTER filter] => final => ${final.length}`);
+    console.log(`[searchByStreetNameFilterAfter => AFTER filter] => final => ${final.length}`);
     return {
       "@odata.context": resp["@odata.context"] || "filterAfter:Street",
       value: final,
     };
   }
 
-  public async searchByCounty(county: string, includeMedia = true): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-    console.log("[searchByCounty => filter afterwards] => county=", county);
+  public async searchByCountyFilterAfter(
+    county: string,
+    includeMedia = true
+  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+    console.log("[searchByCountyFilterAfter => originally filter AFTER] => county=", county);
 
     if (MOCK_DATA) {
       const all = getMockProperties();
-      const raw = all.filter((p) => p.CountyOrParish?.toLowerCase().includes(county.toLowerCase()));
-      const filtered = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+      const raw = all.filter((p) =>
+        p.CountyOrParish?.toLowerCase().includes(county.toLowerCase())
+      );
+      const filtered = raw.filter(
+        (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+      );
       const geo = await geocodeProperties(filtered);
       if (!includeMedia) {
         return { "@odata.context": "mockCounty", value: geo };
@@ -519,13 +558,15 @@ export class ParagonApiClient {
     )}')`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
-    let final = resp.value.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+    let final = resp.value.filter(
+      (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+    );
 
     if (includeMedia && final.length) {
       final = await this.populatePropertyMedia(final);
     }
 
-    console.log(`[searchByCounty => AFTER filter] => final => ${final.length}`);
+    console.log(`[searchByCountyFilterAfter => AFTER filter] => final => ${final.length}`);
     return {
       "@odata.context": resp["@odata.context"] || "filterAfter:County",
       value: final,
@@ -533,14 +574,15 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // getAllPropertyWithMedia => offset => ignoring eq true
+  // getAllPropertyWithMedia => (Now filter Active/Pending at OData)
   // ------------------------------------------------------------------
   public async getAllPropertyWithMedia(top?: number): Promise<IParagonProperty[]> {
-    console.log("[getAllPropertyWithMedia] => offset => allow false/null => top=", top);
+    console.log("[getAllPropertyWithMedia] => offset => top=", top);
 
     if (MOCK_DATA) {
       let all = getMockProperties();
-      all = all.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+      // Only keep Active or Pending
+      all = all.filter((p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending");
       if (top && top < all.length) all = all.slice(0, top);
       const geo = await geocodeProperties(all);
       return this.populatePropertyMedia(geo);
@@ -549,7 +591,7 @@ export class ParagonApiClient {
     await this.forClientSecret();
 
     const desired = top || this.__offsetFetchLimit;
-    const filter = `(LeaseConsideredYN eq false or LeaseConsideredYN eq null)`;
+    const filter = `(StandardStatus eq 'Active' or StandardStatus eq 'Pending')`;
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
 
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, desired);
@@ -570,32 +612,39 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // Additional debug
+  // Additional debug "rawThenFilter" => now we filter by Active/Pending
   // ------------------------------------------------------------------
   public async debugRawThenFilterZip53713(): Promise<any[]> {
-    console.log("[debugRawThenFilterZip53713] => fetch raw => then filter in memory for false/null");
+    console.log("[debugRawThenFilterZip53713] => fetch raw => then filter in memory (Active/Pending)");
     const raw = await this.debugRawZip53713();
-    const final = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+    const final = raw.filter(
+      (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+    );
     console.log("[debugRawThenFilterZip53713] => final =>", final.length);
     return final;
   }
 
   public async debugRawThenFilterZip53703(): Promise<any[]> {
-    console.log("[debugRawThenFilterZip53703] => fetch raw => then filter in memory for false/null");
+    console.log("[debugRawThenFilterZip53703] => fetch raw => then filter in memory (Active/Pending)");
     const raw = await this.debugRawZip53703();
-    const final = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+    const final = raw.filter(
+      (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+    );
     console.log("[debugRawThenFilterZip53703] => final =>", final.length);
     return final;
   }
 
   public async debugRawThenFilterCityMadison(): Promise<any[]> {
-    console.log("[debugRawThenFilterCityMadison] => fetch raw => then filter in memory for false/null");
+    console.log("[debugRawThenFilterCityMadison] => fetch raw => then filter in memory (Active/Pending)");
     const raw = await this.debugRawCityMadison();
-    const final = raw.filter((p) => p.LeaseConsideredYN === false || p.LeaseConsideredYN == null);
+    const final = raw.filter(
+      (p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending"
+    );
     console.log("[debugRawThenFilterCityMadison] => final =>", final.length);
     return final;
   }
 
+  // For comparing sets if you still need it:
   public async compareFilterResultsZip53713() {
     const rawThenFiltered = await this.debugRawThenFilterZip53713();
     const filterResp = await this.searchByZipCodeFilterFirst("53713");
@@ -646,7 +695,8 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // 2) "FilterFirst" versions for direct comparison (unchanged)
+  // (OLD) FilterFirst versions for direct comparison (unchanged)
+  // => Now uses StandardStatus eq Active or Pending
   // ------------------------------------------------------------------
   public async searchByZipCodeFilterFirst(
     zip: string,
@@ -656,7 +706,7 @@ export class ParagonApiClient {
       const all = getMockProperties();
       const filtered = all.filter(
         (p) =>
-          (p.LeaseConsideredYN === false || p.LeaseConsideredYN == null) &&
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
           p.PostalCode?.includes(zip)
       );
       const geo = await geocodeProperties(filtered);
@@ -668,7 +718,7 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    const filterPortion = "(LeaseConsideredYN eq false or LeaseConsideredYN eq null)";
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
     const filter = `${filterPortion} and contains(PostalCode, '${encodeURIComponent(zip)}')`;
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
@@ -688,7 +738,7 @@ export class ParagonApiClient {
       const c = city.toLowerCase();
       const filtered = all.filter(
         (p) =>
-          (p.LeaseConsideredYN === false || p.LeaseConsideredYN == null) &&
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
           p.City?.toLowerCase().includes(c)
       );
       const geo = await geocodeProperties(filtered);
@@ -700,7 +750,7 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    const filterPortion = "(LeaseConsideredYN eq false or LeaseConsideredYN eq null)";
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
     const filter = `${filterPortion} and contains(City, '${encodeURIComponent(city)}')`;
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
@@ -720,7 +770,7 @@ export class ParagonApiClient {
       const st = street.toLowerCase();
       const filtered = all.filter(
         (p) =>
-          (p.LeaseConsideredYN === false || p.LeaseConsideredYN == null) &&
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
           p.StreetName?.toLowerCase().includes(st)
       );
       const geo = await geocodeProperties(filtered);
@@ -732,7 +782,7 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    const filterPortion = "(LeaseConsideredYN eq false or LeaseConsideredYN eq null)";
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
     const filter = `${filterPortion} and contains(StreetName, '${encodeURIComponent(street)}')`;
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
@@ -752,7 +802,7 @@ export class ParagonApiClient {
       const c = county.toLowerCase();
       const filtered = all.filter(
         (p) =>
-          (p.LeaseConsideredYN === false || p.LeaseConsideredYN == null) &&
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
           p.CountyOrParish?.toLowerCase().includes(c)
       );
       const geo = await geocodeProperties(filtered);
@@ -764,7 +814,7 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    const filterPortion = "(LeaseConsideredYN eq false or LeaseConsideredYN eq null)";
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
     const filter = `${filterPortion} and contains(CountyOrParish, '${encodeURIComponent(county)}')`;
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
@@ -776,7 +826,134 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // NEW: getPropertyById => fetch single property by ListingKey
+  // Normal "search" methods => Filter-Before by default
+  // => Now uses StandardStatus eq 'Active' or 'Pending'
+  // ------------------------------------------------------------------
+  public async searchByZipCode(zip: string, includeMedia = true) {
+    console.log("[searchByZipCode => filter BEFORE at API by StandardStatus] => zip=", zip);
+
+    if (MOCK_DATA) {
+      const all = getMockProperties();
+      const filtered = all.filter(
+        (p) =>
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
+          p.PostalCode?.includes(zip)
+      );
+      const geo = await geocodeProperties(filtered);
+      if (!includeMedia) {
+        return { "@odata.context": "mockZipFilterFirst", value: geo };
+      }
+      const withMed = await this.populatePropertyMedia(geo);
+      return { "@odata.context": "mockZipFilterFirst", value: withMed };
+    }
+
+    await this.forClientSecret();
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
+    const filter = `${filterPortion} and contains(PostalCode, '${encodeURIComponent(zip)}')`;
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+    const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
+
+    if (includeMedia && resp.value.length) {
+      resp.value = await this.populatePropertyMedia(resp.value);
+    }
+    return resp;
+  }
+
+  public async searchByCity(city: string, includeMedia = true) {
+    console.log("[searchByCity => filter BEFORE at API by StandardStatus] => city=", city);
+
+    if (MOCK_DATA) {
+      const all = getMockProperties();
+      const c = city.toLowerCase();
+      const filtered = all.filter(
+        (p) =>
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
+          p.City?.toLowerCase().includes(c)
+      );
+      const geo = await geocodeProperties(filtered);
+      if (!includeMedia) {
+        return { "@odata.context": "mockCityFilterFirst", value: geo };
+      }
+      const withMed = await this.populatePropertyMedia(filtered);
+      return { "@odata.context": "mockCityFilterFirst", value: withMed };
+    }
+
+    await this.forClientSecret();
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
+    const filter = `${filterPortion} and contains(City, '${encodeURIComponent(city)}')`;
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+    const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
+
+    if (includeMedia && resp.value.length) {
+      resp.value = await this.populatePropertyMedia(resp.value);
+    }
+    return resp;
+  }
+
+  public async searchByStreetName(street: string, includeMedia = true) {
+    console.log("[searchByStreetName => filter BEFORE at API by StandardStatus] => street=", street);
+
+    if (MOCK_DATA) {
+      const all = getMockProperties();
+      const st = street.toLowerCase();
+      const filtered = all.filter(
+        (p) =>
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
+          p.StreetName?.toLowerCase().includes(st)
+      );
+      const geo = await geocodeProperties(filtered);
+      if (!includeMedia) {
+        return { "@odata.context": "mockStreetFilterFirst", value: geo };
+      }
+      const withMed = await this.populatePropertyMedia(geo);
+      return { "@odata.context": "mockStreetFilterFirst", value: withMed };
+    }
+
+    await this.forClientSecret();
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
+    const filter = `${filterPortion} and contains(StreetName, '${encodeURIComponent(street)}')`;
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+    const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
+
+    if (includeMedia && resp.value.length) {
+      resp.value = await this.populatePropertyMedia(resp.value);
+    }
+    return resp;
+  }
+
+  public async searchByCounty(county: string, includeMedia = true) {
+    console.log("[searchByCounty => filter BEFORE at API by StandardStatus] => county=", county);
+
+    if (MOCK_DATA) {
+      const all = getMockProperties();
+      const c = county.toLowerCase();
+      const filtered = all.filter(
+        (p) =>
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
+          p.CountyOrParish?.toLowerCase().includes(c)
+      );
+      const geo = await geocodeProperties(filtered);
+      if (!includeMedia) {
+        return { "@odata.context": "mockCountyFilterFirst", value: geo };
+      }
+      const withMed = await this.populatePropertyMedia(filtered);
+      return { "@odata.context": "mockCountyFilterFirst", value: withMed };
+    }
+
+    await this.forClientSecret();
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
+    const filter = `${filterPortion} and contains(CountyOrParish, '${encodeURIComponent(county)}')`;
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+    const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
+
+    if (includeMedia && resp.value.length) {
+      resp.value = await this.populatePropertyMedia(resp.value);
+    }
+    return resp;
+  }
+
+  // ------------------------------------------------------------------
+  // getPropertyById => now only returns it if it's Active or Pending
   // ------------------------------------------------------------------
   public async getPropertyById(
     propertyId: string,
@@ -787,11 +964,16 @@ export class ParagonApiClient {
       // Local find in mock
       const all = getMockProperties();
       let found = all.find((p) => p.ListingKey === propertyId);
-      // Filter out rentals
-      if (found && !(found.LeaseConsideredYN === false || found.LeaseConsideredYN == null)) {
-        found = undefined;
+
+      // Filter out if not Active/Pending
+      if (
+        !found ||
+        (found.StandardStatus !== "Active" && found.StandardStatus !== "Pending")
+      ) {
+        return null;
       }
-      if (!found) return null;
+
+      // Geocode & optional media
       const geo = await geocodeProperties([found]);
       found.Latitude = geo[0].Latitude;
       found.Longitude = geo[0].Longitude;
@@ -803,19 +985,23 @@ export class ParagonApiClient {
     }
 
     await this.forClientSecret();
-    // Single property by ListingKey
-    const base = `${this.__baseUrl}/Property?$count=true&$filter=ListingKey eq '${encodeURIComponent(
+    // Single property => must be Active or Pending
+    // e.g.: ...$filter=ListingKey eq '12345' and (StandardStatus eq 'Active' or StandardStatus eq 'Pending')
+    const filter = `ListingKey eq '${encodeURIComponent(
       propertyId
-    )}'`;
+    )}' and (StandardStatus eq 'Active' or StandardStatus eq 'Pending')`;
+
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, 1);
 
     if (!resp.value.length) {
       return null;
     }
 
-    // Filter out rentals
     let item = resp.value[0];
-    if (!(item.LeaseConsideredYN === false || item.LeaseConsideredYN == null)) {
+
+    // If you want to do a final check (redundant if OData is correct):
+    if (!(item.StandardStatus === "Active" || item.StandardStatus === "Pending")) {
       return null;
     }
 
