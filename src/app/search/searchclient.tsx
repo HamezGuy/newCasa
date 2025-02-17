@@ -127,7 +127,7 @@ export default function SearchClient() {
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
   // -----------------------------------------------------------
-  // Parse geocode from URL
+  // Parse geocode from URL (same as before)
   // -----------------------------------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get("geocode");
@@ -154,6 +154,9 @@ export default function SearchClient() {
     const county = searchParams.get("county") || undefined;
     const propertyId = searchParams.get("propertyId") || undefined;
 
+    // (Optionally parse minPrice, etc. from URL, if you also want to do server filtering)
+    // e.g. const minPrice = searchParams.get("minPrice");
+
     fetchProperties(zipCode, streetName, city, county, propertyId);
   }, [searchParams]);
 
@@ -167,6 +170,7 @@ export default function SearchClient() {
 
   // -----------------------------------------------------------
   // Actual fetch from server
+  // (Currently ignoring user filters for server-side, but you could pass them.)
   // -----------------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
@@ -185,6 +189,9 @@ export default function SearchClient() {
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
       if (propertyId) queries.push(`propertyId=${encodeURIComponent(propertyId)}`);
+
+      // If you wanted server-side filtering, you'd also push minPrice=..., propertyType=..., etc.
+      // For now, we're letting the in-memory approach handle it.
 
       if (queries.length > 0) {
         url += `?${queries.join("&")}`;
@@ -208,27 +215,8 @@ export default function SearchClient() {
 
   // Called when user selects a place in the <SearchInput>
   const handlePlaceSelected = (geo: any) => {
-    if (!geo || !geo.address_components) return;
-    const comps = geo.address_components;
-    const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
-    const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
-    const city = comps.find((c: any) => c.types.includes("locality"))?.long_name;
-    const county = comps.find((c: any) =>
-      c.types.includes("administrative_area_level_2")
-    )?.long_name;
-
-    if (zipCode) {
-      fetchProperties(zipCode);
-    } else if (route) {
-      fetchProperties(undefined, route);
-    } else if (city) {
-      fetchProperties(undefined, undefined, city);
-    } else if (county) {
-      fetchProperties(undefined, undefined, undefined, county);
-    } else {
-      // fallback => fetch everything
-      fetchProperties();
-    }
+    // This runs when the user picks from autocomplete
+    // or we can do nothing. The "Search" logic is in <SearchInput>.
   };
 
   // Called when <SearchFilters> changes
@@ -238,6 +226,7 @@ export default function SearchClient() {
 
   // -----------------------------------------------------------
   // Mobile bottom sheet drag
+  // (unchanged)
   // -----------------------------------------------------------
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
@@ -290,11 +279,13 @@ export default function SearchClient() {
       {/* TOP BAR => search input + filter controls */}
       <div className="flex-shrink-0 bg-gray-100 p-2 shadow-md z-10">
         <div className="max-w-screen-xl mx-auto flex justify-between items-center gap-2">
+          {/* We pass our filterSettings to SearchInput via `filters` */}
           <SearchInput
             defaultValue={rawSearchTerm}
             size="sm"
             onPlaceSelected={handlePlaceSelected}
             isRedirectEnabled={false}
+            filters={filterSettings} // <--- NEW
           />
           <SearchFilters onUpdate={handleFiltersUpdate} />
         </div>

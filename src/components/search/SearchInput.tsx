@@ -14,14 +14,25 @@ function sanitizeAddress(address: string): string {
 }
 
 // ----------------------------------------------------------------
-// Component: SearchInput
+// Extended: We add a `filters` prop
 // ----------------------------------------------------------------
+interface ISearchFiltersData {
+  minPrice?: string;
+  maxPrice?: string;
+  types?: string[];
+  minRooms?: string;
+  maxRooms?: string;
+}
+
 interface SearchInputProps {
   defaultValue?: string;
   isLoading?: boolean;
   size?: MantineSize;
   onPlaceSelected?: (geocodeData: any) => void;
   isRedirectEnabled?: boolean;
+
+  // NEW: optional filters we want to "tack on" to the URL
+  filters?: ISearchFiltersData;
 }
 
 export default function SearchInput({
@@ -30,6 +41,7 @@ export default function SearchInput({
   size = "md",
   onPlaceSelected,
   isRedirectEnabled = true,
+  filters, // NEW
 }: SearchInputProps) {
   const router = useRouter();
   const { setGeocodeData } = useGeocode();
@@ -113,6 +125,7 @@ export default function SearchInput({
         setSuggestions([]);
 
         if (isRedirectEnabled) {
+          // Build up the final URL with geocode + filter params
           const comps = geocodeData.address_components || [];
           const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
           const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
@@ -132,8 +145,25 @@ export default function SearchInput({
           else if (route) urlParams.set("streetName", route);
           else if (county) urlParams.set("county", county);
 
+          // NEW: tack on the user filters from props
+          if (filters) {
+            if (filters.minPrice) urlParams.set("minPrice", filters.minPrice);
+            if (filters.maxPrice) urlParams.set("maxPrice", filters.maxPrice);
+            if (filters.minRooms) urlParams.set("minRooms", filters.minRooms);
+            if (filters.maxRooms) urlParams.set("maxRooms", filters.maxRooms);
+
+            // For multiple property types => we can pass them as repeated query params
+            // e.g. propertyType=house&propertyType=condo
+            if (filters.types && filters.types.length > 0) {
+              filters.types.forEach((t) => {
+                urlParams.append("propertyType", t);
+              });
+            }
+          }
+
           router.push(`/search?${urlParams.toString()}`);
 
+          // Clear input
           if (inputRef.current) {
             inputRef.current.value = "";
           }

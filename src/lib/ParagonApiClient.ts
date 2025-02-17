@@ -34,6 +34,18 @@ interface ILocalToken {
   tokenExpiration: Date;
 }
 
+/**
+ * NEW: Interface for user filters => Ties each user selection
+ * to the correct IParagonProperty field (ListPrice, PropertyType, BedroomsTotal).
+ */
+export interface IUserFilters {
+  minPrice?: number;         // => ListPrice ge X
+  maxPrice?: number;         // => ListPrice le X
+  propertyTypes?: string[];  // => OR logic (PropertyType eq 'house' or 'condo')
+  minRooms?: number;         // => BedroomsTotal ge X
+  maxRooms?: number;         // => BedroomsTotal le X
+}
+
 export interface IOdataResponse<T> {
   "@odata.context": string;
   "@odata.nextLink"?: string;
@@ -58,7 +70,7 @@ export class ParagonApiClient {
   private __limitToTwenty: boolean;
 
   /**
-   * Controls how many total items we gather via getWithOffset() 
+   * Controls how many total items we gather via getWithOffset()
    * before stopping. Adjust if needed.
    */
   private __offsetFetchLimit = 200; // default: 200
@@ -389,6 +401,41 @@ export class ParagonApiClient {
     const resp = await this.getWithOffset<any>(base, this.__offsetFetchLimit);
     console.log("[debugRawCityMadison] => final =>", resp.value.length);
     return resp.value;
+  }
+
+  // ------------------------------------------------------------------
+  // NEW: buildUserFilter => convert user filter object to OData string
+  // e.g. "ListPrice ge 200000 and (PropertyType eq 'house' or PropertyType eq 'condo')"
+  // ------------------------------------------------------------------
+  private buildUserFilter(filters?: IUserFilters): string {
+    if (!filters) return "";
+
+    const parts: string[] = [];
+
+    // minPrice => ListPrice ge X
+    if (typeof filters.minPrice === "number" && filters.minPrice > 0) {
+      parts.push(`ListPrice ge ${filters.minPrice}`);
+    }
+    // maxPrice => ListPrice le X
+    if (typeof filters.maxPrice === "number" && filters.maxPrice > 0) {
+      parts.push(`ListPrice le ${filters.maxPrice}`);
+    }
+    // propertyTypes => OR logic => (PropertyType eq 'house' or PropertyType eq 'condo')
+    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
+      const orClauses = filters.propertyTypes.map((t) => `PropertyType eq '${t}'`);
+      parts.push(`(${orClauses.join(" or ")})`);
+    }
+    // minRooms => BedroomsTotal ge X
+    if (typeof filters.minRooms === "number" && filters.minRooms > 0) {
+      parts.push(`BedroomsTotal ge ${filters.minRooms}`);
+    }
+    // maxRooms => BedroomsTotal le X
+    if (typeof filters.maxRooms === "number" && filters.maxRooms > 0) {
+      parts.push(`BedroomsTotal le ${filters.maxRooms}`);
+    }
+
+    if (!parts.length) return "";
+    return parts.join(" and ");
   }
 
   // ------------------------------------------------------------------
@@ -829,7 +876,12 @@ export class ParagonApiClient {
   // Normal "search" methods => Filter-Before by default
   // => Now uses StandardStatus eq 'Active' or 'Pending'
   // ------------------------------------------------------------------
-  public async searchByZipCode(zip: string, includeMedia = true) {
+
+  public async searchByZipCode(
+    zip: string,
+    userFilters?: IUserFilters, // optional user filters
+    includeMedia = true
+  ) {
     console.log("[searchByZipCode => filter BEFORE at API by StandardStatus] => zip=", zip);
 
     if (MOCK_DATA) {
@@ -849,7 +901,14 @@ export class ParagonApiClient {
 
     await this.forClientSecret();
     const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
-    const filter = `${filterPortion} and contains(PostalCode, '${encodeURIComponent(zip)}')`;
+    let filter = `${filterPortion} and contains(PostalCode, '${encodeURIComponent(zip)}')`;
+
+    // If userFilters => build snippet, append
+    const userPart = this.buildUserFilter(userFilters);
+    if (userPart) {
+      filter += ` and ${userPart}`;
+    }
+
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
@@ -859,7 +918,11 @@ export class ParagonApiClient {
     return resp;
   }
 
-  public async searchByCity(city: string, includeMedia = true) {
+  public async searchByCity(
+    city: string,
+    userFilters?: IUserFilters, // optional
+    includeMedia = true
+  ) {
     console.log("[searchByCity => filter BEFORE at API by StandardStatus] => city=", city);
 
     if (MOCK_DATA) {
@@ -880,7 +943,13 @@ export class ParagonApiClient {
 
     await this.forClientSecret();
     const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
-    const filter = `${filterPortion} and contains(City, '${encodeURIComponent(city)}')`;
+    let filter = `${filterPortion} and contains(City, '${encodeURIComponent(city)}')`;
+
+    const userPart = this.buildUserFilter(userFilters);
+    if (userPart) {
+      filter += ` and ${userPart}`;
+    }
+
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
@@ -890,7 +959,11 @@ export class ParagonApiClient {
     return resp;
   }
 
-  public async searchByStreetName(street: string, includeMedia = true) {
+  public async searchByStreetName(
+    street: string,
+    userFilters?: IUserFilters, // optional
+    includeMedia = true
+  ) {
     console.log("[searchByStreetName => filter BEFORE at API by StandardStatus] => street=", street);
 
     if (MOCK_DATA) {
@@ -911,7 +984,13 @@ export class ParagonApiClient {
 
     await this.forClientSecret();
     const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
-    const filter = `${filterPortion} and contains(StreetName, '${encodeURIComponent(street)}')`;
+    let filter = `${filterPortion} and contains(StreetName, '${encodeURIComponent(street)}')`;
+
+    const userPart = this.buildUserFilter(userFilters);
+    if (userPart) {
+      filter += ` and ${userPart}`;
+    }
+
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
@@ -921,7 +1000,11 @@ export class ParagonApiClient {
     return resp;
   }
 
-  public async searchByCounty(county: string, includeMedia = true) {
+  public async searchByCounty(
+    county: string,
+    userFilters?: IUserFilters, // optional
+    includeMedia = true
+  ) {
     console.log("[searchByCounty => filter BEFORE at API by StandardStatus] => county=", county);
 
     if (MOCK_DATA) {
@@ -942,7 +1025,13 @@ export class ParagonApiClient {
 
     await this.forClientSecret();
     const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
-    const filter = `${filterPortion} and contains(CountyOrParish, '${encodeURIComponent(county)}')`;
+    let filter = `${filterPortion} and contains(CountyOrParish, '${encodeURIComponent(county)}')`;
+
+    const userPart = this.buildUserFilter(userFilters);
+    if (userPart) {
+      filter += ` and ${userPart}`;
+    }
+
     const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
     const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
 
@@ -966,10 +1055,7 @@ export class ParagonApiClient {
       let found = all.find((p) => p.ListingKey === propertyId);
 
       // Filter out if not Active/Pending
-      if (
-        !found ||
-        (found.StandardStatus !== "Active" && found.StandardStatus !== "Pending")
-      ) {
+      if (!found || (found.StandardStatus !== "Active" && found.StandardStatus !== "Pending")) {
         return null;
       }
 
