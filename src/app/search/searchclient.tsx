@@ -12,12 +12,10 @@ import PropertyList from "@/components/paragon/PropertyList";
 import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
 import PropertyModal from "@/components/property/PropertyModal";
 
-// Dynamically import the map so it only renders client-side
 const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
-  () =>
-    import("@/components/search/SearchResultsMap").then((mod) => ({
-      default: mod.SearchResultsMap,
-    })),
+  () => import("@/components/search/SearchResultsMap").then((mod) => ({
+    default: mod.SearchResultsMap,
+  })),
   { ssr: false }
 );
 
@@ -30,14 +28,14 @@ function applyClientFilters(
   filters: {
     minPrice?: string;
     maxPrice?: string;
-    types?: string[];   // e.g. ["Residential","Land","Multi Family"]
+    types?: string[];
     minRooms?: string;
     maxRooms?: string;
   }
 ) {
   let result = [...properties];
 
-  // 1) Price filters
+  // 1) Price
   const minVal = filters.minPrice ? parseInt(filters.minPrice, 10) : 0;
   const maxVal = filters.maxPrice ? parseInt(filters.maxPrice, 10) : 0;
   if (minVal > 0) {
@@ -47,24 +45,29 @@ function applyClientFilters(
     result = result.filter((p) => (p.ListPrice || 0) <= maxVal);
   }
 
-  // 2) PropertyType => OR logic across multiple strings
-  // If user selected none => skip
+  // 2) Property Type => OR
   if (filters.types && filters.types.length > 0) {
-    // We'll do an exact, case-insensitive check.
-    // e.g. if property.PropertyType === "Residential" => match
-    // If user picked multiple, we do OR => include if it matches any selection
-
-    // Make them all lowercase for easy comparison
     const loweredSelections = filters.types.map((t) => t.toLowerCase());
 
+    // CHANGED: We'll decide on a final "type" string for each listing:
     result = result.filter((p) => {
-      const rawType = p.PropertySubType || p.PropertyType || "";
-      const propType = rawType.toLowerCase();
-      return loweredSelections.includes(propType);
+      let finalType = (p.PropertyType || "").toLowerCase();
+
+      // If it's "Residential" but subType is "Condominium",
+      // we treat it as "Condominium".
+      // Otherwise if p.PropertyType is e.g. "Residential" and subType is "Single Family",
+      // we keep finalType as "residential".
+      const subType = (p.PropertySubType || "").toLowerCase();
+      if (subType === "condominium") {
+        finalType = "condominium";
+      }
+
+      // If the user selected this finalType, we include it.
+      return loweredSelections.includes(finalType);
     });
   }
 
-  // 3) Rooms filter => total (beds + full bath + half bath)
+  // 3) Rooms
   const minRooms = filters.minRooms ? parseInt(filters.minRooms, 10) : 0;
   const maxRooms = filters.maxRooms ? parseInt(filters.maxRooms, 10) : 0;
   if (minRooms > 0 || maxRooms > 0) {
@@ -83,15 +86,11 @@ function applyClientFilters(
 }
 
 export default function SearchClient() {
-  // Full property list from API
   const [fetchedProperties, setFetchedProperties] = useState<any[]>([]);
-  // Filtered results after in-memory filtering
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // read from global filter context
   const { filters } = useFilters();
-
   const { setGeocodeData } = useGeocode();
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
@@ -104,7 +103,6 @@ export default function SearchClient() {
   const startPanelHeightRef = useRef(0);
   const DRAG_THRESHOLD_PCT = 1;
 
-  // For property modal
   const [selectedPropertyData, setSelectedPropertyData] = useState<{
     property: any;
     userRole: string;
@@ -115,9 +113,7 @@ export default function SearchClient() {
 
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
-  // -----------------------------------------------------------
   // Parse geocode from URL
-  // -----------------------------------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get("geocode");
     if (geocodeStr) {
@@ -133,9 +129,7 @@ export default function SearchClient() {
     }
   }, [searchParams, setGeocodeData, setBounds]);
 
-  // -----------------------------------------------------------
-  // Whenever URL params change => fetch data from /api/v1/listings
-  // -----------------------------------------------------------
+  // Each time URL changes => fetch data
   useEffect(() => {
     const zipCode = searchParams.get("zipCode") || undefined;
     const streetName = searchParams.get("streetName") || undefined;
@@ -146,17 +140,12 @@ export default function SearchClient() {
     fetchProperties(zipCode, streetName, city, county, propertyId);
   }, [searchParams]);
 
-  // -----------------------------------------------------------
-  // Each time we get new data OR filters change => re-apply
-  // -----------------------------------------------------------
+  // Re-apply filters whenever the data or user filters change
   useEffect(() => {
     const newFiltered = applyClientFilters(fetchedProperties, filters);
     setFilteredProperties(newFiltered);
   }, [fetchedProperties, filters]);
 
-  // -----------------------------------------------------------
-  // Actual fetch from server
-  // -----------------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
     streetName?: string,
@@ -196,12 +185,10 @@ export default function SearchClient() {
   };
 
   const handlePlaceSelected = useCallback((geo: any) => {
-    // do nothing special; the route push is in SearchInput
+    // do nothing special; route push is in <SearchInput>
   }, []);
 
-  // -----------------------------------------------------------
   // Mobile bottom sheet drag
-  // -----------------------------------------------------------
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
     startYRef.current = "touches" in e ? e.touches[0].clientY : e.clientY;
@@ -227,9 +214,7 @@ export default function SearchClient() {
     draggingRef.current = false;
   };
 
-  // -----------------------------------------------------------
   // On property click => open modal
-  // -----------------------------------------------------------
   const handlePropertyClick = (property: any) => {
     const userRole = "user";
     const userUid = null;
@@ -257,7 +242,7 @@ export default function SearchClient() {
             defaultValue={rawSearchTerm}
             size="sm"
             onPlaceSelected={handlePlaceSelected}
-            isRedirectEnabled={true} // => triggers router.push
+            isRedirectEnabled={true}
             filters={filters}
           />
           <SearchFilters />
@@ -266,7 +251,6 @@ export default function SearchClient() {
 
       {/* MAIN CONTENT => map + property list */}
       <div className="flex-grow relative flex flex-row min-h-0 overflow-hidden">
-        {/* DESKTOP => left side: map, right side: property list */}
         <div className="hidden lg:block relative w-2/3 h-full min-h-0">
           <SearchResultsMapNoSSR
             properties={filteredProperties}
@@ -274,7 +258,6 @@ export default function SearchClient() {
           />
         </div>
 
-        {/* DESKTOP => property list => scrollable */}
         <div className="hidden lg:block w-1/3 h-full min-h-0 overflow-y-auto">
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
@@ -288,7 +271,7 @@ export default function SearchClient() {
           )}
         </div>
 
-        {/* MOBILE => full-screen map behind bottom sheet */}
+        {/* MOBILE => map behind bottom sheet */}
         <div className="lg:hidden absolute top-0 left-0 w-full h-full">
           <SearchResultsMapNoSSR
             properties={filteredProperties}
@@ -340,7 +323,6 @@ export default function SearchClient() {
         </div>
       </div>
 
-      {/* Property Modal */}
       {selectedPropertyData && (
         <PropertyModal
           opened={!!selectedPropertyData}
