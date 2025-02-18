@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useGeocode } from "@/components/search/GeocodeContext";
 import { useBounds } from "@/components/search/boundscontext";
+import { useFilters } from "@/components/search/FilterContext";  // <-- NEW
 import SearchFilters from "@/components/search/SearchFilters";
 import SearchInput from "@/components/search/SearchInput";
 import PropertyList from "@/components/paragon/PropertyList";
@@ -36,10 +37,9 @@ function applyClientFilters(
 ) {
   let result = [...properties];
 
-  // 1) Price filters
+  // Price
   const minVal = filters.minPrice ? parseInt(filters.minPrice, 10) : 0;
   const maxVal = filters.maxPrice ? parseInt(filters.maxPrice, 10) : 0;
-
   if (minVal > 0) {
     result = result.filter((p) => (p.ListPrice || 0) >= minVal);
   }
@@ -47,25 +47,21 @@ function applyClientFilters(
     result = result.filter((p) => (p.ListPrice || 0) <= maxVal);
   }
 
-  // 2) Property Type => OR logic across multiple values
+  // Property Type => OR
   if (filters.types && filters.types.length > 0) {
     const unionSet = new Set<any>();
     const loweredTypes = filters.types.map((t) => t.toLowerCase());
-
     loweredTypes.forEach((oneType) => {
       const partialMatches = result.filter((p) => {
         const propType = (p.PropertySubType || p.PropertyType || "").toLowerCase();
         return propType.includes(oneType);
       });
-      for (const item of partialMatches) {
-        unionSet.add(item);
-      }
+      partialMatches.forEach((it) => unionSet.add(it));
     });
-
     result = [...unionSet];
   }
 
-  // 3) Rooms filter => total rooms (bed + full bath + half bath)
+  // Rooms => sum of bed + full bath + half bath
   const minRooms = filters.minRooms ? parseInt(filters.minRooms, 10) : 0;
   const maxRooms = filters.maxRooms ? parseInt(filters.maxRooms, 10) : 0;
   if (minRooms > 0 || maxRooms > 0) {
@@ -73,10 +69,9 @@ function applyClientFilters(
       const bd = p.BedroomsTotal ?? 0;
       const bf = p.BathroomsFull ?? 0;
       const bh = p.BathroomsHalf ?? 0;
-      const totalRooms = bd + bf + bh;
-
-      if (minRooms > 0 && totalRooms < minRooms) return false;
-      if (maxRooms > 0 && totalRooms > maxRooms) return false;
+      const total = bd + bf + bh;
+      if (minRooms > 0 && total < minRooms) return false;
+      if (maxRooms > 0 && total > maxRooms) return false;
       return true;
     });
   }
@@ -84,9 +79,6 @@ function applyClientFilters(
   return result;
 }
 
-// ----------------------------------------------------------------
-// Component: SearchClient
-// ----------------------------------------------------------------
 export default function SearchClient() {
   // Full property list from API
   const [fetchedProperties, setFetchedProperties] = useState<any[]>([]);
@@ -94,14 +86,8 @@ export default function SearchClient() {
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Filter settings from <SearchFilters />
-  const [filterSettings, setFilterSettings] = useState<{
-    minPrice?: string;
-    maxPrice?: string;
-    types?: string[];
-    minRooms?: string;
-    maxRooms?: string;
-  }>({});
+  // CHANGED: read from global filter context
+  const { filters } = useFilters();
 
   const { setGeocodeData } = useGeocode();
   const { setBounds } = useBounds();
@@ -154,23 +140,19 @@ export default function SearchClient() {
     const county = searchParams.get("county") || undefined;
     const propertyId = searchParams.get("propertyId") || undefined;
 
-    // (Optionally parse minPrice, etc. from URL, if you also want to do server filtering)
-    // e.g. const minPrice = searchParams.get("minPrice");
-
     fetchProperties(zipCode, streetName, city, county, propertyId);
   }, [searchParams]);
 
   // -----------------------------------------------------------
-  // Each time we get new data OR user changes filters => re-apply
+  // Each time we get new data OR filters change => re-apply
   // -----------------------------------------------------------
   useEffect(() => {
-    const newFiltered = applyClientFilters(fetchedProperties, filterSettings);
+    const newFiltered = applyClientFilters(fetchedProperties, filters);
     setFilteredProperties(newFiltered);
-  }, [fetchedProperties, filterSettings]);
+  }, [fetchedProperties, filters]);
 
   // -----------------------------------------------------------
   // Actual fetch from server
-  // (Currently ignoring user filters for server-side, but you could pass them.)
   // -----------------------------------------------------------
   const fetchProperties = async (
     zipCode?: string,
@@ -189,9 +171,6 @@ export default function SearchClient() {
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
       if (propertyId) queries.push(`propertyId=${encodeURIComponent(propertyId)}`);
-
-      // If you wanted server-side filtering, you'd also push minPrice=..., propertyType=..., etc.
-      // For now, we're letting the in-memory approach handle it.
 
       if (queries.length > 0) {
         url += `?${queries.join("&")}`;
@@ -213,20 +192,12 @@ export default function SearchClient() {
     }
   };
 
-  // Called when user selects a place in the <SearchInput>
-  const handlePlaceSelected = (geo: any) => {
-    // This runs when the user picks from autocomplete
-    // or we can do nothing. The "Search" logic is in <SearchInput>.
-  };
-
-  // Called when <SearchFilters> changes
-  const handleFiltersUpdate = useCallback((filters: any) => {
-    setFilterSettings(filters);
+  const handlePlaceSelected = useCallback((geo: any) => {
+    // do nothing special; the route push is in SearchInput
   }, []);
 
   // -----------------------------------------------------------
   // Mobile bottom sheet drag
-  // (unchanged)
   // -----------------------------------------------------------
   const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
     draggingRef.current = true;
@@ -279,15 +250,14 @@ export default function SearchClient() {
       {/* TOP BAR => search input + filter controls */}
       <div className="flex-shrink-0 bg-gray-100 p-2 shadow-md z-10">
         <div className="max-w-screen-xl mx-auto flex justify-between items-center gap-2">
-          {/* We pass our filterSettings to SearchInput via `filters` */}
           <SearchInput
             defaultValue={rawSearchTerm}
             size="sm"
             onPlaceSelected={handlePlaceSelected}
             isRedirectEnabled={false}
-            filters={filterSettings} // <--- NEW
+            filters={filters} // pass the global filters to the SearchInput if user clicks "Search"
           />
-          <SearchFilters onUpdate={handleFiltersUpdate} />
+          <SearchFilters />
         </div>
       </div>
 

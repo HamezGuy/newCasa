@@ -38,10 +38,11 @@ interface ILocalToken {
  * NEW: Interface for user filters => Ties each user selection
  * to the correct IParagonProperty field (ListPrice, PropertyType, BedroomsTotal).
  */
+// CHANGED: propertyTypes => { value: string }[]
 export interface IUserFilters {
   minPrice?: number;         // => ListPrice ge X
   maxPrice?: number;         // => ListPrice le X
-  propertyTypes?: string[];  // => OR logic (PropertyType eq 'house' or 'condo')
+  propertyTypes?: { value: string }[];  // CHANGED
   minRooms?: number;         // => BedroomsTotal ge X
   maxRooms?: number;         // => BedroomsTotal le X
 }
@@ -420,11 +421,13 @@ export class ParagonApiClient {
     if (typeof filters.maxPrice === "number" && filters.maxPrice > 0) {
       parts.push(`ListPrice le ${filters.maxPrice}`);
     }
-    // propertyTypes => OR logic => (PropertyType eq 'house' or PropertyType eq 'condo')
+    // propertyTypes => OR logic => e.g. (PropertyType eq 'Residential' or PropertyType eq 'Land')
+    // CHANGED: we skip this if propertyTypes is empty
     if (filters.propertyTypes && filters.propertyTypes.length > 0) {
-      const orClauses = filters.propertyTypes.map((t) => `PropertyType eq '${t}'`);
+      const orClauses = filters.propertyTypes.map((t) => `PropertyType eq '${t.value}'`);
       parts.push(`(${orClauses.join(" or ")})`);
     }
+
     // minRooms => BedroomsTotal ge X
     if (typeof filters.minRooms === "number" && filters.minRooms > 0) {
       parts.push(`BedroomsTotal ge ${filters.minRooms}`);

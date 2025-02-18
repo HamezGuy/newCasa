@@ -13,9 +13,6 @@ function sanitizeAddress(address: string): string {
   return address.replace(/,\s*USA\s*$/i, "").trim();
 }
 
-// ----------------------------------------------------------------
-// Extended: We add a `filters` prop
-// ----------------------------------------------------------------
 interface ISearchFiltersData {
   minPrice?: string;
   maxPrice?: string;
@@ -30,8 +27,6 @@ interface SearchInputProps {
   size?: MantineSize;
   onPlaceSelected?: (geocodeData: any) => void;
   isRedirectEnabled?: boolean;
-
-  // NEW: optional filters we want to "tack on" to the URL
   filters?: ISearchFiltersData;
 }
 
@@ -41,7 +36,7 @@ export default function SearchInput({
   size = "md",
   onPlaceSelected,
   isRedirectEnabled = true,
-  filters, // NEW
+  filters,
 }: SearchInputProps) {
   const router = useRouter();
   const { setGeocodeData } = useGeocode();
@@ -50,10 +45,8 @@ export default function SearchInput({
 
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
-  // Invalid address fallback modal
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [popupSuggestions, setPopupSuggestions] = useState<any[]>([]);
-
   const requestIdRef = useRef<number>(0);
 
   useEffect(() => {
@@ -121,7 +114,7 @@ export default function SearchInput({
 
         setGeocodeData(formattedData);
         setBounds(formattedData.bounds);
-        if (onPlaceSelected) onPlaceSelected(formattedData);
+        onPlaceSelected?.(formattedData);
         setSuggestions([]);
 
         if (isRedirectEnabled) {
@@ -145,15 +138,14 @@ export default function SearchInput({
           else if (route) urlParams.set("streetName", route);
           else if (county) urlParams.set("county", county);
 
-          // NEW: tack on the user filters from props
+          // Include user filters
           if (filters) {
             if (filters.minPrice) urlParams.set("minPrice", filters.minPrice);
             if (filters.maxPrice) urlParams.set("maxPrice", filters.maxPrice);
             if (filters.minRooms) urlParams.set("minRooms", filters.minRooms);
             if (filters.maxRooms) urlParams.set("maxRooms", filters.maxRooms);
 
-            // For multiple property types => we can pass them as repeated query params
-            // e.g. propertyType=house&propertyType=condo
+            // propertyType=... for each type
             if (filters.types && filters.types.length > 0) {
               filters.types.forEach((t) => {
                 urlParams.append("propertyType", t);
