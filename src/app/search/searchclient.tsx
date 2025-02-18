@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useGeocode } from "@/components/search/GeocodeContext";
 import { useBounds } from "@/components/search/boundscontext";
-import { useFilters } from "@/components/search/FilterContext";  // <-- NEW
+import { useFilters } from "@/components/search/FilterContext";
 import SearchFilters from "@/components/search/SearchFilters";
 import SearchInput from "@/components/search/SearchInput";
 import PropertyList from "@/components/paragon/PropertyList";
@@ -30,14 +30,14 @@ function applyClientFilters(
   filters: {
     minPrice?: string;
     maxPrice?: string;
-    types?: string[];
+    types?: string[];   // e.g. ["Residential","Land","Multi Family"]
     minRooms?: string;
     maxRooms?: string;
   }
 ) {
   let result = [...properties];
 
-  // Price
+  // 1) Price filters
   const minVal = filters.minPrice ? parseInt(filters.minPrice, 10) : 0;
   const maxVal = filters.maxPrice ? parseInt(filters.maxPrice, 10) : 0;
   if (minVal > 0) {
@@ -47,21 +47,24 @@ function applyClientFilters(
     result = result.filter((p) => (p.ListPrice || 0) <= maxVal);
   }
 
-  // Property Type => OR
+  // 2) PropertyType => OR logic across multiple strings
+  // If user selected none => skip
   if (filters.types && filters.types.length > 0) {
-    const unionSet = new Set<any>();
-    const loweredTypes = filters.types.map((t) => t.toLowerCase());
-    loweredTypes.forEach((oneType) => {
-      const partialMatches = result.filter((p) => {
-        const propType = (p.PropertySubType || p.PropertyType || "").toLowerCase();
-        return propType.includes(oneType);
-      });
-      partialMatches.forEach((it) => unionSet.add(it));
+    // We'll do an exact, case-insensitive check.
+    // e.g. if property.PropertyType === "Residential" => match
+    // If user picked multiple, we do OR => include if it matches any selection
+
+    // Make them all lowercase for easy comparison
+    const loweredSelections = filters.types.map((t) => t.toLowerCase());
+
+    result = result.filter((p) => {
+      const rawType = p.PropertySubType || p.PropertyType || "";
+      const propType = rawType.toLowerCase();
+      return loweredSelections.includes(propType);
     });
-    result = [...unionSet];
   }
 
-  // Rooms => sum of bed + full bath + half bath
+  // 3) Rooms filter => total (beds + full bath + half bath)
   const minRooms = filters.minRooms ? parseInt(filters.minRooms, 10) : 0;
   const maxRooms = filters.maxRooms ? parseInt(filters.maxRooms, 10) : 0;
   if (minRooms > 0 || maxRooms > 0) {
@@ -69,9 +72,9 @@ function applyClientFilters(
       const bd = p.BedroomsTotal ?? 0;
       const bf = p.BathroomsFull ?? 0;
       const bh = p.BathroomsHalf ?? 0;
-      const total = bd + bf + bh;
-      if (minRooms > 0 && total < minRooms) return false;
-      if (maxRooms > 0 && total > maxRooms) return false;
+      const totalRooms = bd + bf + bh;
+      if (minRooms > 0 && totalRooms < minRooms) return false;
+      if (maxRooms > 0 && totalRooms > maxRooms) return false;
       return true;
     });
   }
@@ -86,7 +89,7 @@ export default function SearchClient() {
   const [filteredProperties, setFilteredProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // CHANGED: read from global filter context
+  // read from global filter context
   const { filters } = useFilters();
 
   const { setGeocodeData } = useGeocode();
@@ -113,7 +116,7 @@ export default function SearchClient() {
   const rawSearchTerm = searchParams.get("searchTerm") || "";
 
   // -----------------------------------------------------------
-  // Parse geocode from URL (same as before)
+  // Parse geocode from URL
   // -----------------------------------------------------------
   useEffect(() => {
     const geocodeStr = searchParams.get("geocode");
@@ -254,8 +257,8 @@ export default function SearchClient() {
             defaultValue={rawSearchTerm}
             size="sm"
             onPlaceSelected={handlePlaceSelected}
-            isRedirectEnabled={false}
-            filters={filters} // pass the global filters to the SearchInput if user clicks "Search"
+            isRedirectEnabled={true} // => triggers router.push
+            filters={filters}
           />
           <SearchFilters />
         </div>

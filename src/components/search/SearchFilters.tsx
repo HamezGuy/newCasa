@@ -98,8 +98,7 @@ export default function SearchFilters({
               }}
               label="Property Type"
             >
-              <Checkbox value="Residential" label="House" />
-              <Checkbox value="townhouse" label="Townhouse" />
+              <Checkbox value="Residential" label="Residential" />
               <Checkbox value="Land" label="Land" />
               <Checkbox value="Multi Family" label="Multi-family" />
               <Checkbox value="Commercial Sale" label="Commercial" />
