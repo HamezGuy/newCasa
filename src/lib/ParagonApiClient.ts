@@ -3,7 +3,7 @@ import IParagonProperty from "@/types/IParagonProperty";
 import md5 from "crypto-js/md5";
 import getConfig from "next/config";
 import pMap from "p-map";
-import path from "path";
+// (CHANGED) We no longer import fs/promises or path at the top. We will load them dynamically.
 import * as url from "url";
 import { geocodeProperties } from "./GoogleMaps";
 
@@ -100,42 +100,34 @@ export class ParagonApiClient {
   // ------------------------------------------------------------------
   public async initializeToken(): Promise<void> {
     console.log("[ParagonApiClient.initializeToken] => Checking for token file...");
-    if (typeof window === "undefined") {
-      const fs = await import("fs/promises");
-      const filepath = path.join(process.cwd(), `tokens/.token${md5(this.__clientId)}`);
-      console.log("[initializeToken] => token path:", filepath);
 
-      try {
-        const data = await fs.readFile(filepath);
-        const token = JSON.parse(data.toString()) as ILocalToken;
-        this.__accessToken = token.token;
-        this.__tokenExpiration = new Date(token.tokenExpiration);
-        console.log("[initializeToken] => loaded => expires:", this.__tokenExpiration);
-      } catch (err) {
-        console.log("[initializeToken] => token file missing:", err);
-      }
-    } else {
-      console.log("[initializeToken] => In browser => skipping file read");
+    // (CHANGED) Skip reading the token file if on Vercel or in browser
+    if (typeof window !== "undefined" || process.env.VERCEL) {
+      console.log("[initializeToken] => In browser or on Vercel => skipping file read");
+      return;
+    }
+
+    // (CHANGED) Dynamically import fs/promises and path only on the server
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const filepath = path.join(process.cwd(), `tokens/.token${md5(this.__clientId)}`);
+    console.log("[initializeToken] => token path:", filepath);
+
+    try {
+      const data = await fs.readFile(filepath);
+      const token = JSON.parse(data.toString()) as ILocalToken;
+      this.__accessToken = token.token;
+      this.__tokenExpiration = new Date(token.tokenExpiration);
+      console.log("[initializeToken] => loaded => expires:", this.__tokenExpiration);
+    } catch (err) {
+      console.log("[initializeToken] => token file missing:", err);
     }
   }
 
-  public async saveToken(token: string, expiration: Date): Promise<void> {
-    console.log("[ParagonApiClient.saveToken] => saving => expires:", expiration);
-    if (typeof window === "undefined") {
-      const fs = await import("fs/promises");
-      const dirpath = path.join(process.cwd(), "tokens");
-      const filepath = path.join(dirpath, `/.token${md5(this.__clientId)}`);
-      try {
-        await fs.mkdir(dirpath, { recursive: true });
-        await fs.writeFile(filepath, JSON.stringify({ token, tokenExpiration: expiration }));
-        console.log("[saveToken] => wrote token =>", filepath);
-      } catch (err) {
-        console.error("[saveToken] => error =>", err);
-      }
-    } else {
-      console.log("[saveToken] => in browser => skip file write");
-    }
-  }
+  // REMOVED ENTIRE saveToken() METHOD
+  // public async saveToken(token: string, expiration: Date): Promise<void> {
+  //   ...
+  // }
 
   public async forClientSecret(): Promise<ParagonApiClient> {
     if (MOCK_DATA) return this;
@@ -169,7 +161,9 @@ export class ParagonApiClient {
 
     this.__accessToken = tokenResp.access_token;
     this.__tokenExpiration = new Date(Date.now() + tokenResp.expires_in * 1000);
-    await this.saveToken(this.__accessToken, this.__tokenExpiration);
+
+    // REMOVED THE LINE BELOW THAT CALLED saveToken()
+    // await this.saveToken(this.__accessToken, this.__tokenExpiration);
 
     console.log("[forClientSecret] => new token => expires:", this.__tokenExpiration);
     return this;
@@ -422,7 +416,6 @@ export class ParagonApiClient {
       parts.push(`ListPrice le ${filters.maxPrice}`);
     }
     // propertyTypes => OR logic => e.g. (PropertyType eq 'Residential' or PropertyType eq 'Land')
-    // CHANGED: we skip this if propertyTypes is empty
     if (filters.propertyTypes && filters.propertyTypes.length > 0) {
       const orClauses = filters.propertyTypes.map((t) => `PropertyType eq '${t.value}'`);
       parts.push(`(${orClauses.join(" or ")})`);
@@ -442,10 +435,8 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // (OLD) FILTER-AFTER "search" methods [renamed for testing]
-  // but now we filter in memory by StandardStatus = Active or Pending
+  // (OLD) FILTER-AFTER "search" methods
   // ------------------------------------------------------------------
-
   public async searchByZipCodeFilterAfter(
     zip: string,
     includeMedia = true
@@ -746,7 +737,6 @@ export class ParagonApiClient {
 
   // ------------------------------------------------------------------
   // (OLD) FilterFirst versions for direct comparison (unchanged)
-  // => Now uses StandardStatus eq Active or Pending
   // ------------------------------------------------------------------
   public async searchByZipCodeFilterFirst(
     zip: string,
@@ -824,9 +814,11 @@ export class ParagonApiClient {
           p.StreetName?.toLowerCase().includes(st)
       );
       const geo = await geocodeProperties(filtered);
+
       if (!includeMedia) {
         return { "@odata.context": "mockStreetFilterFirst", value: geo };
       }
+      // FIX: Use `geo` instead of `resp.value` to avoid scoping error:
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockStreetFilterFirst", value: withMed };
     }
@@ -877,9 +869,7 @@ export class ParagonApiClient {
 
   // ------------------------------------------------------------------
   // Normal "search" methods => Filter-Before by default
-  // => Now uses StandardStatus eq 'Active' or 'Pending'
   // ------------------------------------------------------------------
-
   public async searchByZipCode(
     zip: string,
     userFilters?: IUserFilters, // optional user filters
@@ -1075,7 +1065,7 @@ export class ParagonApiClient {
 
     await this.forClientSecret();
     // Single property => must be Active or Pending
-    // e.g.: ...$filter=ListingKey eq '12345' and (StandardStatus eq 'Active' or StandardStatus eq 'Pending')
+    // e.g.: ...$filter=ListingKey eq '12345' and (StandardStatus eq 'Active' or 'Pending')
     const filter = `ListingKey eq '${encodeURIComponent(
       propertyId
     )}' and (StandardStatus eq 'Active' or StandardStatus eq 'Pending')`;
