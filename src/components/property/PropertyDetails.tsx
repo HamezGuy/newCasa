@@ -11,16 +11,15 @@ import {
   Space,
   Stack,
   Text,
-  Title
+  Title,
 } from "@mantine/core";
 
 interface IPropertyDetailsProps {
   property: IParagonProperty;
-  userRole: string; // Assuming 'realtor' or 'client'
-  userUid?: string | null; // To track if the user is logged in
+  userRole: string; // e.g. 'realtor' or 'client'
+  userUid?: string | null;
 }
 
-// Main PropertyDetails component displaying a full summary
 export default function PropertyDetails(props: IPropertyDetailsProps) {
   const { property, userRole, userUid } = props;
 
@@ -29,7 +28,6 @@ export default function PropertyDetails(props: IPropertyDetailsProps) {
       {/* Header */}
       <PropertyHeader property={property} />
 
-      {/* Status Card */}
       <Space h={20} />
       <PropertyStatus
         numBeds={property.BedroomsTotal}
@@ -39,33 +37,26 @@ export default function PropertyDetails(props: IPropertyDetailsProps) {
         yearBuilt={property.YearBuilt}
       />
 
-      {/* Description */}
       <Space h={20} />
       <Text>{property.PublicRemarks}</Text>
 
-      {/* Property Summary */}
       <Space h={80} />
       <PropertySection title="Property Summary">
         <PropertySummary property={property} />
       </PropertySection>
 
-      {/* Property Features (reuse PropertySummary for simplicity) */}
       <PropertySection title="Features">
         <PropertySummary property={property} />
       </PropertySection>
 
-      {/* Documents and Realtor Information */}
       {userUid && userRole === "realtor" ? (
         <PropertySection title="Documents and Realtor Information">
           <RealtorInformation property={property} />
         </PropertySection>
       ) : (
-        <Text>
-          You need to be a logged-in realtor to view additional property details.
-        </Text>
+        <Text>You need to be a logged-in realtor to view additional property details.</Text>
       )}
 
-      {/* Listing Information */}
       <PropertySection
         title={`Listing Information for MLS #${property.ListAgentMlsId}`}
       >
@@ -75,25 +66,43 @@ export default function PropertyDetails(props: IPropertyDetailsProps) {
   );
 }
 
-// PropertySummary: Displays property summary information
+// Summary info
 function PropertySummary({ property }: { property: IParagonProperty }) {
+  // ADDED => subType or fallback to propertyType
+  const subTypeRaw = property.PropertySubType ?? "";
+  const finalType = subTypeRaw.trim() ? subTypeRaw : property.PropertyType;
+
   return (
     <SimpleGrid cols={2}>
       <LabelValueTextDisplay label="MLS #:" value={property.ListingId} />
-      <LabelValueTextDisplay label="Type:" value={property.PropertySubType} />
-      <LabelValueTextDisplay label="Year Built:" value={property.YearBuilt?.toString() ?? ""} />
+
+      {/* CHANGED => finalType */}
+      <LabelValueTextDisplay label="Type:" value={finalType || ""} />
+
+      <LabelValueTextDisplay
+        label="Year Built:"
+        value={property.YearBuilt?.toString() ?? ""}
+      />
       <LabelValueTextDisplay
         label="Estimated Taxes:"
         value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
       />
-      <LabelValueTextDisplay label="Subdivision:" value={property.SubdivisionName} />
-      <LabelValueTextDisplay label="Stories:" value={property.StoriesTotal?.toString()} />
-      <LabelValueTextDisplay label="Style:" value={property.ArchitecturalStyle?.join(", ")} />
+      <LabelValueTextDisplay
+        label="Subdivision:"
+        value={property.SubdivisionName || ""}
+      />
+      <LabelValueTextDisplay
+        label="Stories:"
+        value={property.StoriesTotal?.toString() || ""}
+      />
+      <LabelValueTextDisplay
+        label="Style:"
+        value={property.ArchitecturalStyle?.join(", ") || ""}
+      />
     </SimpleGrid>
   );
 }
 
-// ListingInformation: Displays listing agent and broker info
 function ListingInformation({ property }: { property: IParagonProperty }) {
   return (
     <Stack>
@@ -101,20 +110,14 @@ function ListingInformation({ property }: { property: IParagonProperty }) {
       <LabelValueTextDisplay label="Listing Agent:" value={property.ListAgentFullName} />
       <LabelValueTextDisplay label="Last Changed:" value={property.StatusChangeTimestamp} />
       <Text>
-        Accuracy of information is not guaranteed and should be verified by the buyer if material.
+        Accuracy of information is not guaranteed and should be verified by the buyer if
+        material.
       </Text>
     </Stack>
   );
 }
 
-// PropertySection: A reusable section component
-function PropertySection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function PropertySection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <>
       <Title order={2} mt={40} mb={10} className="normal-case font-normal">
@@ -126,7 +129,6 @@ function PropertySection({
   );
 }
 
-// PropertyStatus: Displays status information of the property
 interface IPropertyStatusProps {
   numBeds?: number;
   numBaths?: number;
@@ -134,7 +136,6 @@ interface IPropertyStatusProps {
   sqft?: number;
   yearBuilt?: number;
 }
-
 function PropertyStatus(props: IPropertyStatusProps) {
   return (
     <Card
@@ -153,24 +154,20 @@ function PropertyStatus(props: IPropertyStatusProps) {
           <Text style={{ fontSize: "32px" }}>{props.numBeds ?? "-"}</Text>
           <Text style={{ textTransform: "uppercase" }}>Beds</Text>
         </Stack>
-
         <Stack align="center" gap={0} style={{ borderRight: "1px solid #CCC" }}>
           <Text style={{ fontSize: "32px" }}>{props.numBaths ?? "-"}</Text>
           <Text style={{ textTransform: "uppercase" }}>Baths</Text>
         </Stack>
-
         <Stack align="center" gap={0} style={{ borderRight: "1px solid #CCC" }}>
           <Text style={{ fontSize: "32px" }}>{props.acres ?? "-"}</Text>
           <Text style={{ textTransform: "uppercase" }}>Acres</Text>
         </Stack>
-
         <Stack align="center" gap={0} style={{ borderRight: "1px solid #CCC" }}>
           <Text style={{ fontSize: "32px" }}>
             {props.sqft ? props.sqft.toLocaleString() : "-"}
           </Text>
           <Text style={{ textTransform: "uppercase" }}>Sqft</Text>
         </Stack>
-
         <Stack align="center" gap={0}>
           <Text style={{ fontSize: "32px" }}>{props.yearBuilt ?? "-"}</Text>
           <Text style={{ textTransform: "uppercase" }}>Year Built</Text>
@@ -180,7 +177,6 @@ function PropertyStatus(props: IPropertyStatusProps) {
   );
 }
 
-// RealtorInformation: Displays realtor-specific details
 function RealtorInformation({ property }: { property: IParagonProperty }) {
   return (
     <Stack>
@@ -196,8 +192,6 @@ function RealtorInformation({ property }: { property: IParagonProperty }) {
   );
 }
 
-
-// PropertyHeader: Displays the header section of the property
 function PropertyHeader({ property }: { property: IParagonProperty }) {
   const isForSale = true;
   const sOpenHouse = ParagonPropertyUtils.getOpenHouseTime(property);
@@ -221,7 +215,10 @@ function PropertyHeader({ property }: { property: IParagonProperty }) {
         </Stack>
         <Stack gap={0}>
           <Text size="sm">
-            Est. Mortgage: <Text span fw="bold">&nbsp;{DisplayUtils.formatCurrency(estimatedMortgage)}</Text>
+            Est. Mortgage:{" "}
+            <Text span fw="bold">
+              {DisplayUtils.formatCurrency(estimatedMortgage)}
+            </Text>
           </Text>
           <Text fw={500} style={{ fontSize: "32px" }} color="green">
             {DisplayUtils.formatCurrency(property.ListPrice)}
@@ -232,7 +229,7 @@ function PropertyHeader({ property }: { property: IParagonProperty }) {
   );
 }
 
-// LabelValueTextDisplay: General component for displaying a label and value
+// Reusable label-value
 function LabelValueTextDisplay({ label, value }: { label?: string; value?: string }) {
   return (
     <Group gap={0}>
@@ -242,7 +239,6 @@ function LabelValueTextDisplay({ label, value }: { label?: string; value?: strin
   );
 }
 
-// DetailsSubtitle: Displays subtitles for sections
 function DetailsSubtitle({ children }: { children: React.ReactNode }) {
   return (
     <Title order={3} className="text-lg">
