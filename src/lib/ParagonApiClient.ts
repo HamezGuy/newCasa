@@ -40,11 +40,11 @@ interface ILocalToken {
  * to the correct IParagonProperty field (ListPrice, PropertyType, BedroomsTotal, etc.).
  */
 export interface IUserFilters {
-  minPrice?: number;                // => ListPrice >= X
-  maxPrice?: number;                // => ListPrice <= X
+  minPrice?: number;                 // => ListPrice >= X
+  maxPrice?: number;                 // => ListPrice <= X
   propertyTypes?: { value: string }[];  // e.g. [{ value: "Residential" }, { value: "Land" }]
-  minRooms?: number;                // => BedroomsTotal >= X
-  maxRooms?: number;                // => BedroomsTotal <= X
+  minRooms?: number;                 // => BedroomsTotal >= X
+  maxRooms?: number;                 // => BedroomsTotal <= X
 }
 
 export interface IOdataResponse<T> {
@@ -1110,6 +1110,68 @@ export class ParagonApiClient {
     item.Longitude = geo[0].Longitude;
 
     return item;
+  }
+
+  // ------------------------------------------------------------------
+  // NEW METHOD => search by list agent name
+  // ------------------------------------------------------------------
+  public async searchByListAgentName(
+    agentName: string,
+    userFilters?: IUserFilters,
+    includeMedia = false
+  ): Promise<ParagonPropertyWithMedia[]> {
+    console.log("[searchByListAgentName] => agentName=", agentName);
+
+    if (MOCK_DATA) {
+      // If mocking => just filter local data
+      const all = getMockProperties();
+      let filtered = all.filter(
+        (p) =>
+          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
+          p.ListAgentFullName.toLowerCase().includes(agentName.toLowerCase())
+      );
+      // If userFilters present, you can apply them in memory if you like
+      return filtered;
+    }
+
+    await this.forClientSecret();
+
+    // (StandardStatus eq 'Active' or StandardStatus eq 'Pending')
+    // AND contains(ListAgentFullName,'Tim Flores')
+    let filter = `(StandardStatus eq 'Active' or StandardStatus eq 'Pending') and contains(ListAgentFullName, '${encodeURIComponent(
+      agentName
+    )}')`;
+
+    // Optionally append userFilters
+    const userPart = this.buildUserFilter(userFilters);
+    if (userPart) {
+      filter += ` and ${userPart}`;
+    }
+
+    const baseUrl = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+    console.log("[searchByListAgentName] => final url =>", baseUrl);
+
+    // Use getWithOffset
+    const resp = await this.getWithOffset<ParagonPropertyWithMedia>(
+      baseUrl,
+      this.__offsetFetchLimit
+    );
+
+    let final = resp.value;
+    if (includeMedia && final.length) {
+      final = await this.populatePropertyMedia(final);
+      // Also geocode
+      const geo = await geocodeProperties(final);
+      final.forEach((p, i) => {
+        p.Latitude = geo[i].Latitude;
+        p.Longitude = geo[i].Longitude;
+      });
+    }
+
+    console.log(
+      `[searchByListAgentName] => found => ${final.length} listings for agent=${agentName}`
+    );
+    return final;
   }
 }
 
