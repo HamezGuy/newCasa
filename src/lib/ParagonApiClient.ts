@@ -3,7 +3,7 @@ import IParagonProperty from "@/types/IParagonProperty";
 import md5 from "crypto-js/md5";
 import getConfig from "next/config";
 import pMap from "p-map";
-// (CHANGED) We no longer import fs/promises or path at the top. We will load them dynamically.
+// We still import 'url' for generateMediaFilters
 import * as url from "url";
 import { geocodeProperties } from "./GoogleMaps";
 
@@ -35,7 +35,7 @@ interface ILocalToken {
 }
 
 /**
- * NEW: Interface for user filters => Ties each user selection
+ * Interface for user filters => Ties each user selection
  * to the correct IParagonProperty field (ListPrice, PropertyType, BedroomsTotal).
  */
 // CHANGED: propertyTypes => { value: string }[]
@@ -64,8 +64,9 @@ export class ParagonApiClient {
   private __tokenExpiration?: Date;
 
   // Concurrency for Media
+  // CHANGED from 120 to 5
   private __maxPageSize = 2500;
-  private __maxConcurrentQueries = 120;
+  private __maxConcurrentQueries = 10;
 
   private __zipCodes: string[];
   private __limitToTwenty: boolean;
@@ -101,24 +102,27 @@ export class ParagonApiClient {
   public async initializeToken(): Promise<void> {
     console.log("[ParagonApiClient.initializeToken] => Checking for token file...");
 
-    // (CHANGED) Skip reading the token file if on Vercel or in browser
+    // Skip reading if in browser or on Vercel
     if (typeof window !== "undefined" || process.env.VERCEL) {
       console.log("[initializeToken] => In browser or on Vercel => skipping file read");
       return;
     }
 
-    // (CHANGED) Dynamically import fs/promises and path only on the server
-    const fs = await import("fs/promises");
-    const path = await import("path");
-    const filepath = path.join(process.cwd(), `tokens/.token${md5(this.__clientId)}`);
-    console.log("[initializeToken] => token path:", filepath);
-
     try {
-      const data = await fs.readFile(filepath);
+      // CHANGED: Use require("fs") instead of import("fs/promises") so Next won't complain
+      const fs = require("fs");
+      const path = require("path");
+
+      const filepath = path.join(process.cwd(), `tokens/.token${md5(this.__clientId)}`);
+      console.log("[initializeToken] => token path:", filepath);
+
+      // readFileSync => read synchronous to keep it minimal
+      const data = fs.readFileSync(filepath);
       const token = JSON.parse(data.toString()) as ILocalToken;
       this.__accessToken = token.token;
       this.__tokenExpiration = new Date(token.tokenExpiration);
       console.log("[initializeToken] => loaded => expires:", this.__tokenExpiration);
+
     } catch (err) {
       console.log("[initializeToken] => token file missing:", err);
     }
@@ -342,6 +346,7 @@ export class ParagonApiClient {
           skip += resp.value.length;
         }
       },
+      // Lower concurrency => from 120 => 5
       { concurrency: this.__maxConcurrentQueries }
     );
 
@@ -399,7 +404,7 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
-  // NEW: buildUserFilter => convert user filter object to OData string
+  // buildUserFilter => convert user filter object to OData string
   // e.g. "ListPrice ge 200000 and (PropertyType eq 'house' or PropertyType eq 'condo')"
   // ------------------------------------------------------------------
   private buildUserFilter(filters?: IUserFilters): string {
@@ -415,7 +420,7 @@ export class ParagonApiClient {
     if (typeof filters.maxPrice === "number" && filters.maxPrice > 0) {
       parts.push(`ListPrice le ${filters.maxPrice}`);
     }
-    // propertyTypes => OR logic => e.g. (PropertyType eq 'Residential' or PropertyType eq 'Land')
+    // propertyTypes => OR logic => e.g. (PropertyType eq 'house' or PropertyType eq 'condo')
     if (filters.propertyTypes && filters.propertyTypes.length > 0) {
       const orClauses = filters.propertyTypes.map((t) => `PropertyType eq '${t.value}'`);
       parts.push(`(${orClauses.join(" or ")})`);
@@ -818,7 +823,7 @@ export class ParagonApiClient {
       if (!includeMedia) {
         return { "@odata.context": "mockStreetFilterFirst", value: geo };
       }
-      // FIX: Use `geo` instead of `resp.value` to avoid scoping error:
+      // Fix: Use `geo` instead of `resp.value`
       const withMed = await this.populatePropertyMedia(geo);
       return { "@odata.context": "mockStreetFilterFirst", value: withMed };
     }
@@ -872,7 +877,7 @@ export class ParagonApiClient {
   // ------------------------------------------------------------------
   public async searchByZipCode(
     zip: string,
-    userFilters?: IUserFilters, // optional user filters
+    userFilters?: IUserFilters,
     includeMedia = true
   ) {
     console.log("[searchByZipCode => filter BEFORE at API by StandardStatus] => zip=", zip);
@@ -913,7 +918,7 @@ export class ParagonApiClient {
 
   public async searchByCity(
     city: string,
-    userFilters?: IUserFilters, // optional
+    userFilters?: IUserFilters,
     includeMedia = true
   ) {
     console.log("[searchByCity => filter BEFORE at API by StandardStatus] => city=", city);
@@ -954,7 +959,7 @@ export class ParagonApiClient {
 
   public async searchByStreetName(
     street: string,
-    userFilters?: IUserFilters, // optional
+    userFilters?: IUserFilters,
     includeMedia = true
   ) {
     console.log("[searchByStreetName => filter BEFORE at API by StandardStatus] => street=", street);
@@ -995,7 +1000,7 @@ export class ParagonApiClient {
 
   public async searchByCounty(
     county: string,
-    userFilters?: IUserFilters, // optional
+    userFilters?: IUserFilters,
     includeMedia = true
   ) {
     console.log("[searchByCounty => filter BEFORE at API by StandardStatus] => county=", county);
@@ -1043,7 +1048,6 @@ export class ParagonApiClient {
   ): Promise<ParagonPropertyWithMedia | null> {
     console.log(`[ParagonApiClient.getPropertyById] => propertyId=${propertyId}`);
     if (MOCK_DATA) {
-      // Local find in mock
       const all = getMockProperties();
       let found = all.find((p) => p.ListingKey === propertyId);
 
