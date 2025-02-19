@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import paragonApiClient, { IUserFilters } from "../../../../lib/ParagonApiClient";
 
-// NEW imports to support writing a file
+// NEW imports for Firebase Admin + concurrency
+import { firestoreAdmin } from "../../../../lib/firebaseAdmin";
+import pMap from "p-map";
+
+// Import the ParagonPropertyWithMedia type (so we can specify 'Media' exists)
+import type { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
+
 import path from "path";
 import { promises as fs } from "fs";
 
@@ -146,7 +152,7 @@ export async function GET(request: Request) {
   }
 
   // ---------------------------------------
-  // 5) NEW: By ID => ?test=byId&propertyId=xxx
+  // 5) By ID => ?test=byId&propertyId=xxx
   // ---------------------------------------
   if (test === "byId") {
     const propertyId = searchParams.get("propertyId");
@@ -165,19 +171,14 @@ export async function GET(request: Request) {
   }
 
   // ---------------------------------------
-  // 6) NEW: test userFilters => ?test=userFilters
-  // e.g. ?test=userFilters&minPrice=200000&maxPrice=600000&propertyType=Residential&propertyType=Land ...
-  // We'll do a "filter-first" approach => call getAllPropertyWithMedia() and apply them at OData level
-  // or do in-memory if you prefer. We'll do an OData approach for demonstration.
+  // 6) test userFilters => ?test=userFilters
   // ---------------------------------------
   if (test === "userFilters") {
-    // parse user filter fields
     const minPriceStr = searchParams.get("minPrice");
     const maxPriceStr = searchParams.get("maxPrice");
     const minRoomsStr = searchParams.get("minRooms");
     const maxRoomsStr = searchParams.get("maxRooms");
-    const propertyTypes = searchParams.getAll("propertyType"); 
-    // => array of strings
+    const propertyTypes = searchParams.getAll("propertyType");
 
     const userFilters = {
       minPrice: minPriceStr ? parseInt(minPriceStr, 10) : undefined,
@@ -192,14 +193,7 @@ export async function GET(request: Request) {
     console.log("[Testing] => userFilters =>", userFilters);
 
     try {
-      // We'll just search "all" with userFilters => that means 'searchByCity("")' won't help,
-      // let's do the getAllPropertyWithMedia approach and do the userFilter logic at OData
-      // or we can do filter after. We'll do filter-BEFORE approach, but we have no city/zip => 
-      // so let's build a dynamic call. We'll just do getAllPropertyWithMedia + in memory for demonstration.
-
       const allProps = await paragonApiClient.getAllPropertyWithMedia();
-      // do a simple in-memory filter because we only have getAllPropertyWithMedia for "all" 
-      // (If you had a direct "searchAll" w/ userFilters at OData, you could do that.)
       const filtered = applyInMemory(allProps, userFilters);
       return NextResponse.json({ items: filtered, count: filtered.length });
     } catch (err: any) {
@@ -208,41 +202,121 @@ export async function GET(request: Request) {
   }
 
   // ---------------------------------------
-  // Fallback => local JSON (existing logic)
+  // 7) STORE TO FIREBASE => ?test=storeFirebase&city=... or &zip=...
+  //    - "newcasaproperties" for the property doc
+  //    - "newcasapropertiesMedias" for each Media doc
+  // ---------------------------------------
+  if (test === "storeFirebase") {
+    const city = searchParams.get("city")?.trim();
+    const zip = searchParams.get("zip")?.trim();
+
+    if (!city && !zip) {
+      return NextResponse.json(
+        { error: "Please provide either 'city' or 'zip' for storeFirebase." },
+        { status: 400 }
+      );
+    }
+
+    try {
+      // 1) Fetch from Paragon => Active/Pending w/ Media
+      //    We explicitly type as ParagonPropertyWithMedia[]
+      let propertiesToStore: ParagonPropertyWithMedia[] = [];
+
+      if (city) {
+        const resp = await paragonApiClient.searchByCity(city, undefined, true);
+        propertiesToStore = resp.value;
+      } else {
+        const resp = await paragonApiClient.searchByZipCode(zip!, undefined, true);
+        propertiesToStore = resp.value;
+      }
+
+      // 2) Write them to Firestore
+      await pMap(
+        propertiesToStore,
+        async (prop) => {
+          if (!prop.ListingKey) return;
+
+          // (A) Store the property doc
+          const propRef = firestoreAdmin
+            .collection("newcasaproperties")
+            .doc(prop.ListingKey);
+
+          // Remove the .Media array if you don't want it in the property doc
+          const { Media, ...rest } = prop;
+          await propRef.set(rest, { merge: true });
+
+          // (B) If there's a Media array, store each item in "newcasapropertiesMedias"
+          if (Media && Media.length) {
+            await pMap(
+              Media,
+              async (m) => {
+                // docId => `${ListingKey}_${m.MediaKey}`
+                const docId = `${prop.ListingKey}_${m.MediaKey}`;
+                const mediaRef = firestoreAdmin
+                  .collection("newcasapropertiesMedias")
+                  .doc(docId);
+
+                // Include listingKey so we can filter by property later
+                await mediaRef.set(
+                  {
+                    listingKey: prop.ListingKey,
+                    ...m,
+                  },
+                  { merge: true }
+                );
+              },
+              { concurrency: 10 }
+            );
+          }
+        },
+        { concurrency: 5 }
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: `Stored ${propertiesToStore.length} properties + all media in Firestore.`,
+      });
+    } catch (err: any) {
+      console.error("[storeFirebase] => error =>", err);
+      return NextResponse.json({ error: err.toString() }, { status: 500 });
+    }
+  }
+
+  // ---------------------------------------
+  // Fallback => local JSON if no test param
   // ---------------------------------------
   const zipCode = searchParams.get("zipCode");
   const streetName = searchParams.get("streetName");
   const city = searchParams.get("city");
   const county = searchParams.get("county");
 
-  let filtered = properties;
+  let filteredData = properties;
   if (zipCode) {
-    filtered = filtered.filter((p: any) => p.PostalCode === zipCode);
+    filteredData = filteredData.filter((p: any) => p.PostalCode === zipCode);
   }
   if (streetName) {
-    filtered = filtered.filter((p: any) =>
+    filteredData = filteredData.filter((p: any) =>
       p.StreetName?.toLowerCase().includes(streetName.toLowerCase())
     );
   }
   if (city) {
-    filtered = filtered.filter((p: any) =>
+    filteredData = filteredData.filter((p: any) =>
       p.City?.toLowerCase().includes(city.toLowerCase())
     );
   }
   if (county) {
-    filtered = filtered.filter((p: any) =>
+    filteredData = filteredData.filter((p: any) =>
       p.CountyOrParish?.toLowerCase().includes(county.toLowerCase())
     );
   }
 
-  return NextResponse.json(filtered);
+  return NextResponse.json(filteredData);
 }
 
 // ---------------------------------------------------
 // Helper function to save difference data to a file
 // ---------------------------------------------------
 async function saveDifferencesToFile(filename: string, resultObj: any) {
-  // Create logs/differences/ if it doesn't exist
   const dirPath = path.join(process.cwd(), "logs/differences");
   await fs.mkdir(dirPath, { recursive: true });
 
@@ -261,7 +335,7 @@ async function saveDifferencesToFile(filename: string, resultObj: any) {
 }
 
 // ---------------------------------------------------
-// NEW in-memory filter => same logic as your client
+// In-memory filter => same logic as your client
 // ---------------------------------------------------
 function applyInMemory(all: any[], filters: Partial<IUserFilters>) {
   let out = [...all];
@@ -281,13 +355,15 @@ function applyInMemory(all: any[], filters: Partial<IUserFilters>) {
   }
   if (filters.minRooms && filters.minRooms > 0) {
     out = out.filter((p) => {
-      const total = (p.BedroomsTotal || 0) + (p.BathroomsFull || 0) + (p.BathroomsHalf || 0);
+      const total =
+        (p.BedroomsTotal || 0) + (p.BathroomsFull || 0) + (p.BathroomsHalf || 0);
       return total >= filters.minRooms!;
     });
   }
   if (filters.maxRooms && filters.maxRooms > 0) {
     out = out.filter((p) => {
-      const total = (p.BedroomsTotal || 0) + (p.BathroomsFull || 0) + (p.BathroomsHalf || 0);
+      const total =
+        (p.BedroomsTotal || 0) + (p.BathroomsFull || 0) + (p.BathroomsHalf || 0);
       return total <= filters.maxRooms!;
     });
   }

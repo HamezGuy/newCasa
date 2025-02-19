@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react"; // ADDED
+import { useEffect, useState } from "react";
 import DisplayUtils from "@/lib/utils/DisplayUtils";
 import ParagonPropertyUtils, {
   getPrimaryPhoto,
-} from "@/lib/utils/ParagonPropertyUtils";
+} from "@/lib/utils/ParagonPropertyUtils"; // <--- see that we import getPrimaryPhoto
 import IParagonMedia, { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 import { Badge, Card, Group, Image, Space, Text } from "@mantine/core";
 import Link from "next/link";
 import style from "./PropertySearchResultCard.module.css";
 
 interface IPropertySearchResultCardProps {
-  property: ParagonPropertyWithMedia;
+  property: ParagonPropertyWithMedia; // But we only have minimal fields
   size?: "sm" | "md";
   onClick?: (property: ParagonPropertyWithMedia) => void;
 }
@@ -19,18 +19,16 @@ export default function PropertySearchResultCard({
   size = "md",
   onClick,
 }: IPropertySearchResultCardProps) {
-  const imgUrl = "/img/placeholder.png";
-
-  // Local state for the resolved primaryPhoto
-  const [primaryPhoto, setPrimaryPhoto] = useState<null | IParagonMedia>(null);
+  // default fallback
+  const [primaryPhoto, setPrimaryPhoto] = useState<IParagonMedia | null>(null);
 
   useEffect(() => {
     let isCancelled = false;
 
     (async () => {
-      const result = await getPrimaryPhoto(property);
+      const photo = await getPrimaryPhoto(property);
       if (!isCancelled) {
-        setPrimaryPhoto(result);
+        setPrimaryPhoto(photo);
       }
     })();
 
@@ -39,8 +37,13 @@ export default function PropertySearchResultCard({
     };
   }, [property]);
 
-  const sPrice = DisplayUtils.formatCurrency(property.ListPrice);
-  const sOpenHouse = ParagonPropertyUtils.getOpenHouseTime(property);
+  const imgUrl = primaryPhoto?.MediaURL || "/img/placeholder.png";
+
+  // Example formatting (assuming you have a DisplayUtils)
+  const sPrice = DisplayUtils.formatCurrency(property.ListPrice || 0);
+  const sBeds = property.BedroomsTotal || 0;
+  // if you track total baths as property.TotBth or BathroomsFull + half
+  const sBaths = property.TotBth || `${property.BathroomsFull || 0} Bths`;
 
   return (
     <Link href={`/property/${property.ListingId}`} className="no-underline">
@@ -55,7 +58,7 @@ export default function PropertySearchResultCard({
       >
         <Card.Section>
           <Image
-            src={primaryPhoto ? primaryPhoto.MediaURL : imgUrl}
+            src={imgUrl}
             height={size === "sm" ? 150 : 256}
             width={384}
             alt="Listing"
@@ -65,15 +68,14 @@ export default function PropertySearchResultCard({
 
         <Group justify="space-between" mt="md" mb={size === "sm" ? 4 : 16}>
           <Text fw="bold">{sPrice}</Text>
-          {sOpenHouse && <Badge color="green">{sOpenHouse}</Badge>}
+          {/* example open house */}
+          {property.Open_House_Time && <Badge color="green">{property.Open_House_Time}</Badge>}
         </Group>
 
         <Group justify="flex-start" gap={5} mb="xs">
-          <Text>{property.BedroomsTotal} Beds</Text>
+          <Text>{sBeds} Beds</Text>
           <Text>•</Text>
-          <Text>{property.TotBth} Baths</Text>
-          <Text>•</Text>
-          <Text>{(property.LivingArea ?? "").toLocaleString()} Sqft</Text>
+          <Text>{sBaths}</Text>
         </Group>
 
         <Text>{ParagonPropertyUtils.formatStreetAddress(property)}</Text>
@@ -81,7 +83,8 @@ export default function PropertySearchResultCard({
 
         <Space h={10} />
         <Text size="xs" color="gray">
-          {property.CoListOfficeName}
+          {/* maybe property.CoListOfficeName or property.ListOfficeName */}
+          {property.ListOfficeName}
         </Text>
       </Card>
     </Link>

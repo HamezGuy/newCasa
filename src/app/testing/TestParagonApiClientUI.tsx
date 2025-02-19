@@ -29,6 +29,12 @@ export default function TestParagonApiClientUI() {
   const [minRooms, setMinRooms] = useState("");
   const [maxRooms, setMaxRooms] = useState("");
 
+  // Additional local states for "Store to Firebase"
+  const [storeCity, setStoreCity] = useState("");
+  const [storeZip, setStoreZip] = useState("");
+  const [storeResult, setStoreResult] = useState("");
+  const [storing, setStoring] = useState(false);
+
   // Hardcoded type options => we show them as checkboxes
   const propertyTypeOptions = [
     "Commercial Sale",
@@ -100,7 +106,7 @@ export default function TestParagonApiClientUI() {
               count,
             });
           } else {
-            // Possibly a compare object
+            // Possibly a compare object or error
             if (json.error) {
               newResults.push({
                 label: t.label,
@@ -244,6 +250,42 @@ export default function TestParagonApiClientUI() {
     setLoading(false);
   }
 
+  // ---------------------------------------------
+  // NEW: Store to Firebase (based on city or zip)
+  // ---------------------------------------------
+  async function handleStoreToFirebase() {
+    // Must have at least city or zip
+    if (!storeCity.trim() && !storeZip.trim()) {
+      alert("Please enter a City or a Zipcode");
+      return;
+    }
+
+    setStoring(true);
+    setStoreResult("");
+
+    const params = new URLSearchParams();
+    params.set("test", "storeFirebase");
+    if (storeCity.trim()) params.set("city", storeCity.trim());
+    if (storeZip.trim()) params.set("zip", storeZip.trim());
+
+    const url = `/api/v1/Testing?${params.toString()}`;
+
+    try {
+      const resp = await fetch(url);
+      const json = await resp.json();
+      if (!resp.ok) {
+        setStoreResult(`Error: HTTP ${resp.status} => ${JSON.stringify(json)}`);
+      } else {
+        // e.g. { success: true, message: "...some message..." }
+        setStoreResult(JSON.stringify(json, null, 2));
+      }
+    } catch (err: any) {
+      setStoreResult(`Error: ${err.toString()}`);
+    } finally {
+      setStoring(false);
+    }
+  }
+
   function makeDownloadLink(r: DownloadableResult) {
     const text = JSON.stringify(r.data, null, 2);
     const blob = new Blob([text], { type: "text/plain" });
@@ -300,7 +342,7 @@ export default function TestParagonApiClientUI() {
           />
         </div>
 
-        {/* Now we do the property type checkboxes => multiple selection is allowed */}
+        {/* Property Type checkboxes => multiple selection */}
         <div style={{ marginBottom: "10px" }}>
           <label style={{ fontWeight: "bold", display: "block", marginBottom: "4px" }}>
             Property Types
@@ -314,10 +356,8 @@ export default function TestParagonApiClientUI() {
                 checked={types.includes(opt)}
                 onChange={(e) => {
                   if (e.currentTarget.checked) {
-                    // add it
                     setTypes((prev) => [...prev, opt]);
                   } else {
-                    // remove it
                     setTypes((prev) => prev.filter((x) => x !== opt));
                   }
                 }}
@@ -329,6 +369,41 @@ export default function TestParagonApiClientUI() {
         <Button onClick={handleUserFiltersTest} loading={loading}>
           Test User Filters
         </Button>
+      </div>
+
+      {/* NEW: Store Active/Pending to Firebase */}
+      <div style={{ marginTop: "30px" }}>
+        <h3>Store Active/Pending Properties to Firebase</h3>
+        <p>Enter a city or zip code, then click the button.</p>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <TextInput
+            placeholder="City"
+            value={storeCity}
+            onChange={(e) => setStoreCity(e.currentTarget.value)}
+          />
+          <TextInput
+            placeholder="Zip Code"
+            value={storeZip}
+            onChange={(e) => setStoreZip(e.currentTarget.value)}
+          />
+          <Button onClick={handleStoreToFirebase} loading={storing}>
+            Store to Firebase
+          </Button>
+        </div>
+        {storeResult && (
+          <pre
+            style={{
+              background: "#f3f3f3",
+              padding: "10px",
+              marginTop: "10px",
+              border: "1px solid #ccc",
+              whiteSpace: "pre-wrap",
+              overflow: "auto",
+            }}
+          >
+            {storeResult}
+          </pre>
+        )}
       </div>
 
       <ul style={{ marginTop: "40px", fontSize: "16px" }}>

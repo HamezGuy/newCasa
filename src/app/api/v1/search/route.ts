@@ -58,23 +58,29 @@ export async function GET(request: Request) {
 
     // Decide which method to call based on the user’s search param
     if (zipCode) {
-      const resp = await paragonApiClient.searchByZipCode(zipCode, userFilters);
+      // For multi-result queries => skip media for minimal data
+      const resp = await paragonApiClient.searchByZipCode(zipCode, userFilters, false);
       properties = resp?.value || [];
     } else if (streetName) {
-      const resp = await paragonApiClient.searchByStreetName(streetName, userFilters);
+      // Another multi-result => skip media
+      const resp = await paragonApiClient.searchByStreetName(streetName, userFilters, false);
       properties = resp?.value || [];
     } else if (propertyId) {
-      const prop = await paragonApiClient.getPropertyById(propertyId);
+      // Single property => choose if you want images or not
+      // e.g. includeMedia = true if you want them
+      const prop = await paragonApiClient.getPropertyById(propertyId, false);
       properties = prop ? [prop] : [];
     } else if (city) {
-      const resp = await paragonApiClient.searchByCity(city, userFilters);
+      const resp = await paragonApiClient.searchByCity(city, userFilters, false);
       properties = resp?.value || [];
     } else if (county) {
-      const resp = await paragonApiClient.searchByCounty(county, userFilters);
+      const resp = await paragonApiClient.searchByCounty(county, userFilters, false);
       properties = resp?.value || [];
     } else {
       // If no location => get all properties
       console.log("[GET /api/v1/listings] => no location => getAllPropertyWithMedia()");
+      // This method inherently fetches media. You could create an alternative
+      // method that doesn't, if you want minimal data.
       properties = await paragonApiClient.getAllPropertyWithMedia();
     }
 
