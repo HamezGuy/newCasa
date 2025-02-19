@@ -1,47 +1,48 @@
 "use client";
 
 import { Button, Checkbox, Popover, TextInput, Stack } from "@mantine/core";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useFilters } from "./FilterContext"; // <-- import global filter context
 
 // ----------------------------------------------------------------
 // Component: SearchFilters
 // ----------------------------------------------------------------
-export default function SearchFilters({
-  isLoading,
-  onUpdate,
-}: {
-  isLoading?: boolean;
-  onUpdate?: (p: any) => void;
-}) {
-  // Price filter states
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
+export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
+  const { filters, setFilters } = useFilters();
 
-  // Property type filter => If user selects multiple, we do an OR match
-  const [types, setTypes] = useState<string[]>([]);
+  // Local states mirroring global
+  const [minPrice, setMinPrice] = useState(filters.minPrice ?? "");
+  const [maxPrice, setMaxPrice] = useState(filters.maxPrice ?? "");
+  const [types, setTypes] = useState<string[]>(filters.types ?? []);
+  const [minRooms, setMinRooms] = useState(filters.minRooms ?? "");
+  const [maxRooms, setMaxRooms] = useState(filters.maxRooms ?? "");
 
-  // Room filter states (optional)
-  const [minRooms, setMinRooms] = useState("");
-  const [maxRooms, setMaxRooms] = useState("");
+  // Keep local states synced if global changes
+  useEffect(() => {
+    setMinPrice(filters.minPrice ?? "");
+    setMaxPrice(filters.maxPrice ?? "");
+    setTypes(filters.types ?? []);
+    setMinRooms(filters.minRooms ?? "");
+    setMaxRooms(filters.maxRooms ?? "");
+  }, [filters]);
 
-  // Popover state
+  // Popover for "More Filters"
   const [opened, setOpened] = useState(false);
 
-  // Helper to push updated filters up to the parent
-  const emitFilters = () => {
-    const filters = {
+  // On "Apply", update global store
+  const applyFilters = () => {
+    setFilters({
       minPrice,
       maxPrice,
       types,
       minRooms,
       maxRooms,
-    };
-    if (onUpdate) onUpdate(filters);
+    });
+    setOpened(false);
   };
 
   return (
     <div className="flex items-center gap-2">
-      {/* Filter Popover */}
       <Popover
         opened={opened}
         onClose={() => setOpened(false)}
@@ -60,6 +61,7 @@ export default function SearchFilters({
             More Filters
           </Button>
         </Popover.Target>
+
         <Popover.Dropdown>
           <Stack style={{ gap: "8px" }}>
             {/* Price Inputs */}
@@ -70,7 +72,6 @@ export default function SearchFilters({
               type="number"
               size="xs"
               onChange={(e) => setMinPrice(e.target.value)}
-              onBlur={emitFilters}
             />
             <TextInput
               value={maxPrice}
@@ -79,27 +80,20 @@ export default function SearchFilters({
               type="number"
               size="xs"
               onChange={(e) => setMaxPrice(e.target.value)}
-              onBlur={emitFilters}
             />
 
             {/* Property Type => multiple selection => OR logic */}
             <Checkbox.Group
               value={types}
-              onChange={(vals: string[]) => {
-                setTypes(vals);
-                setTimeout(emitFilters, 0);
-              }}
+              onChange={(vals: string[]) => setTypes(vals)}
               label="Property Type"
             >
-              <Checkbox value="house" label="House" />
-              <Checkbox value="townhouse" label="Townhouse" />
-              <Checkbox value="condo" label="Condo" />
-              <Checkbox value="co-op" label="Co-op" />
-              <Checkbox value="multi-family" label="Multi-family" />
-              <Checkbox value="lot" label="Lots/Land" />
-              <Checkbox value="manufactured" label="Mobile/Manufactured" />
-              <Checkbox value="commercial" label="Commercial" />
-              <Checkbox value="other" label="Other" />
+              {/* CHANGED: add a separate “Condominium” checkbox */}
+              <Checkbox value="Residential" label="House" />
+              <Checkbox value="Condominium" label="Condominium" />
+              <Checkbox value="Land" label="Land" />
+              <Checkbox value="Multi Family" label="Multi-family" />
+              <Checkbox value="Commercial Sale" label="Commercial" />
             </Checkbox.Group>
 
             {/* Rooms Inputs */}
@@ -109,7 +103,6 @@ export default function SearchFilters({
               type="number"
               size="xs"
               onChange={(e) => setMinRooms(e.target.value)}
-              onBlur={emitFilters}
             />
             <TextInput
               value={maxRooms}
@@ -117,8 +110,11 @@ export default function SearchFilters({
               type="number"
               size="xs"
               onChange={(e) => setMaxRooms(e.target.value)}
-              onBlur={emitFilters}
             />
+
+            <Button variant="filled" size="xs" onClick={applyFilters}>
+              Apply Filters
+            </Button>
           </Stack>
         </Popover.Dropdown>
       </Popover>

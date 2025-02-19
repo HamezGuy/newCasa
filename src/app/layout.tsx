@@ -1,7 +1,9 @@
 // app/layout.tsx
+
 import Header from "@/components/layout/Header";
 import { GeocodeProvider } from "@/components/search/GeocodeContext";
 import { BoundsProvider } from "@/components/search/boundscontext";
+import { FilterProvider } from "@/components/search/FilterContext"; // <-- NEW
 import { MantineProvider, createTheme } from "@mantine/core";
 import "@mantine/core/styles.css";
 import type { Metadata } from "next";
@@ -21,7 +23,6 @@ const mantineTheme = createTheme({
   primaryColor: "blue",
 });
 
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -29,11 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MantineProvider theme={mantineTheme} forceColorScheme="light">
           <GeocodeProvider>
             <BoundsProvider>
-              <Header />
-              <ClientLoadScript>
-                {children}
-              </ClientLoadScript>
-
+              <FilterProvider>  {/* NEW wrap here */}
+                <Header />
+                <ClientLoadScript>{children}</ClientLoadScript>
+              </FilterProvider>
             </BoundsProvider>
           </GeocodeProvider>
         </MantineProvider>
