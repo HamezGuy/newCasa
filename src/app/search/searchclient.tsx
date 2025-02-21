@@ -35,7 +35,7 @@ function applyClientFilters(
 ) {
   let result = [...properties];
 
-  // 1) Price
+  // (Same filtering logic) ...
   const minVal = filters.minPrice ? parseInt(filters.minPrice, 10) : 0;
   const maxVal = filters.maxPrice ? parseInt(filters.maxPrice, 10) : 0;
   if (minVal > 0) {
@@ -45,23 +45,18 @@ function applyClientFilters(
     result = result.filter((p) => (p.ListPrice || 0) <= maxVal);
   }
 
-  // 2) Property Type => OR
   if (filters.types && filters.types.length > 0) {
     const loweredSelections = filters.types.map((t) => t.toLowerCase());
-
     result = result.filter((p) => {
       let finalType = (p.PropertyType || "").toLowerCase();
-
       const subType = (p.PropertySubType || "").toLowerCase();
       if (subType === "condominium") {
         finalType = "condominium";
       }
-
       return loweredSelections.includes(finalType);
     });
   }
 
-  // 3) Rooms
   const minRooms = filters.minRooms ? parseInt(filters.minRooms, 10) : 0;
   const maxRooms = filters.maxRooms ? parseInt(filters.maxRooms, 10) : 0;
   if (minRooms > 0 || maxRooms > 0) {
@@ -89,7 +84,7 @@ export default function SearchClient() {
   const { setBounds } = useBounds();
   const searchParams = useSearchParams();
 
-  // Mobile bottom sheet logic
+  // For mobile bottom sheet
   const [panelHeightPct, setPanelHeightPct] = useState(35);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
@@ -97,6 +92,7 @@ export default function SearchClient() {
   const startPanelHeightRef = useRef(0);
   const DRAG_THRESHOLD_PCT = 1;
 
+  // CHANGED: track which property is open in the modal
   const [selectedPropertyData, setSelectedPropertyData] = useState<{
     property: any;
     userRole: string;
@@ -208,7 +204,7 @@ export default function SearchClient() {
     draggingRef.current = false;
   };
 
-  // On property click => open modal
+  // CHANGED: On property click => open the modal in this page
   const handlePropertyClick = (property: any) => {
     const userRole = "user";
     const userUid = null;
@@ -229,13 +225,9 @@ export default function SearchClient() {
       className="flex flex-col w-full h-screen overflow-hidden min-h-0"
       style={{ overscrollBehavior: "contain" }}
     >
-      {/* 
-        TOP BAR => search input + filter controls
-        CHANGED: Use flex-col on small screens so filters stack in new row
-      */}
+      {/* TOP BAR => search input + filter controls */}
       <div className="flex-shrink-0 bg-gray-100 p-2 shadow-md z-10">
         <div className="max-w-screen-xl mx-auto flex flex-col sm:flex-row gap-2">
-          {/* Search Input takes full width on mobile */}
           <div className="w-full">
             <SearchInput
               defaultValue={rawSearchTerm}
@@ -245,7 +237,6 @@ export default function SearchClient() {
               filters={filters}
             />
           </div>
-          {/* Filters also take full width on mobile, or auto on desktop */}
           <div className="w-full sm:w-auto">
             <SearchFilters />
           </div>
@@ -259,6 +250,7 @@ export default function SearchClient() {
           <SearchResultsMapNoSSR
             properties={filteredProperties}
             isPropertiesLoading={loading}
+            onPropertyClick={handlePropertyClick} // pass callback
           />
         </div>
 
@@ -269,7 +261,7 @@ export default function SearchClient() {
           ) : filteredProperties.length > 0 ? (
             <PropertyList
               properties={filteredProperties}
-              onPropertyClick={handlePropertyClick}
+              onPropertyClick={handlePropertyClick} // pass callback
             />
           ) : (
             <p className="text-center text-gray-500 mt-4">No properties found.</p>
@@ -281,6 +273,7 @@ export default function SearchClient() {
           <SearchResultsMapNoSSR
             properties={filteredProperties}
             isPropertiesLoading={loading}
+            onPropertyClick={handlePropertyClick} // pass callback
           />
         </div>
 
@@ -300,7 +293,7 @@ export default function SearchClient() {
             ) : filteredProperties.length > 0 ? (
               <PropertyList
                 properties={filteredProperties}
-                onPropertyClick={handlePropertyClick}
+                onPropertyClick={handlePropertyClick} // pass callback
               />
             ) : (
               <p className="text-center text-gray-500 mt-4">No properties found.</p>
@@ -330,7 +323,7 @@ export default function SearchClient() {
         </div>
       </div>
 
-      {/* Property Modal */}
+      {/* Property Modal => now shows the entire detail content */}
       {selectedPropertyData && (
         <PropertyModal
           opened={!!selectedPropertyData}

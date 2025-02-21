@@ -22,6 +22,7 @@ interface BasicGeocodeData {
   };
 }
 
+// CHANGED: Add onPropertyClick so we can open the same modal from InfoWindow
 export interface SearchResultsMapProps {
   properties: IParagonProperty[];
   selectedGeometry?: {
@@ -30,6 +31,9 @@ export interface SearchResultsMapProps {
   };
   onSearchComplete?: () => void;
   isPropertiesLoading?: boolean;
+
+  // new optional prop:
+  onPropertyClick?: (prop: IParagonProperty) => void;
 }
 
 export function SearchResultsMap({
@@ -37,6 +41,7 @@ export function SearchResultsMap({
   selectedGeometry,
   onSearchComplete,
   isPropertiesLoading = false,
+  onPropertyClick, // CHANGED
 }: SearchResultsMapProps) {
   console.log("[SearchResultsMap] rendered with properties.length =", properties.length);
 
@@ -53,8 +58,6 @@ export function SearchResultsMap({
   // Map readiness
   const [mapIsReady, setMapIsReady] = useState(false);
 
-  // Instead of (mapIsReady || isBoundaryLoading || isPropertiesLoading),
-  // now we only check mapIsReady + isPropertiesLoading
   const isLoading = !mapIsReady || isPropertiesLoading;
 
   // Memoize geocode data
@@ -66,18 +69,16 @@ export function SearchResultsMap({
   const defaultCenter = useMemo(() => ({ lat: 43.0731, lng: -89.4012 }), []);
   const containerStyle = useMemo(() => ({ width: "100%", height: "100%" }), []);
 
-  // Refs for map + cluster
+  // Refs
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerClusterRef = useRef<MarkerClusterer | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
 
-  // Mobile check
   const isMobile = useMemo(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth < 768;
   }, []);
 
-  // Create a unique signature based on bounding box or lat/lng
   function makeSnapSignature(data: BasicGeocodeData): string | null {
     if (data.bounds) {
       const sw = data.bounds.southwest;
@@ -89,7 +90,6 @@ export function SearchResultsMap({
     return null;
   }
 
-  // Map load
   const onMapLoad = useCallback((map: google.maps.Map) => {
     console.log("[SearchResultsMap] onMapLoad => map loaded, creating clusterer...");
     mapRef.current = map;
@@ -104,7 +104,6 @@ export function SearchResultsMap({
     }
   }, []);
 
-  // Update bounds on map drag
   const handleMapDragEnd = useCallback(() => {
     if (!mapRef.current) return;
     const googleBounds = mapRef.current.getBounds();
@@ -122,7 +121,6 @@ export function SearchResultsMap({
     setBounds(newBounds);
   }, [setBounds]);
 
-  // Update bounds on map zoom
   const handleMapZoomChanged = useCallback(() => {
     if (!mapRef.current) return;
     const googleBounds = mapRef.current.getBounds();
@@ -156,13 +154,12 @@ export function SearchResultsMap({
     }
   }, [isMobile]);
 
-  // Close InfoWindow
+  // Close InfoWindow if user clicks on map
   const handleMapClick = useCallback(() => {
     setInfoWindowShown(false);
     setSelectedProperty(null);
   }, []);
 
-  // If on mobile, ensure minimum zoom
   function clampZoomOnMobile(): void {
     if (!mapRef.current) return;
     if (isMobile) {
@@ -173,7 +170,6 @@ export function SearchResultsMap({
     }
   }
 
-  // Whenever geocodeData changes => snap map
   useEffect(() => {
     if (!mapIsReady || !mapRef.current) return;
 
@@ -232,9 +228,7 @@ export function SearchResultsMap({
         setLastSnapSignature(snapSig);
         onSearchComplete?.();
       }
-    }
-    // Else if single lat/lng => center & zoom=12
-    else if (basicGeocodeData.location) {
+    } else if (basicGeocodeData.location) {
       console.log("[SearchResultsMap] location => center/zoom=12");
       mapRef.current.setZoom(12);
       mapRef.current.setCenter(basicGeocodeData.location);
@@ -351,9 +345,25 @@ export function SearchResultsMap({
               lat: selectedProperty.Latitude ?? 0,
               lng: selectedProperty.Longitude ?? 0,
             }}
-            onCloseClick={() => setInfoWindowShown(false)}
+            onCloseClick={() => {
+              setInfoWindowShown(false);
+              setSelectedProperty(null);
+            }}
           >
-            <PropertySearchResultCard property={selectedProperty} size="sm" />
+            {/* 
+              CHANGED: Provide an onClick to PropertySearchResultCard that calls 
+              our parent's onPropertyClick callback 
+            */}
+            <PropertySearchResultCard
+              property={selectedProperty}
+              size="sm"
+              onClick={() => {
+                // If user clicks the mini card => call parent callback
+                if (onPropertyClick) {
+                  onPropertyClick(selectedProperty);
+                }
+              }}
+            />
           </InfoWindow>
         )}
       </GoogleMap>

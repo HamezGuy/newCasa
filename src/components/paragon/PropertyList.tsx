@@ -16,6 +16,8 @@ interface PropertyListProps {
   reduced?: boolean;
   searchTerm?: string;
   isLoading?: boolean;
+
+  // If provided, we open a modal instead of linking
   onPropertyClick?: (property: IParagonProperty) => void;
 }
 
@@ -33,7 +35,7 @@ export default function PropertyList({
 
   console.log("[PropertyList] => Received properties length:", allProps.length);
 
-  // Filter properties based on map bounds.
+  // Filter properties based on map bounds
   const filteredProperties = allProps.filter((property) => {
     if (!bounds || !bounds.southwest || !bounds.northeast) return true;
     if (!property.Latitude || !property.Longitude) return false;
@@ -66,7 +68,6 @@ export default function PropertyList({
   }
 
   return (
-    // style => internal scroll
     <div
       style={{ height: "100%", overflowY: "auto" }}
       className={`${
@@ -78,10 +79,17 @@ export default function PropertyList({
       {filteredProperties.map((property) => (
         <div
           key={property.ListingKey}
-          onClick={() => onPropertyClick && onPropertyClick(property)}
           style={{ cursor: onPropertyClick ? "pointer" : "default" }}
+          // We could handle the click here or pass down to the card
+          onClick={() => onPropertyClick?.(property)}
         >
-          <PropertySearchResultCard property={property} size={reduced ? "sm" : "md"} />
+          <PropertySearchResultCard
+            property={property}
+            size={reduced ? "sm" : "md"}
+            // If parent gave onPropertyClick => pass it => uses modal approach
+            // Else => uses normal Link approach
+            onClick={onPropertyClick ? () => onPropertyClick(property) : undefined}
+          />
         </div>
       ))}
     </div>

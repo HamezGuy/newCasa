@@ -9,7 +9,6 @@ import PropertyList from "@/components/paragon/PropertyList";
 // ----------------------------------------------------------------
 // UTILS
 // ----------------------------------------------------------------
-
 function isLikelyZip(input: string) {
   return /^[0-9]{4,10}$/.test(input);
 }
@@ -95,15 +94,13 @@ export default function ListingsPage() {
   const LIMIT = 6;
   const observerRef = useRef<HTMLDivElement | null>(null);
 
-  // ----------------------------------------------------------------
-  // 2A) On mount => fetch Tim’s listings
-  // ----------------------------------------------------------------
+  // (A) On mount => fetch Tim’s listings
   useEffect(() => {
     async function fetchTim() {
       try {
         setLoadingTim(true);
         const resp = await axios.get("/api/v1/listings", {
-          params: { agentName: "Tim Flores" }, // NEW param
+          params: { agentName: "Tim Flores" },
         });
         const data: IParagonProperty[] = resp.data;
         setTimListings(data);
@@ -116,9 +113,7 @@ export default function ListingsPage() {
     fetchTim();
   }, []);
 
-  // ----------------------------------------------------------------
-  // 2B) On new searchTerm => verify => fetch => setAllProps
-  // ----------------------------------------------------------------
+  // (B) On new searchTerm => verify => fetch => setAllProps
   useEffect(() => {
     if (!searchTerm) {
       setAllProps([]);
@@ -188,18 +183,14 @@ export default function ListingsPage() {
     doFetch();
   }, [searchTerm]);
 
-  // ----------------------------------------------------------------
-  // 2C) handleSearch => city/zip => setSearchTerm
-  // ----------------------------------------------------------------
+  // (C) handleSearch => city/zip => setSearchTerm
   function handleSearch(term: string) {
     router.push(`/listings?q=${term}`);
     setSearchTerm(term);
     setVerifyError("");
   }
 
-  // ----------------------------------------------------------------
-  // 2D) "Load More" for main search
-  // ----------------------------------------------------------------
+  // (D) "Load More"
   function handleLoadMore() {
     if (isSearching || isLoadingMore) return;
     setIsLoadingMore(true);
@@ -252,9 +243,7 @@ export default function ListingsPage() {
   const isBusy = isVerifyingLocation || isSearching || isLoadingMore;
   const pageCursor = isBusy ? "cursor-wait" : "cursor-auto";
 
-  // ----------------------------------------------------------------
   // RENDER
-  // ----------------------------------------------------------------
   return (
     <main
       className={`container mx-auto px-4 min-h-screen ${pageCursor}`}
@@ -275,7 +264,7 @@ export default function ListingsPage() {
       {/* Search bar */}
       <ListingsSearchBar onSearch={handleSearch} />
 
-      {/* Verification error */}
+      {/* Verification error / Loading states */}
       {verifyError && (
         <p className="text-center text-red-500 my-2">{verifyError}</p>
       )}
@@ -293,9 +282,7 @@ export default function ListingsPage() {
         </p>
       )}
 
-      {/* ---------------------------------------------------------------- */}
-      {/* (A) Tim's listings section at the top */}
-      {/* ---------------------------------------------------------------- */}
+      {/* Tim's listings block */}
       <div className="relative w-full overflow-hidden text-white mb-8 shadow-xl rounded-md">
         <div className="absolute inset-0 z-0">
           <div className="h-full w-full bg-gradient-to-b from-green-900 to-green-700 opacity-90" />
@@ -313,6 +300,10 @@ export default function ListingsPage() {
           )}
         </div>
       </div>
+      {/* 
+        Importantly, we do NOT pass onPropertyClick here
+        => normal link-based approach in the card 
+      */}
       <PropertyList
         properties={timListings}
         className="my-8"
@@ -320,9 +311,7 @@ export default function ListingsPage() {
         isLoading={loadingTim}
       />
 
-      {/* ---------------------------------------------------------------- */}
-      {/* (B) User’s search results (excluding 53706, 53713) */}
-      {/* ---------------------------------------------------------------- */}
+      {/* User’s search results */}
       {displayedProperties.length > 0 && (
         <PropertyList
           properties={displayedProperties}
