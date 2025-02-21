@@ -2,22 +2,18 @@
 
 import { Button, Checkbox, Popover, TextInput, Stack } from "@mantine/core";
 import { useState, useEffect } from "react";
-import { useFilters } from "./FilterContext"; // <-- import global filter context
+import { useFilters } from "./FilterContext";
 
-// ----------------------------------------------------------------
-// Component: SearchFilters
-// ----------------------------------------------------------------
 export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
   const { filters, setFilters } = useFilters();
 
-  // Local states mirroring global
+  // Local states
   const [minPrice, setMinPrice] = useState(filters.minPrice ?? "");
   const [maxPrice, setMaxPrice] = useState(filters.maxPrice ?? "");
   const [types, setTypes] = useState<string[]>(filters.types ?? []);
   const [minRooms, setMinRooms] = useState(filters.minRooms ?? "");
   const [maxRooms, setMaxRooms] = useState(filters.maxRooms ?? "");
 
-  // Keep local states synced if global changes
   useEffect(() => {
     setMinPrice(filters.minPrice ?? "");
     setMaxPrice(filters.maxPrice ?? "");
@@ -26,10 +22,8 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
     setMaxRooms(filters.maxRooms ?? "");
   }, [filters]);
 
-  // Popover for "More Filters"
   const [opened, setOpened] = useState(false);
 
-  // On "Apply", update global store
   const applyFilters = () => {
     setFilters({
       minPrice,
@@ -64,7 +58,6 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
 
         <Popover.Dropdown>
           <Stack style={{ gap: "8px" }}>
-            {/* Price Inputs */}
             <TextInput
               value={minPrice}
               label="Minimum Price"
@@ -82,13 +75,11 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
               onChange={(e) => setMaxPrice(e.target.value)}
             />
 
-            {/* Property Type => multiple selection => OR logic */}
             <Checkbox.Group
               value={types}
               onChange={(vals: string[]) => setTypes(vals)}
               label="Property Type"
             >
-              {/* CHANGED: add a separate “Condominium” checkbox */}
               <Checkbox value="Residential" label="House" />
               <Checkbox value="Condominium" label="Condominium" />
               <Checkbox value="Land" label="Land" />
@@ -96,7 +87,6 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
               <Checkbox value="Commercial Sale" label="Commercial" />
             </Checkbox.Group>
 
-            {/* Rooms Inputs */}
             <TextInput
               value={minRooms}
               label="Min. Rooms"

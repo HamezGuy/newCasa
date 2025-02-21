@@ -49,20 +49,14 @@ function applyClientFilters(
   if (filters.types && filters.types.length > 0) {
     const loweredSelections = filters.types.map((t) => t.toLowerCase());
 
-    // CHANGED: We'll decide on a final "type" string for each listing:
     result = result.filter((p) => {
       let finalType = (p.PropertyType || "").toLowerCase();
 
-      // If it's "Residential" but subType is "Condominium",
-      // we treat it as "Condominium".
-      // Otherwise if p.PropertyType is e.g. "Residential" and subType is "Single Family",
-      // we keep finalType as "residential".
       const subType = (p.PropertySubType || "").toLowerCase();
       if (subType === "condominium") {
         finalType = "condominium";
       }
 
-      // If the user selected this finalType, we include it.
       return loweredSelections.includes(finalType);
     });
   }
@@ -235,22 +229,32 @@ export default function SearchClient() {
       className="flex flex-col w-full h-screen overflow-hidden min-h-0"
       style={{ overscrollBehavior: "contain" }}
     >
-      {/* TOP BAR => search input + filter controls */}
+      {/* 
+        TOP BAR => search input + filter controls
+        CHANGED: Use flex-col on small screens so filters stack in new row
+      */}
       <div className="flex-shrink-0 bg-gray-100 p-2 shadow-md z-10">
-        <div className="max-w-screen-xl mx-auto flex justify-between items-center gap-2">
-          <SearchInput
-            defaultValue={rawSearchTerm}
-            size="sm"
-            onPlaceSelected={handlePlaceSelected}
-            isRedirectEnabled={true}
-            filters={filters}
-          />
-          <SearchFilters />
+        <div className="max-w-screen-xl mx-auto flex flex-col sm:flex-row gap-2">
+          {/* Search Input takes full width on mobile */}
+          <div className="w-full">
+            <SearchInput
+              defaultValue={rawSearchTerm}
+              size="sm"
+              onPlaceSelected={handlePlaceSelected}
+              isRedirectEnabled={true}
+              filters={filters}
+            />
+          </div>
+          {/* Filters also take full width on mobile, or auto on desktop */}
+          <div className="w-full sm:w-auto">
+            <SearchFilters />
+          </div>
         </div>
       </div>
 
       {/* MAIN CONTENT => map + property list */}
       <div className="flex-grow relative flex flex-row min-h-0 overflow-hidden">
+        {/* Desktop left: Map */}
         <div className="hidden lg:block relative w-2/3 h-full min-h-0">
           <SearchResultsMapNoSSR
             properties={filteredProperties}
@@ -258,6 +262,7 @@ export default function SearchClient() {
           />
         </div>
 
+        {/* Desktop right: List */}
         <div className="hidden lg:block w-1/3 h-full min-h-0 overflow-y-auto">
           {loading ? (
             <p className="text-center text-gray-500 mt-4">Loading properties...</p>
@@ -278,6 +283,8 @@ export default function SearchClient() {
             isPropertiesLoading={loading}
           />
         </div>
+
+        {/* MOBILE => Draggable bottom panel for property list */}
         <div
           className="lg:hidden absolute left-0 w-full shadow-inner bg-white"
           style={{
@@ -323,6 +330,7 @@ export default function SearchClient() {
         </div>
       </div>
 
+      {/* Property Modal */}
       {selectedPropertyData && (
         <PropertyModal
           opened={!!selectedPropertyData}

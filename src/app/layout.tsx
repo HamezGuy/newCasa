@@ -3,7 +3,7 @@
 import Header from "@/components/layout/Header";
 import { GeocodeProvider } from "@/components/search/GeocodeContext";
 import { BoundsProvider } from "@/components/search/boundscontext";
-import { FilterProvider } from "@/components/search/FilterContext"; // <-- NEW
+import { FilterProvider } from "@/components/search/FilterContext";
 import { MantineProvider, createTheme } from "@mantine/core";
 import "@mantine/core/styles.css";
 import type { Metadata } from "next";
@@ -13,10 +13,11 @@ import ClientLoadScript from "../lib/utils/ClientLoadScript";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Updated viewport to lock scale, preventing mobile zoom
 export const metadata: Metadata = {
   title: "NewCasa",
   description: "NewCasa MVP",
-  viewport: "width=device-width, initial-scale=1",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
 };
 
 const mantineTheme = createTheme({
@@ -30,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MantineProvider theme={mantineTheme} forceColorScheme="light">
           <GeocodeProvider>
             <BoundsProvider>
-              <FilterProvider>  {/* NEW wrap here */}
+              <FilterProvider>
                 <Header />
                 <ClientLoadScript>{children}</ClientLoadScript>
               </FilterProvider>

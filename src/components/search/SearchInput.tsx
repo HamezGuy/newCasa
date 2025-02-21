@@ -55,6 +55,9 @@ export default function SearchInput({
     }
   }, [defaultValue]);
 
+  // ----------------------------------------
+  // Fetch suggestions (autocomplete)
+  // ----------------------------------------
   const fetchSuggestionsFn = useCallback(
     async (input: string, requestId: number) => {
       if (!input || input.length < 3) {
@@ -95,6 +98,34 @@ export default function SearchInput({
     return debounce(fetchSuggestionsFn, 300);
   }, [fetchSuggestionsFn]);
 
+  // ----------------------------------------
+  // Validate the geocode result
+  // ----------------------------------------
+  function hasRecognizedType(addrComponents: any[]): boolean {
+    // We consider it valid if there's at least one component with these types:
+    // - postal_code  (ZIP)
+    // - locality     (City)
+    // - admin_area2  (County)
+    // - street_number (Address)
+    // or if the entire geometry is recognized as an address
+    for (const comp of addrComponents) {
+      const typesArr = comp.types || [];
+      if (
+        typesArr.includes("postal_code") ||
+        typesArr.includes("locality") ||
+        typesArr.includes("administrative_area_level_2") ||
+        typesArr.includes("street_number")
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ----------------------------------------
+  // If the user input doesn't yield a recognized type,
+  // then we open the popup and do NOT redirect
+  // ----------------------------------------
   const validateAddress = async (originalAddress: string) => {
     const address = sanitizeAddress(originalAddress);
     setLoading(true);
@@ -102,8 +133,20 @@ export default function SearchInput({
     try {
       const response = await axios.get("/api/v1/geocode", { params: { address } });
       const apiData = response.data;
+
       if (apiData.status === "OK" && apiData.results && apiData.results.length > 0) {
         const geocodeData = apiData.results[0];
+
+        // Check if recognized: city, county, zip, or full address
+        if (!hasRecognizedType(geocodeData.address_components || [])) {
+          // not recognized => show popup
+          console.log("Not recognized as city/zip/county/street => show popup");
+          await fetchPopupSuggestions(address);
+          setLoading(false);
+          return;
+        }
+
+        // If recognized, proceed
         const formattedData = {
           location: geocodeData.geometry.location,
           bounds: geocodeData.geometry.viewport,
@@ -118,7 +161,6 @@ export default function SearchInput({
         setSuggestions([]);
 
         if (isRedirectEnabled) {
-          // Build up the final URL with geocode + filter params
           const comps = geocodeData.address_components || [];
           const zipCode = comps.find((c: any) => c.types.includes("postal_code"))?.long_name;
           const route = comps.find((c: any) => c.types.includes("route"))?.long_name;
@@ -161,15 +203,21 @@ export default function SearchInput({
           }
         }
       } else {
+        // No valid geocode => fetch popups
         await fetchPopupSuggestions(address);
       }
     } catch (error) {
+      // Possibly a fetch error => show popups
       await fetchPopupSuggestions(address);
     } finally {
       setLoading(false);
     }
   };
 
+  // ----------------------------------------
+  // If the geocode fails or partial => fetch possible suggestions
+  // and show the popup
+  // ----------------------------------------
   const fetchPopupSuggestions = async (input: string) => {
     try {
       const response = await axios.get("/api/v1/autocomplete", {
@@ -189,6 +237,10 @@ export default function SearchInput({
     }
   };
 
+  // ----------------------------------------
+  // When user clicks a suggestion from the popup
+  // => re-validate that address
+  // ----------------------------------------
   const handleSuggestionSelect = (suggestion: any) => {
     const fullDescription = suggestion.description || "";
     if (inputRef.current) {
@@ -200,6 +252,9 @@ export default function SearchInput({
     validateAddress(fullDescription);
   };
 
+  // ----------------------------------------
+  // Handler for search button
+  // ----------------------------------------
   const handleSearch = () => {
     const val = inputRef.current?.value?.trim();
     if (val) validateAddress(val);
@@ -216,7 +271,7 @@ export default function SearchInput({
     <div
       style={{
         maxWidth: "1000px",
-        minWidth: "400px",
+        width: "100%",
         margin: "0 auto",
         position: "relative",
       }}
@@ -236,7 +291,7 @@ export default function SearchInput({
             flex: 1,
             borderTopRightRadius: 0,
             borderBottomRightRadius: 0,
-            fontSize: "16px",
+            fontSize: "16px", // ensures iOS won't auto-zoom
           }}
         />
         <Button
@@ -253,6 +308,7 @@ export default function SearchInput({
         </Button>
       </div>
 
+      {/* Suggestions dropdown */}
       {suggestions.length > 0 && (
         <ul
           style={{
@@ -277,7 +333,7 @@ export default function SearchInput({
               style={{
                 padding: "10px",
                 cursor: "pointer",
-                transition: "background-color 0.2s",
+                transition: "backgroundColor 0.2s",
                 borderBottom: "1px solid #ddd",
               }}
             >
@@ -288,6 +344,7 @@ export default function SearchInput({
         </ul>
       )}
 
+      {/* Popup modal for incomplete/invalid addresses */}
       <Modal
         opened={isPopupOpen}
         onClose={() => setIsPopupOpen(false)}
