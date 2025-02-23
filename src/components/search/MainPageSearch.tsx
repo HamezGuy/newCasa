@@ -5,17 +5,16 @@ import { Title } from "@mantine/core";
 import SearchInput from "./SearchInput";
 import styles from "./HeroSearch.module.css";
 
-// CHANGED: import React hooks & axios to fetch Tim’s listings
 import { useState, useEffect } from "react";
 import axios from "axios";
 import PropertyList from "@/components/paragon/PropertyList";
 
 export default function MainPageSearch() {
-  // CHANGED: State for Tim’s listings
+  // State for Tim’s listings
   const [timListings, setTimListings] = useState<any[]>([]);
   const [loadingTim, setLoadingTim] = useState(false);
 
-  // CHANGED: On mount, fetch Tim’s listings from /api/v1/listings?agentName=Tim Flores
+  // On mount, fetch Tim’s listings from /api/v1/listings?agentName=Tim Flores
   useEffect(() => {
     async function fetchTim() {
       try {
@@ -35,18 +34,13 @@ export default function MainPageSearch() {
 
   return (
     <div className="w-full flex flex-col">
-      {/* 
-        HERO SECTION 
-        CHANGED: We remove the fixed height of 600 
-        and replace it with a responsive height 
-        so image doesn't stretch too much.
-      */}
+      {/* HERO SECTION */}
       <div
         className={`${styles.heroSearch} relative flex flex-col justify-center items-center text-white`}
         style={{
           minHeight: "450px",
           maxHeight: "700px",
-          height: "60vh", // you can adjust as needed
+          height: "60vh",
           overflow: "hidden",
         }}
       >
@@ -55,29 +49,89 @@ export default function MainPageSearch() {
           alt="Cover"
           fill
           priority
-          // CHANGED: ensure no “stretch”; we use cover + centered
           style={{ objectFit: "cover", objectPosition: "center" }}
           className="brightness-75"
         />
 
-        <div className="relative z-10 p-4 flex flex-col items-center">
-          <Title order={2} className="drop-shadow text-center text-3xl sm:text-4xl mb-4 normal-case">
+        <div className="relative z-10 p-4 flex flex-col items-center w-full">
+          <Title
+            order={2}
+            className="drop-shadow text-center text-3xl sm:text-4xl mb-4 normal-case"
+          >
             Find your next home
           </Title>
 
-          <div className="flex justify-center w-full max-w-xl">
-            {/* Renders search input with redirect enabled */}
+          {/* Search bar => mobile-friendly */}
+          <div className="flex flex-col sm:flex-row items-stretch w-full max-w-xl gap-2">
             <SearchInput isRedirectEnabled={true} />
           </div>
         </div>
       </div>
 
-      {/* 
-        ABOUT SECTION 
-        CHANGED: an about block with slight borders/shadow, 
-        professional styling, centered text, etc.
-      */}
+      {/* TIM FLORES SECTION => Two-column layout */}
       <div className="max-w-screen-md mx-auto mt-10 mb-10 bg-white border rounded shadow p-6 text-gray-800">
+        <Title order={3} className="text-2xl font-semibold mb-6">
+          Meet Tim Flores
+        </Title>
+
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* LEFT COLUMN (narrower) */}
+          <div className="md:w-2/5 w-full flex flex-col items-start">
+            {/* Realtor Photo */}
+            <Image
+              src="/img/realtor-profile.jpg"
+              alt="Tim Flores"
+              width={200}
+              height={200}
+              className="object-cover rounded mb-4"
+            />
+
+            {/* Realtor Logo (optional) */}
+            <Image
+              src="/img/exp-logo.png"
+              alt="EXP Realty Logo"
+              width={120}
+              height={40}
+              className="mb-4"
+            />
+
+            <p className="text-xl font-semibold mb-2">Tim Flores</p>
+
+            {/* 
+              CHANGED: Removed the short paragraph about 
+              “I’m a real estate agent with EXP Realty...” 
+              to prevent duplication.
+            */}
+
+            <div>
+              <h4 className="font-bold mb-1">Contact Me</h4>
+              <p className="mb-1">Direct: 608.579.3033</p>
+              <p className="mb-1">Office: 866.848.6990</p>
+              <p className="mb-1">tim.flores@flores.realty</p>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN (wider) */}
+          <div className="md:w-3/5 w-full">
+            {/* Keep the main bio in the right column */}
+            <p className="leading-relaxed mb-4">
+              Tim Flores is a dedicated real estate professional providing
+              home-buyers and sellers with attentive service. From understanding
+              your needs to effectively marketing your home, Tim is here to guide
+              you every step of the way.
+            </p>
+            <p className="leading-relaxed">
+              Whether you’re buying, selling, or looking to invest, Tim
+              brings a wealth of local knowledge and expertise to ensure you find
+              exactly what you’re looking for in the ever-changing real estate
+              market.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ABOUT OUR SERVICES */}
+      <div className="max-w-screen-md mx-auto mb-10 bg-white border rounded shadow p-6 text-gray-800">
         <Title order={3} className="text-2xl font-semibold mb-4">
           About Our Services
         </Title>
@@ -93,11 +147,7 @@ export default function MainPageSearch() {
         </p>
       </div>
 
-      {/* 
-        TIM’S LISTINGS SECTION
-        CHANGED: we show Tim Flores’s listings in a
-        similar style block with a heading.
-      */}
+      {/* TIM’S LISTINGS SECTION */}
       <div className="max-w-screen-lg mx-auto mb-16 bg-white border rounded shadow p-6 text-gray-800">
         <Title order={3} className="text-2xl font-semibold mb-4">
           Tim Flores&apos; Listings
