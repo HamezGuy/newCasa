@@ -35,7 +35,6 @@ function applyClientFilters(
 ) {
   let result = [...properties];
 
-  // (Same filtering logic) ...
   const minVal = filters.minPrice ? parseInt(filters.minPrice, 10) : 0;
   const maxVal = filters.maxPrice ? parseInt(filters.maxPrice, 10) : 0;
   if (minVal > 0) {
@@ -250,7 +249,7 @@ export default function SearchClient() {
           <SearchResultsMapNoSSR
             properties={filteredProperties}
             isPropertiesLoading={loading}
-            onPropertyClick={handlePropertyClick} // pass callback
+            onPropertyClick={handlePropertyClick}
           />
         </div>
 
@@ -261,7 +260,7 @@ export default function SearchClient() {
           ) : filteredProperties.length > 0 ? (
             <PropertyList
               properties={filteredProperties}
-              onPropertyClick={handlePropertyClick} // pass callback
+              onPropertyClick={handlePropertyClick}
             />
           ) : (
             <p className="text-center text-gray-500 mt-4">No properties found.</p>
@@ -273,7 +272,7 @@ export default function SearchClient() {
           <SearchResultsMapNoSSR
             properties={filteredProperties}
             isPropertiesLoading={loading}
-            onPropertyClick={handlePropertyClick} // pass callback
+            onPropertyClick={handlePropertyClick}
           />
         </div>
 
@@ -293,7 +292,7 @@ export default function SearchClient() {
             ) : filteredProperties.length > 0 ? (
               <PropertyList
                 properties={filteredProperties}
-                onPropertyClick={handlePropertyClick} // pass callback
+                onPropertyClick={handlePropertyClick}
               />
             ) : (
               <p className="text-center text-gray-500 mt-4">No properties found.</p>

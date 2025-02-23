@@ -7,16 +7,13 @@ import ParagonPropertyUtils, {
 } from "@/lib/utils/ParagonPropertyUtils";
 import IParagonMedia, { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 import { Badge, Card, Group, Image, Space, Text } from "@mantine/core";
-import Link from "next/link"; // We bring back Link
+import Link from "next/link";
 
 import style from "./PropertySearchResultCard.module.css";
 
 interface IPropertySearchResultCardProps {
   property: ParagonPropertyWithMedia;
   size?: "sm" | "md";
-  /**
-   * If present, we do NOT link to /property/..., but call this callback instead.
-   */
   onClick?: (property: ParagonPropertyWithMedia) => void;
 }
 
@@ -29,21 +26,18 @@ export default function PropertySearchResultCard({
 
   useEffect(() => {
     let isCancelled = false;
-
     (async () => {
       const photo = await getPrimaryPhoto(property);
       if (!isCancelled) {
         setPrimaryPhoto(photo);
       }
     })();
-
     return () => {
       isCancelled = true;
     };
   }, [property]);
 
   const imgUrl = primaryPhoto?.MediaURL || "/img/placeholder.png";
-
   const sPrice = DisplayUtils.formatCurrency(property.ListPrice || 0);
   const sBeds = property.BedroomsTotal || 0;
   const sBaths = property.TotBth || `${property.BathroomsFull || 0} Bths`;
@@ -51,14 +45,16 @@ export default function PropertySearchResultCard({
   const subTypeRaw = property.PropertySubType ?? "";
   const finalType = subTypeRaw.trim() ? subTypeRaw : property.PropertyType;
 
-  if (onClick) {
-    // --- (A) If parent gave onClick => we do a custom onClick (modal)
-    const handleCardClick = () => {
-      onClick(property);
-    };
+  // CHANGED: Add a small style fix so text doesn't overflow
+  const cardStyleFix = {
+    whiteSpace: "normal" as const,
+    overflowWrap: "anywhere" as const,
+  };
 
+  if (onClick) {
+    // If parent gave onClick => we do a custom onClick (modal)
     return (
-      <div style={{ cursor: "pointer" }} onClick={handleCardClick}>
+      <div style={{ cursor: "pointer" }} onClick={() => onClick(property)}>
         <Card
           shadow="sm"
           padding="lg"
@@ -66,6 +62,8 @@ export default function PropertySearchResultCard({
           h="100%"
           withBorder
           className={size === "md" ? style.propertyCard : style.propertyCardSmall}
+          // CHANGED: ensure no overflow
+          style={cardStyleFix}
         >
           <Card.Section>
             <Image
@@ -102,7 +100,7 @@ export default function PropertySearchResultCard({
       </div>
     );
   } else {
-    // --- (B) If no onClick => we do a normal <Link> to the detail page
+    // Normal Link to detail page
     return (
       <Link href={`/property/${property.ListingId}`} className="no-underline">
         <Card
@@ -112,7 +110,7 @@ export default function PropertySearchResultCard({
           h="100%"
           withBorder
           className={size === "md" ? style.propertyCard : style.propertyCardSmall}
-          style={{ cursor: "pointer" }}
+          style={cardStyleFix} // CHANGED
         >
           <Card.Section>
             <Image

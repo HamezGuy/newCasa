@@ -1,6 +1,7 @@
 "use client";
 
 import { Modal } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks'; // CHANGED: we import this to detect mobile
 import PropertyDetails from "@/components/property/PropertyDetails";
 import { PropertyImages } from "@/components/property/PropertyImages";
 import ClientMessageForm from "@/components/messages/ClientMessageForm";
@@ -26,14 +27,26 @@ export default function PropertyModal({
   realtorEmail,
   realtorPhone,
 }: PropertyModalProps) {
+  // CHANGED: detect mobile vs. desktop
+  const isMobile = useMediaQuery('(max-width: 768px)');
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
       title="Property Details"
-      size="xl"
-      // Use overlayProps instead of overlayOpacity/overlayBlur:
+      // CHANGED: Make the modal much wider on desktop; smaller on mobile
+      size={isMobile ? 'lg' : '70%'}
       overlayProps={{ opacity: 0.55, blur: 3 }}
+      // CHANGED: Enforce text to wrap properly and adjust font size
+      styles={{
+        body: {
+          fontSize: isMobile ? 14 : 16,
+          overflowWrap: 'break-word',
+          // If text still overflows, you can also add:
+          // whiteSpace: 'pre-wrap',
+        },
+      }}
     >
       <div className="w-full">
         {/* Property images with clickable thumbnails */}

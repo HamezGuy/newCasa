@@ -8,6 +8,7 @@ import { useGeocode } from "./GeocodeContext";
 import { useBounds } from "@/components/search/boundscontext";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Button } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks"; // CHANGED: to detect mobile vs. desktop
 
 interface ILatLng {
   lat: number;
@@ -31,8 +32,6 @@ export interface SearchResultsMapProps {
   };
   onSearchComplete?: () => void;
   isPropertiesLoading?: boolean;
-
-  // new optional prop:
   onPropertyClick?: (prop: IParagonProperty) => void;
 }
 
@@ -41,14 +40,13 @@ export function SearchResultsMap({
   selectedGeometry,
   onSearchComplete,
   isPropertiesLoading = false,
-  onPropertyClick, // CHANGED
+  onPropertyClick,
 }: SearchResultsMapProps) {
   console.log("[SearchResultsMap] rendered with properties.length =", properties.length);
 
   const { geocodeData } = useGeocode();
   const { setBounds } = useBounds();
 
-  // Track last bounding "signature" so we don’t re-fit the map repeatedly
   const [lastSnapSignature, setLastSnapSignature] = useState<string | null>(null);
 
   // InfoWindow state
@@ -74,10 +72,8 @@ export function SearchResultsMap({
   const markerClusterRef = useRef<MarkerClusterer | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
 
-  const isMobile = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < 768;
-  }, []);
+  // CHANGED: detect if mobile for InfoWindow sizing logic, etc.
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   function makeSnapSignature(data: BasicGeocodeData): string | null {
     if (data.bounds) {
@@ -148,7 +144,7 @@ export function SearchResultsMap({
     // Center on the property
     mapRef.current.panTo({ lat: property.Latitude, lng: property.Longitude });
 
-    // Offset left on desktop
+    // Offset left on desktop if needed
     if (!isMobile) {
       mapRef.current.panBy(-200, 0);
     }
@@ -345,20 +341,18 @@ export function SearchResultsMap({
               lat: selectedProperty.Latitude ?? 0,
               lng: selectedProperty.Longitude ?? 0,
             }}
+            // CHANGED: bigger on desktop so text doesn't overflow
+            options={{ maxWidth: isMobile ? 250 : 500 }}
             onCloseClick={() => {
               setInfoWindowShown(false);
               setSelectedProperty(null);
             }}
           >
-            {/* 
-              CHANGED: Provide an onClick to PropertySearchResultCard that calls 
-              our parent's onPropertyClick callback 
-            */}
             <PropertySearchResultCard
               property={selectedProperty}
               size="sm"
               onClick={() => {
-                // If user clicks the mini card => call parent callback
+                // If user clicks the mini card => call parent callback (modal, etc.)
                 if (onPropertyClick) {
                   onPropertyClick(selectedProperty);
                 }
