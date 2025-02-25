@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   description: "NewCasa MVP",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
   icons: {
-    icon: "/favicon.ico",        // or "/favicon.png"
-    shortcut: "/favicon.ico",    // optional
-    apple: "/favicon.ico",       // optional
+    icon: "/favicon.ico",        
+    shortcut: "/favicon.ico",    
+    apple: "/favicon.ico",       
   },
 };
 

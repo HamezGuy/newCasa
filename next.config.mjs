@@ -1,6 +1,18 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+  // Add this webpack config to fix fs module errors
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Prevent client-side from trying to import server modules
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {
@@ -38,7 +50,7 @@ const nextConfig = {
     realtor: {
       name: "Tim Flores",
       brand: "Flores Realty",
-      profile: "I’m a real estate agent with EXP Realty, LLC ...", // etc
+      profile: "I'm a real estate agent with EXP Realty, LLC ...", // etc
       agency: {
         name: "EXP Realty, LLC",
         address: "8383 Greenway Blvd Ste 600",
