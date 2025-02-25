@@ -1,248 +1,551 @@
+// src/components/property/PropertyDetails.tsx
+"use client";
+
+import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 import DisplayUtils from "@/lib/utils/DisplayUtils";
+import { useState } from "react";
+import { Accordion, Badge, Group, Text, Button } from "@mantine/core";
+import { IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import ParagonPropertyUtils from "@/lib/utils/ParagonPropertyUtils";
-import IParagonProperty from "@/types/IParagonProperty";
-import {
-  Badge,
-  Box,
-  Card,
-  Divider,
-  Group,
-  SimpleGrid,
-  Space,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
 
-interface IPropertyDetailsProps {
-  property: IParagonProperty;
-  userRole: string; // e.g. 'realtor' or 'client'
-  userUid?: string | null;
+interface PropertyDetailsProps {
+  property: ParagonPropertyWithMedia;
+  userRole?: string;
+  userUid: string | null;
 }
 
-export default function PropertyDetails(props: IPropertyDetailsProps) {
-  const { property, userRole, userUid } = props;
+export default function PropertyDetails({
+  property,
+  userRole = "user",
+  userUid,
+}: PropertyDetailsProps) {
+  // Format values for display
+  const price = DisplayUtils.formatCurrency(property.ListPrice || 0);
+  const address = ParagonPropertyUtils.formatStreetAddress(property);
+  const cityStateZip = ParagonPropertyUtils.formatCityStateZip(property);
+  
+  // Calculate mortgage estimate (very simplified)
+  const estimatedMortgage = property.ListPrice 
+    ? DisplayUtils.formatCurrency((property.ListPrice * 0.005) / 12) 
+    : "N/A";
+
+  const yearBuilt = property.YearBuilt || "N/A";
+  const acres = property.LotSizeAcres || "N/A";
+  const sqFt = property.LivingArea || property.AboveGradeFinishedArea || "N/A";
+  const beds = property.BedroomsTotal || 0;
+  const baths = property.TotBth || `${property.BathroomsFull || 0}.${property.BathroomsHalf ? 5 : 0}`;
+
+  // Format property summary fields
+  const mlsNumber = property.ListingId || "N/A";
+  const propertyType = property.PropertySubType || property.PropertyType || "N/A";
+  const style = property.ArchitecturalStyle && property.ArchitecturalStyle.length > 0 
+    ? property.ArchitecturalStyle[0] 
+    : "N/A";
+  const stories = property.Levels && property.Levels.length > 0 
+    ? property.Levels.join(", ") 
+    : "N/A";
+  const taxes = property.TaxAnnualAmount 
+    ? DisplayUtils.formatCurrency(property.TaxAnnualAmount) 
+    : "N/A";
 
   return (
-    <>
-      {/* Header */}
-      <PropertyHeader property={property} />
+    <div>
+      {/* Main property information (always visible) */}
+      <div className="mb-6">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center">
+          <div>
+            <Badge color="green" className="mb-2">For Sale</Badge>
+            <div className="text-sm text-gray-600 mb-1">Est. Mortgage: {estimatedMortgage}/mo</div>
+            <h1 className="text-3xl font-bold">{price}</h1>
+            <p className="text-xl mb-1">{address}</p>
+            <p className="text-lg text-gray-700">{cityStateZip}</p>
+          </div>
+        </div>
 
-      <Space h={20} />
-      <PropertyStatus
-        numBeds={property.BedroomsTotal}
-        numBaths={property.TotBth ? parseFloat(property.TotBth) : undefined}
-        acres={property.LotSizeAcres}
-        sqft={property.LivingArea}
-        yearBuilt={property.YearBuilt}
-      />
+        {/* Key property stats */}
+        <div className="grid grid-cols-5 gap-2 mt-4 bg-gray-50 p-4 rounded-lg text-center">
+          <div>
+            <div className="text-xl font-semibold">{beds}</div>
+            <div className="text-sm text-gray-500">Beds</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{baths}</div>
+            <div className="text-sm text-gray-500">Baths</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{acres}</div>
+            <div className="text-sm text-gray-500">Acres</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{sqFt}</div>
+            <div className="text-sm text-gray-500">SQ FT</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{yearBuilt}</div>
+            <div className="text-sm text-gray-500">Year Built</div>
+          </div>
+        </div>
 
-      <Space h={20} />
-      <Text>{property.PublicRemarks}</Text>
+        {/* Property description */}
+        <div className="mt-6">
+          <p className="text-gray-700">{property.PublicRemarks}</p>
+        </div>
+      </div>
 
-      <Space h={80} />
-      <PropertySection title="Property Summary">
-        <PropertySummary property={property} />
-      </PropertySection>
+      {/* Detailed property information in accordions */}
+      <Accordion variant="separated" className="mt-4">
+        {/* Property Summary */}
+        <Accordion.Item value="property-summary">
+          <Accordion.Control>
+            <Text fw={600}>Property Summary</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">MLS #:</Text>
+                <Text size="sm">{mlsNumber}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Style:</Text>
+                <Text size="sm">{style}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Type:</Text>
+                <Text size="sm">{propertyType}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Year Built:</Text>
+                <Text size="sm">{yearBuilt}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Est. Taxes:</Text>
+                <Text size="sm">{taxes}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Stories:</Text>
+                <Text size="sm">{stories}</Text>
+              </div>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-      <PropertySection title="Features">
-        <PropertySummary property={property} />
-      </PropertySection>
+        {/* Listing Details */}
+        <Accordion.Item value="listing-details">
+          <Accordion.Control>
+            <Text fw={600}>Listing Details</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">City/Town/Village:</Text>
+                <Text size="sm">{property.City || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Municipality:</Text>
+                <Text size="sm">{property.City_Town_orVillage || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Status:</Text>
+                <Text size="sm">{property.StandardStatus || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">County:</Text>
+                <Text size="sm">{property.CountyOrParish || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Class:</Text>
+                <Text size="sm">{property.PropertyType || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Type:</Text>
+                <Text size="sm">{property.PropertySubType || property.PropertyType || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Architecture:</Text>
+                <Text size="sm">
+                  {property.ArchitecturalStyle && property.ArchitecturalStyle.length > 0 
+                    ? property.ArchitecturalStyle.join(", ") 
+                    : "N/A"}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Year Built:</Text>
+                <Text size="sm">{property.YearBuilt || "N/A"} 
+                  {property.YearBuiltSource ? ` (${property.YearBuiltSource})` : ""}
+                </Text>
+              </div>
+            </div>
+            <div className="mt-3">
+              <Text fw={600} size="sm">Items Included:</Text>
+              <Text size="sm">{property.Inclusions || "None specified"}</Text>
+            </div>
+            <div className="mt-3">
+              <Text fw={600} size="sm">Items Excluded:</Text>
+              <Text size="sm">{property.Exclusions || "None specified"}</Text>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-      {userUid && userRole === "realtor" ? (
-        <PropertySection title="Documents and Realtor Information">
-          <RealtorInformation property={property} />
-        </PropertySection>
-      ) : (
-        <Text>You need to be a logged-in realtor to view additional property details.</Text>
-      )}
+        {/* Interior Features */}
+        <Accordion.Item value="interior-features">
+          <Accordion.Control>
+            <Text fw={600}>Interior Features</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">Square Footage:</Text>
+                <Text size="sm">
+                  {property.AboveGradeFinishedArea ? `${property.AboveGradeFinishedArea} (Above Grade)` : "N/A"}
+                  {property.BelowGradeFinishedArea ? `, ${property.BelowGradeFinishedArea} (Below Grade)` : ""}
+                  {property.LivingArea ? `, ${property.LivingArea} (Total)` : ""}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Bedrooms:</Text>
+                <Text size="sm">{property.BedroomsTotal || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Bathrooms:</Text>
+                <Text size="sm">
+                  {property.BathroomsFull ? `${property.BathroomsFull} Full` : ""}
+                  {property.BathroomsHalf ? `, ${property.BathroomsHalf} Half` : ""}
+                  {!property.BathroomsFull && !property.BathroomsHalf ? "N/A" : ""}
+                </Text>
+              </div>
+            </div>
 
-      <PropertySection
-        title={`Listing Information for MLS #${property.ListAgentMlsId}`}
-      >
-        <ListingInformation property={property} />
-      </PropertySection>
-    </>
-  );
-}
+            {/* Room details */}
+            {(property.Primary_Bed_Dim_258 || property.Primary_BedRm_Lvl_67) && (
+              <div className="mt-3">
+                <Text fw={600} size="sm">Master Bedroom:</Text>
+                <Text size="sm">
+                  {property.Primary_Bed_Dim_258 ? `Dimensions: ${property.Primary_Bed_Dim_258}` : ""}
+                  {property.Primary_BedRm_Lvl_67 ? `, Level: ${property.Primary_BedRm_Lvl_67}` : ""}
+                </Text>
+              </div>
+            )}
+            
+            {(property.Bedroom_2_Dim_259 || property.Bedroom_2_Lvl_68) && (
+              <div className="mt-2">
+                <Text fw={600} size="sm">Bedroom 2:</Text>
+                <Text size="sm">
+                  {property.Bedroom_2_Dim_259 ? `Dimensions: ${property.Bedroom_2_Dim_259}` : ""}
+                  {property.Bedroom_2_Lvl_68 ? `, Level: ${property.Bedroom_2_Lvl_68}` : ""}
+                </Text>
+              </div>
+            )}
+            
+            {(property.Bedroom_3_Dim_260 || property.Bedroom_3_Lvl_69) && (
+              <div className="mt-2">
+                <Text fw={600} size="sm">Bedroom 3:</Text>
+                <Text size="sm">
+                  {property.Bedroom_3_Dim_260 ? `Dimensions: ${property.Bedroom_3_Dim_260}` : ""}
+                  {property.Bedroom_3_Lvl_69 ? `, Level: ${property.Bedroom_3_Lvl_69}` : ""}
+                </Text>
+              </div>
+            )}
+            
+            {(property.Kitchen_Dim_255 || property.Kitchen_Lvl_64) && (
+              <div className="mt-2">
+                <Text fw={600} size="sm">Kitchen:</Text>
+                <Text size="sm">
+                  {property.Kitchen_Dim_255 ? `Dimensions: ${property.Kitchen_Dim_255}` : ""}
+                  {property.Kitchen_Lvl_64 ? `, Level: ${property.Kitchen_Lvl_64}` : ""}
+                </Text>
+              </div>
+            )}
+            
+            {(property.Living_Or_Great_Dim_254 || property.Living_Or_Great_Room_Lvl_63) && (
+              <div className="mt-2">
+                <Text fw={600} size="sm">Living Room:</Text>
+                <Text size="sm">
+                  {property.Living_Or_Great_Dim_254 ? `Dimensions: ${property.Living_Or_Great_Dim_254}` : ""}
+                  {property.Living_Or_Great_Room_Lvl_63 ? `, Level: ${property.Living_Or_Great_Room_Lvl_63}` : ""}
+                </Text>
+              </div>
+            )}
+            
+            {(property.Dining_Room_Dim_256 || property.Dining_Room_Lvl_65) && (
+              <div className="mt-2">
+                <Text fw={600} size="sm">Dining Room:</Text>
+                <Text size="sm">
+                  {property.Dining_Room_Dim_256 ? `Dimensions: ${property.Dining_Room_Dim_256}` : ""}
+                  {property.Dining_Room_Lvl_65 ? `, Level: ${property.Dining_Room_Lvl_65}` : ""}
+                </Text>
+              </div>
+            )}
 
-// Summary info
-function PropertySummary({ property }: { property: IParagonProperty }) {
-  // ADDED => subType or fallback to propertyType
-  const subTypeRaw = property.PropertySubType ?? "";
-  const finalType = subTypeRaw.trim() ? subTypeRaw : property.PropertyType;
+            {/* Basement */}
+            <div className="mt-3">
+              <Text fw={600} size="sm">Basement:</Text>
+              <Text size="sm">
+                {property.Basement && property.Basement.length > 0 
+                  ? property.Basement.join(", ") 
+                  : "N/A"}
+              </Text>
+            </div>
 
-  return (
-    <SimpleGrid cols={2}>
-      <LabelValueTextDisplay label="MLS #:" value={property.ListingId} />
+            {/* Fireplace */}
+            <div className="mt-3">
+              <Text fw={600} size="sm">Fireplace:</Text>
+              <Text size="sm">
+                {property.FireplaceYN ? 
+                  `Yes${property.FireplacesTotal ? ` (${property.FireplacesTotal})` : ''}` : 
+                  "No"}
+              </Text>
+            </div>
 
-      {/* CHANGED => finalType */}
-      <LabelValueTextDisplay label="Type:" value={finalType || ""} />
+            {/* Interior amenities */}
+            <div className="mt-3">
+              <Text fw={600} size="sm">Interior Amenities:</Text>
+              <Text size="sm">
+                {property.InteriorFeatures && property.InteriorFeatures.length > 0 
+                  ? property.InteriorFeatures.join(", ") 
+                  : "None specified"}
+              </Text>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-      <LabelValueTextDisplay
-        label="Year Built:"
-        value={property.YearBuilt?.toString() ?? ""}
-      />
-      <LabelValueTextDisplay
-        label="Estimated Taxes:"
-        value={DisplayUtils.formatCurrency(property.TaxAnnualAmount)}
-      />
-      <LabelValueTextDisplay
-        label="Subdivision:"
-        value={property.SubdivisionName || ""}
-      />
-      <LabelValueTextDisplay
-        label="Stories:"
-        value={property.StoriesTotal?.toString() || ""}
-      />
-      <LabelValueTextDisplay
-        label="Style:"
-        value={property.ArchitecturalStyle?.join(", ") || ""}
-      />
-    </SimpleGrid>
-  );
-}
+        {/* Exterior Features */}
+        <Accordion.Item value="exterior-features">
+          <Accordion.Control>
+            <Text fw={600}>Exterior Features</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              {/* Waterfront */}
+              {property.WaterfrontYN && (
+                <div>
+                  <Text fw={600} size="sm">Waterfront:</Text>
+                  <Text size="sm">
+                    {property.WaterfrontYN ? "Yes" : "No"}
+                    {property.WaterBodyName ? ` (${property.WaterBodyName})` : ""}
+                  </Text>
+                </div>
+              )}
+              
+              {/* Exterior */}
+              <div>
+                <Text fw={600} size="sm">Exterior:</Text>
+                <Text size="sm">
+                  {property.ConstructionMaterials && property.ConstructionMaterials.length > 0 
+                    ? property.ConstructionMaterials.join(", ") 
+                    : "N/A"}
+                </Text>
+              </div>
+              
+              {/* Exterior Features */}
+              <div className="col-span-2">
+                <Text fw={600} size="sm">Exterior Features:</Text>
+                <Text size="sm">
+                  {property.ExteriorFeatures && property.ExteriorFeatures.length > 0 
+                    ? property.ExteriorFeatures.join(", ") 
+                    : "None specified"}
+                </Text>
+              </div>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-function ListingInformation({ property }: { property: IParagonProperty }) {
-  return (
-    <Stack>
-      <LabelValueTextDisplay label="Listing Broker:" value={property.ListOfficeName} />
-      <LabelValueTextDisplay label="Listing Agent:" value={property.ListAgentFullName} />
-      <LabelValueTextDisplay label="Last Changed:" value={property.StatusChangeTimestamp} />
-      <Text>
-        Accuracy of information is not guaranteed and should be verified by the buyer if
-        material.
-      </Text>
-    </Stack>
-  );
-}
+        {/* Garage/Parking */}
+        <Accordion.Item value="garage-parking">
+          <Accordion.Control>
+            <Text fw={600}>Garage/Parking</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">Driveway:</Text>
+                <Text size="sm">
+                  {property.ParkingFeatures && property.ParkingFeatures.find(
+                    p => p.toLowerCase().includes("driveway")
+                  ) || "N/A"}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Garage:</Text>
+                <Text size="sm">
+                  {property.GarageYN ? 
+                    `Yes${property.GarageSpaces ? ` (${property.GarageSpaces} spaces)` : ''}` : 
+                    "No"}
+                  {property.AttachedGarageYN ? ", Attached" : ""}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Parking Features:</Text>
+                <Text size="sm">
+                  {property.ParkingFeatures && property.ParkingFeatures.length > 0 
+                    ? property.ParkingFeatures.join(", ") 
+                    : "None specified"}
+                </Text>
+              </div>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-function PropertySection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <>
-      <Title order={2} mt={40} mb={10} className="normal-case font-normal">
-        {title}
-      </Title>
-      <Divider py={10} mt={0} />
-      {children}
-    </>
-  );
-}
+        {/* Utilities */}
+        <Accordion.Item value="utilities">
+          <Accordion.Control>
+            <Text fw={600}>Utilities</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">Fuel:</Text>
+                <Text size="sm">
+                  {property.Heating && property.Heating.length > 0 
+                    ? property.Heating.join(", ") 
+                    : "N/A"}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Heating/Cooling:</Text>
+                <Text size="sm">
+                  {(property.Heating && property.Heating.length > 0) || 
+                   (property.Cooling && property.Cooling.length > 0) 
+                    ? [...(property.Heating || []), ...(property.Cooling || [])].join(", ")
+                    : "N/A"}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Water/Waste:</Text>
+                <Text size="sm">
+                  {(property.WaterSource && property.WaterSource.length > 0) || 
+                   (property.Sewer && property.Sewer.length > 0)
+                    ? [...(property.WaterSource || []), ...(property.Sewer || [])].join(", ")
+                    : "N/A"}
+                </Text>
+              </div>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-interface IPropertyStatusProps {
-  numBeds?: number;
-  numBaths?: number;
-  acres?: number;
-  sqft?: number;
-  yearBuilt?: number;
-}
-function PropertyStatus(props: IPropertyStatusProps) {
-  return (
-    <Card
-      radius={0}
-      withBorder
-      bg="#f9f9f9"
-      style={{
-        borderTopWidth: 0,
-        borderLeftWidth: 0,
-        borderRightWidth: 0,
-        borderBottom: "3px solid green",
-      }}
-    >
-      <SimpleGrid cols={5}>
-        <Stack align="center" gap={0} style={{ borderRight: "1px solid #CCC" }}>
-          <Text style={{ fontSize: "32px" }}>{props.numBeds ?? "-"}</Text>
-          <Text style={{ textTransform: "uppercase" }}>Beds</Text>
-        </Stack>
-        <Stack align="center" gap={0} style={{ borderRight: "1px solid #CCC" }}>
-          <Text style={{ fontSize: "32px" }}>{props.numBaths ?? "-"}</Text>
-          <Text style={{ textTransform: "uppercase" }}>Baths</Text>
-        </Stack>
-        <Stack align="center" gap={0} style={{ borderRight: "1px solid #CCC" }}>
-          <Text style={{ fontSize: "32px" }}>{props.acres ?? "-"}</Text>
-          <Text style={{ textTransform: "uppercase" }}>Acres</Text>
-        </Stack>
-        <Stack align="center" gap={0} style={{ borderRight: "1px solid #CCC" }}>
-          <Text style={{ fontSize: "32px" }}>
-            {props.sqft ? props.sqft.toLocaleString() : "-"}
-          </Text>
-          <Text style={{ textTransform: "uppercase" }}>Sqft</Text>
-        </Stack>
-        <Stack align="center" gap={0}>
-          <Text style={{ fontSize: "32px" }}>{props.yearBuilt ?? "-"}</Text>
-          <Text style={{ textTransform: "uppercase" }}>Year Built</Text>
-        </Stack>
-      </SimpleGrid>
-    </Card>
-  );
-}
+        {/* Lot Info */}
+        <Accordion.Item value="lot-info">
+          <Accordion.Control>
+            <Text fw={600}>Lot Info</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">Parcel Number:</Text>
+                <Text size="sm">{property.ParcelNumber || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Acres:</Text>
+                <Text size="sm">{property.LotSizeAcres || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Lot Description:</Text>
+                <Text size="sm">
+                  {property.LotFeatures && property.LotFeatures.length > 0 
+                    ? property.LotFeatures.join(", ") 
+                    : "None specified"}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Zoning:</Text>
+                <Text size="sm">{property.Zoning || "N/A"}</Text>
+              </div>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-function RealtorInformation({ property }: { property: IParagonProperty }) {
-  return (
-    <Stack>
-      <DetailsSubtitle>Documents Available</DetailsSubtitle>
-      <a href="/RealtorDocument.pdf" target="_blank" rel="noopener noreferrer">
-        Realtor Document (PDF)
-      </a>
+        {/* Tax Info */}
+        <Accordion.Item value="tax-info">
+          <Accordion.Control>
+            <Text fw={600}>Tax Info</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">Land Assessment:</Text>
+                <Text size="sm">
+                  {property.TaxAssessedValue 
+                    ? DisplayUtils.formatCurrency(property.TaxAssessedValue) 
+                    : "N/A"}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Total Assessment:</Text>
+                <Text size="sm">
+                  {property.TaxAssessedValue 
+                    ? DisplayUtils.formatCurrency(property.TaxAssessedValue) 
+                    : "N/A"}
+                </Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Assessment Year:</Text>
+                <Text size="sm">{property.TaxYear || "N/A"}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">Net Taxes:</Text>
+                <Text size="sm">
+                  {property.TaxAnnualAmount 
+                    ? DisplayUtils.formatCurrency(property.TaxAnnualAmount) 
+                    : "N/A"}
+                </Text>
+              </div>
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
 
-      <DetailsSubtitle>Realtor Information</DetailsSubtitle>
-      <LabelValueTextDisplay label="Listing Agent:" value={property.ListAgentFullName} />
-      <LabelValueTextDisplay label="Listing Agent Email:" value={property.ListAgentEmail} />
-    </Stack>
-  );
-}
+        {/* Location Info */}
+        <Accordion.Item value="location-info">
+          <Accordion.Control>
+            <Text fw={600}>Location Info</Text>
+          </Accordion.Control>
+          <Accordion.Panel>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+              <div>
+                <Text fw={600} size="sm">Address:</Text>
+                <Text size="sm">{ParagonPropertyUtils.formatStreetAddress(property)}</Text>
+              </div>
+              <div>
+                <Text fw={600} size="sm">City, State, Zip:</Text>
+                <Text size="sm">{ParagonPropertyUtils.formatCityStateZip(property)}</Text>
+              </div>
+              {property.Directions && (
+                <div className="col-span-2">
+                  <Text fw={600} size="sm">Directions:</Text>
+                  <Text size="sm">{property.Directions}</Text>
+                </div>
+              )}
+              {property.ElementarySchool && (
+                <div>
+                  <Text fw={600} size="sm">Elementary School:</Text>
+                  <Text size="sm">{property.ElementarySchool}</Text>
+                </div>
+              )}
+              {property.MiddleOrJuniorSchool && (
+                <div>
+                  <Text fw={600} size="sm">Middle School:</Text>
+                  <Text size="sm">{property.MiddleOrJuniorSchool}</Text>
+                </div>
+              )}
+              {property.HighSchool && (
+                <div>
+                  <Text fw={600} size="sm">High School:</Text>
+                  <Text size="sm">{property.HighSchool}</Text>
+                </div>
+              )}
+            </div>
+          </Accordion.Panel>
+        </Accordion.Item>
+      </Accordion>
 
-function PropertyHeader({ property }: { property: IParagonProperty }) {
-  const isForSale = true;
-  const sOpenHouse = ParagonPropertyUtils.getOpenHouseTime(property);
-  const estimatedMortgage = 3225;
-
-  return (
-    <Box py={10}>
-      <Group>
-        {isForSale && <Badge color="green" size="lg">For Sale</Badge>}
-        {sOpenHouse && <Badge color="green" size="lg">{sOpenHouse}</Badge>}
-      </Group>
-      <Space h={10} />
-      <Group justify="space-between">
-        <Stack gap={0}>
-          <Text fw={500} style={{ fontSize: "24px" }}>
-            {ParagonPropertyUtils.formatStreetAddress(property)}
-          </Text>
-          <Text fw={500} style={{ fontSize: "24px" }}>
-            {ParagonPropertyUtils.formatCityStateZip(property)}
-          </Text>
-        </Stack>
-        <Stack gap={0}>
-          <Text size="sm">
-            Est. Mortgage:{" "}
-            <Text span fw="bold">
-              {DisplayUtils.formatCurrency(estimatedMortgage)}
-            </Text>
-          </Text>
-          <Text fw={500} style={{ fontSize: "32px" }} color="green">
-            {DisplayUtils.formatCurrency(property.ListPrice)}
-          </Text>
-        </Stack>
-      </Group>
-    </Box>
-  );
-}
-
-// Reusable label-value
-function LabelValueTextDisplay({ label, value }: { label?: string; value?: string }) {
-  return (
-    <Group gap={0}>
-      <Text fw="bold">{label ?? ""}</Text>
-      <Text pl={5}>{value ?? ""}</Text>
-    </Group>
-  );
-}
-
-function DetailsSubtitle({ children }: { children: React.ReactNode }) {
-  return (
-    <Title order={3} className="text-lg">
-      {children}
-    </Title>
+      {/* Print Listing Details button */}
+      <div className="mt-4 text-right">
+        <Button 
+          variant="outline"
+          onClick={() => window.print()}
+          className="print:hidden"
+        >
+          Print Listing Details
+        </Button>
+      </div>
+    </div>
   );
 }
