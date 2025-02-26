@@ -19,6 +19,7 @@ interface ISearchFiltersData {
   types?: string[];
   minRooms?: string;
   maxRooms?: string;
+  radius?: number;
 }
 
 interface SearchInputProps {
@@ -48,12 +49,24 @@ export default function SearchInput({
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [popupSuggestions, setPopupSuggestions] = useState<any[]>([]);
   const requestIdRef = useRef<number>(0);
+  const [isAddressInput, setIsAddressInput] = useState(false);
 
   useEffect(() => {
     if (inputRef.current && defaultValue) {
       inputRef.current.value = defaultValue;
     }
   }, [defaultValue]);
+
+  // Helper to detect if input looks like an address
+  const detectIfAddress = (input: string): boolean => {
+    // Look for patterns like numbers followed by words, or street types
+    const addressPatterns = [
+      /^\d+\s+[a-zA-Z]/,  // Starts with numbers followed by words
+      /\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|circle|cir|court|ct|place|pl|boulevard|blvd)\b/i, // Contains street types
+    ];
+    
+    return addressPatterns.some(pattern => pattern.test(input));
+  };
 
   // ----------------------------------------
   // Fetch suggestions (autocomplete)
@@ -69,9 +82,17 @@ export default function SearchInput({
         return;
       }
 
+      // Detect if input looks like an address
+      const isAddress = detectIfAddress(input);
+      setIsAddressInput(isAddress);
+      
       try {
         const response = await axios.get("/api/v1/autocomplete", {
-          params: { input, types: "(regions)" },
+          params: { 
+            input, 
+            // If it looks like an address, use address type
+            types: isAddress ? "address" : "(regions)" 
+          },
         });
 
         // Race-condition check
@@ -136,6 +157,7 @@ export default function SearchInput({
 
       if (apiData.status === "OK" && apiData.results && apiData.results.length > 0) {
         const geocodeData = apiData.results[0];
+        console.log("Geocode result types:", geocodeData.types);
 
         // Check if recognized: city, county, zip, or full address
         if (!hasRecognizedType(geocodeData.address_components || [])) {
@@ -153,6 +175,7 @@ export default function SearchInput({
           formatted_address: geocodeData.formatted_address,
           place_id: geocodeData.place_id,
           address_components: geocodeData.address_components,
+          types: geocodeData.types, // Include types in the geocode data
         };
 
         setGeocodeData(formattedData);
@@ -170,15 +193,30 @@ export default function SearchInput({
           const county = comps.find((c: any) =>
             c.types.includes("administrative_area_level_2")
           )?.long_name;
+          const streetNumber = comps.find((c: any) => c.types.includes("street_number"))?.long_name;
 
           const urlParams = new URLSearchParams();
           urlParams.set("searchTerm", originalAddress);
           urlParams.set("geocode", encodeURIComponent(JSON.stringify(formattedData)));
 
-          if (zipCode) urlParams.set("zipCode", zipCode);
-          else if (city) urlParams.set("city", city);
-          else if (route) urlParams.set("streetName", route);
-          else if (county) urlParams.set("county", county);
+          // Check if this is a street address
+          const isStreetAddress = geocodeData.types && 
+            (geocodeData.types.includes("street_address") || 
+             geocodeData.types.includes("premise"));
+
+          // If we have a street number and route or it's explicitly a street address or input looks like address
+          if ((streetNumber && route) || isStreetAddress || isAddressInput) {
+            console.log("Detected as full address - using address search");
+            urlParams.set("address", geocodeData.formatted_address);
+          } else if (zipCode) {
+            urlParams.set("zipCode", zipCode);
+          } else if (city) {
+            urlParams.set("city", city);
+          } else if (route) {
+            urlParams.set("streetName", route);
+          } else if (county) {
+            urlParams.set("county", county);
+          }
 
           // Include user filters
           if (filters) {
@@ -220,8 +258,14 @@ export default function SearchInput({
   // ----------------------------------------
   const fetchPopupSuggestions = async (input: string) => {
     try {
+      // Detect if input looks like an address for better suggestions
+      const isAddress = detectIfAddress(input);
+      
       const response = await axios.get("/api/v1/autocomplete", {
-        params: { input, types: "(regions)" },
+        params: { 
+          input, 
+          types: isAddress ? "address" : "(regions)" 
+        },
       });
 
       if (response.data.status === "OK" && response.data.predictions.length > 0) {
@@ -249,6 +293,17 @@ export default function SearchInput({
     setSuggestions([]);
     setPopupSuggestions([]);
     setIsPopupOpen(false);
+    
+    // Check if this is an address suggestion based on types
+    if (suggestion.types) {
+      const addressTypes = ["street_address", "premise", "address"];
+      const isAddress = addressTypes.some(type => suggestion.types.includes(type));
+      setIsAddressInput(isAddress);
+    } else {
+      // If no types, check the description
+      setIsAddressInput(detectIfAddress(fullDescription));
+    }
+    
     validateAddress(fullDescription);
   };
 
@@ -257,7 +312,11 @@ export default function SearchInput({
   // ----------------------------------------
   const handleSearch = () => {
     const val = inputRef.current?.value?.trim();
-    if (val) validateAddress(val);
+    if (val) {
+      // Check if input looks like an address before validating
+      setIsAddressInput(detectIfAddress(val));
+      validateAddress(val);
+    }
   };
 
   const handleInputChange = () => {
@@ -279,7 +338,7 @@ export default function SearchInput({
       <div style={{ display: "flex", alignItems: "stretch", width: "100%" }}>
         <TextInput
           ref={inputRef}
-          placeholder="Enter City, Neighborhood, or ZIP Code"
+          placeholder="Enter City, Neighborhood, ZIP Code, or Address"
           size={size}
           onChange={handleInputChange}
           onKeyUp={(e) => {
@@ -382,7 +441,7 @@ export default function SearchInput({
           </ul>
         ) : (
           <p>
-            No suggestions found for “{inputRef.current?.value}”.<br />
+            No suggestions found for "{inputRef.current?.value}".<br />
             Please try a more specific address, city, or ZIP code.
           </p>
         )}

@@ -49,7 +49,7 @@ function ListingsSearchBar({ onSearch }: { onSearch: (term: string) => void }) {
     <div className="flex flex-col sm:flex-row gap-2 w-full max-w-xl my-4 mx-auto">
       <input
         className="flex-1 border border-gray-300 rounded p-2"
-        placeholder="Enter a city or ZIP code..."
+        placeholder="Enter a city, ZIP code, or address..."
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyPress={handleKeyPress}
@@ -71,7 +71,7 @@ export default function ListingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // The user’s search term (city or zip)
+  // The user's search term (city or zip)
   const initialTerm = searchParams.get("q") || "";
   const [searchTerm, setSearchTerm] = useState(initialTerm);
 
@@ -87,14 +87,14 @@ export default function ListingsPage() {
   const [title, setTitle] = useState("Listings");
   const [verifyError, setVerifyError] = useState("");
 
-  // The top “All listings for Tim” data
+  // The top "All listings for Tim" data
   const [timListings, setTimListings] = useState<IParagonProperty[]>([]);
   const [loadingTim, setLoadingTim] = useState(false);
 
   const LIMIT = 6;
   const observerRef = useRef<HTMLDivElement | null>(null);
 
-  // (A) On mount => fetch Tim’s listings
+  // (A) On mount => fetch Tim's listings
   useEffect(() => {
     async function fetchTim() {
       try {
@@ -145,7 +145,33 @@ export default function ListingsPage() {
       try {
         let params: Record<string, any> = {};
 
-        if (isLikelyZip(searchTerm)) {
+        // First check if it might be a full address
+        const geocodeResponse = await axios.get("/api/v1/geocode", { 
+          params: { address: searchTerm } 
+        });
+        
+        const geocodeData = geocodeResponse.data;
+        
+        if (geocodeData.status === "OK" && geocodeData.results && geocodeData.results.length > 0) {
+          const result = geocodeData.results[0];
+          const comps = result.address_components || [];
+          const hasStreetNumber = comps.some((c: any) => c.types.includes("street_number"));
+          const hasRoute = comps.some((c: any) => c.types.includes("route"));
+          
+          // If it has both street number and route, treat as full address
+          if (hasStreetNumber && hasRoute) {
+            params.address = result.formatted_address;
+            params.radius = 1; // Default radius
+            setTitle(`Properties near ${result.formatted_address}`);
+          } else if (isLikelyZip(searchTerm)) {
+            params.zipCode = searchTerm;
+            setTitle(`Listings in ZIP ${searchTerm}`);
+          } else {
+            const cityTitleCase = toTitleCase(searchTerm);
+            params.city = cityTitleCase;
+            setTitle(`Listings in ${cityTitleCase}`);
+          }
+        } else if (isLikelyZip(searchTerm)) {
           params.zipCode = searchTerm;
           setTitle(`Listings in ZIP ${searchTerm}`);
         } else {
@@ -278,7 +304,7 @@ export default function ListingsPage() {
       {/* If no search => message */}
       {!searchTerm && allProps.length === 0 && (
         <p className="text-center text-gray-600 my-8">
-          No search yet — please enter a city or ZIP code above.
+          No search yet — please enter a city, ZIP code, or address above.
         </p>
       )}
 
@@ -292,10 +318,10 @@ export default function ListingsPage() {
             All Listings for Tim Flores
           </h2>
           {loadingTim ? (
-            <p className="mt-3">Loading Tim’s listings...</p>
+            <p className="mt-3">Loading Tim's listings...</p>
           ) : (
             <p className="mt-2 text-sm">
-              Check out all the active & pending listings under Tim’s name.
+              Check out all the active & pending listings under Tim's name.
             </p>
           )}
         </div>
@@ -311,7 +337,7 @@ export default function ListingsPage() {
         isLoading={loadingTim}
       />
 
-      {/* User’s search results */}
+      {/* User's search results */}
       {displayedProperties.length > 0 && (
         <PropertyList
           properties={displayedProperties}

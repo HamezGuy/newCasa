@@ -22,62 +22,77 @@ function getEnvVar(name: string, fallback?: string): string {
 }
 
 /**
- * Sends a message to a realtor and updates Firestore.
+ * Interface for the message data structure
  */
-export const sendMessageToRealtor = functions.https.onCall(
-  async (
-    request: functions.https.CallableRequest<{
-      message: string;
-      clientEmail: string;
-      propertyId: string;
-      clientId: string;
-      realtorEmail?: string;
-      realtorPhoneNumber?: string;
-    }>
-  ) => {
-    const twilioSid = getEnvVar("TWILIO_ACCOUNT_SID");
-    const twilioAuthToken = getEnvVar("TWILIO_AUTH_TOKEN");
-    const twilioPhoneNumber = getEnvVar("TWILIO_PHONE_NUMBER");
-    const emailUser = getEnvVar("EMAIL_USER");
-    const emailPass = getEnvVar("EMAIL_PASS");
+interface MessageData {
+  message: string;
+  clientEmail: string;
+  propertyId: string;
+  clientId: string;
+  realtorEmail?: string;
+  realtorPhoneNumber?: string;
+}
 
-    // Get values from request
-    const {
+/**
+ * Interface for the user role data structure
+ */
+interface UserRoleData {
+  uid: string;
+  role?: string;
+}
+
+/**
+ * Processes a message and sends it to the realtor via email and SMS.
+ * @param {MessageData} data The message data to process
+ * @return {Promise<{success: boolean, message: string}>} Operation result
+ */
+function handleMessage(data: MessageData):
+    Promise<{ success: boolean; message: string }> {
+  const twilioSid = getEnvVar("TWILIO_ACCOUNT_SID");
+  const twilioAuthToken = getEnvVar("TWILIO_AUTH_TOKEN");
+  const twilioPhoneNumber = getEnvVar("TWILIO_PHONE_NUMBER");
+  const emailUser = getEnvVar("EMAIL_USER");
+  const emailPass = getEnvVar("EMAIL_PASS");
+
+  // Get values from request
+  const {
+    message,
+    clientEmail,
+    propertyId,
+    clientId,
+    realtorEmail,
+    realtorPhoneNumber,
+  } = data;
+
+  // Use provided values or fall back to environment variables
+  const targetEmail = realtorEmail ||
+    getEnvVar("REALTOR_EMAIL", "tim.flores@flores.realty");
+  const targetPhone = realtorPhoneNumber ||
+    getEnvVar("REALTOR_PHONE_NUMBER", "+16085793033");
+
+  // Create Twilio client
+  const twilioClient = twilio(twilioSid, twilioAuthToken);
+
+  if (!propertyId || !clientId || !message.trim()) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Missing required fields: propertyId, clientId, or message"
+    );
+  }
+
+  console.log(
+    "Message received:",
+    {
       message,
       clientEmail,
       propertyId,
       clientId,
-      realtorEmail,
-      realtorPhoneNumber,
-    } = request.data;
-
-    // UPDATED: Use provided values or fall back to environment variables
-    const targetEmail = realtorEmail ||
-      getEnvVar("REALTOR_EMAIL", "tim.flores@flores.realty");
-    const targetPhone = realtorPhoneNumber ||
-      getEnvVar("REALTOR_PHONE_NUMBER", "+16085793033");
-
-    const twilioClient = twilio(twilioSid, twilioAuthToken);
-
-    if (!propertyId || !clientId || !message.trim()) {
-      throw new functions.https.HttpsError(
-        "invalid-argument",
-        "Missing required fields: propertyId, clientId, or message"
-      );
+      recipientEmail: targetEmail, // Log the actual recipient
+      recipientPhone: targetPhone, // Log the actual recipient
     }
+  );
 
-    console.log(
-      "Message received:",
-      {
-        message,
-        clientEmail,
-        propertyId,
-        clientId,
-        recipientEmail: targetEmail, // Log the actual recipient
-        recipientPhone: targetPhone, // Log the actual recipient
-      }
-    );
-
+  return (async () => {
     const chatDocRef = db.collection("chats").doc(propertyId);
     const chatSnapshot = await chatDocRef.get();
 
@@ -117,7 +132,7 @@ export const sendMessageToRealtor = functions.https.onCall(
     }
 
     try {
-      // UPDATED: Send SMS to the specific realtor's phone number
+      // Send SMS to the specific realtor's phone number
       await twilioClient.messages.create({
         body: `Property ID: ${propertyId}\nMessage: ${message}`,
         from: twilioPhoneNumber,
@@ -132,7 +147,7 @@ export const sendMessageToRealtor = functions.https.onCall(
       );
     }
 
-    // UPDATED: Send email to the specific realtor's email address
+    // Send email to the specific realtor's email address
     const mailOptions = {
       from: emailUser,
       to: targetEmail,
@@ -160,8 +175,50 @@ export const sendMessageToRealtor = functions.https.onCall(
     }
 
     return {success: true, message: "Message sent successfully!"};
+  })();
+}
+
+/**
+ * Assigns a role to a user by updating Firestore and user claims.
+ * @param {UserRoleData} data User role data
+ * @return {Promise<{success: boolean, message: string}>} Operation result
+ */
+function handleUserRole(data: UserRoleData):
+    Promise<{ success: boolean; message: string }> {
+  const {uid, role = "realtor"} = data;
+
+  if (!uid) {
+    throw new functions.https.HttpsError("invalid-argument", "Missing UID");
   }
-);
+
+  return (async () => {
+    try {
+      await db.collection("users").doc(uid).set(
+        {
+          role,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        {merge: true}
+      );
+      await admin.auth().setCustomUserClaims(uid, {role});
+      return {success: true, message: "User role assigned successfully"};
+    } catch (error) {
+      console.error("Failed to assign user role:", error);
+      throw new functions.https.HttpsError(
+        "internal",
+        "Failed to assign user role"
+      );
+    }
+  })();
+}
+
+/**
+ * Sends a message to a realtor and updates Firestore.
+ */
+export const sendMessageToRealtor = functions.https.onCall((request) => {
+  // Casting request.data to our interface for type safety
+  return handleMessage(request.data as MessageData);
+});
 
 /**
  * Handles incoming SMS messages and updates Firestore.
@@ -241,35 +298,10 @@ export const handleIncomingSms = functions.https.onRequest(
 /**
  * Assigns a role to a user and updates Firestore.
  */
-export const assignUserRole = functions.https.onCall(
-  async (
-    request: functions.https.CallableRequest<{ uid: string; role?: string }>
-  ) => {
-    const {uid, role = "realtor"} = request.data;
-
-    if (!uid) {
-      throw new functions.https.HttpsError("invalid-argument", "Missing UID");
-    }
-
-    try {
-      await db.collection("users").doc(uid).set(
-        {
-          role,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        },
-        {merge: true}
-      );
-      await admin.auth().setCustomUserClaims(uid, {role});
-      return {success: true, message: "User role assigned successfully"};
-    } catch (error) {
-      console.error("Failed to assign user role:", error);
-      throw new functions.https.HttpsError(
-        "internal",
-        "Failed to assign user role"
-      );
-    }
-  }
-);
+export const assignUserRole = functions.https.onCall((request) => {
+  // Casting request.data to our interface for type safety
+  return handleUserRole(request.data as UserRoleData);
+});
 
 /**
  * Tests Firestore connection by adding a test document.

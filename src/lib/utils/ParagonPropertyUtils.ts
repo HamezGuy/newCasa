@@ -77,53 +77,76 @@ export default class ParagonPropertyUtils {
 export const getPrimaryPhoto = async (
   property: ParagonPropertyWithMedia
 ): Promise<IParagonMedia | null> => {
-  const media = property.Media || [];
-  console.log(
-    `[getPrimaryPhoto] => ListingId=${property.ListingId} => rawMedia.length=${media.length}`
-  );
-
-  // If .Media is empty => try a fallback fetch from server
-  if (media.length === 0) {
-    console.log("[getPrimaryPhoto] => No media => attempting fallback fetch by ID...");
-    const updatedMedia = await tryFetchMediaForListing(property.ListingId);
-    if (updatedMedia && updatedMedia.length > 0) {
-      console.log(
-        `[getPrimaryPhoto] => Fallback succeeded => updatedMedia.length=${updatedMedia.length}`
-      );
-      return pickPrimaryPhoto(updatedMedia);
-    }
-    console.log("[getPrimaryPhoto] => Fallback also failed => returning null.");
-    return null;
-  }
-
-  // Filter out items without a valid MediaURL
-  const validMedia = media.filter((m) => !!m.MediaURL);
-  console.log(`[getPrimaryPhoto] => validMedia.length=${validMedia.length}`);
-
-  if (validMedia.length === 0) {
+  try {
+    const media = property.Media || [];
     console.log(
-      "[getPrimaryPhoto] => All items had blank MediaURL => attempting fallback fetch by ID..."
+      `[getPrimaryPhoto] => ListingId=${property.ListingId} => rawMedia.length=${media.length}`
     );
-    const updatedMedia = await tryFetchMediaForListing(property.ListingId);
-    if (updatedMedia && updatedMedia.length > 0) {
-      console.log(
-        `[getPrimaryPhoto] => Fallback succeeded => updatedMedia.length=${updatedMedia.length}`
-      );
-      return pickPrimaryPhoto(updatedMedia);
+
+    // If .Media is empty => try a fallback fetch from server
+    if (media.length === 0) {
+      console.log("[getPrimaryPhoto] => No media => attempting fallback fetch by ID...");
+      
+      // Try using ListingKey first (preferred), then fallback to ListingId
+      const idToUse = property.ListingKey || property.ListingId;
+      
+      if (!idToUse) {
+        console.log("[getPrimaryPhoto] => No ListingKey or ListingId => returning null");
+        return null;
+      }
+      
+      const updatedMedia = await tryFetchMediaForListing(idToUse);
+      if (updatedMedia && updatedMedia.length > 0) {
+        console.log(
+          `[getPrimaryPhoto] => Fallback succeeded => updatedMedia.length=${updatedMedia.length}`
+        );
+        return pickPrimaryPhoto(updatedMedia);
+      }
+      console.log("[getPrimaryPhoto] => Fallback also failed => returning null.");
+      return null;
     }
-    console.log("[getPrimaryPhoto] => Still no valid images => returning null.");
+
+    // Filter out items without a valid MediaURL
+    const validMedia = media.filter((m) => !!m.MediaURL);
+    console.log(`[getPrimaryPhoto] => validMedia.length=${validMedia.length}`);
+
+    if (validMedia.length === 0) {
+      console.log(
+        "[getPrimaryPhoto] => All items had blank MediaURL => attempting fallback fetch by ID..."
+      );
+      
+      // Try using ListingKey first (preferred), then fallback to ListingId
+      const idToUse = property.ListingKey || property.ListingId;
+      
+      if (!idToUse) {
+        console.log("[getPrimaryPhoto] => No ListingKey or ListingId => returning null");
+        return null;
+      }
+      
+      const updatedMedia = await tryFetchMediaForListing(idToUse);
+      if (updatedMedia && updatedMedia.length > 0) {
+        console.log(
+          `[getPrimaryPhoto] => Fallback succeeded => updatedMedia.length=${updatedMedia.length}`
+        );
+        return pickPrimaryPhoto(updatedMedia);
+      }
+      console.log("[getPrimaryPhoto] => Still no valid images => returning null.");
+      return null;
+    }
+
+    // Check if any item has Order === 0 => immediate primary
+    const zeroOrder = validMedia.find((m) => m.Order === 0);
+    if (zeroOrder) {
+      console.log("[getPrimaryPhoto] => Found item with Order=0 => returning it.");
+      return zeroOrder;
+    }
+
+    // Otherwise pick the smallest Order
+    return pickPrimaryPhoto(validMedia);
+  } catch (error) {
+    console.error("[getPrimaryPhoto] => Error fetching photo:", error);
     return null;
   }
-
-  // Check if any item has Order === 0 => immediate primary
-  const zeroOrder = validMedia.find((m) => m.Order === 0);
-  if (zeroOrder) {
-    console.log("[getPrimaryPhoto] => Found item with Order=0 => returning it.");
-    return zeroOrder;
-  }
-
-  // Otherwise pick the smallest Order
-  return pickPrimaryPhoto(validMedia);
 };
 
 // Small helper => picks the item with smallest Order
@@ -153,34 +176,90 @@ async function tryFetchMediaForListing(listingId?: string): Promise<IParagonMedi
     console.log("[tryFetchMediaForListing] => No listingId => returning null");
     return null;
   }
+  
   try {
     console.log(`[tryFetchMediaForListing] => Attempting fallback fetch for ID=${listingId}`);
-    // We'll call your single-property approach that does a single Media query
-    const singleProp = await paragonApiClient.getPropertyById(listingId, true);
-
-    // If that returned a property with .Media, we sort & return
-    const p = singleProp as ParagonPropertyWithMedia;
-    const feed = p?.Media || [];
-    if (feed.length === 0) {
+    
+    // First try using the API client
+    try {
+      // We'll call your single-property approach that does a single Media query
+      const singleProp = await paragonApiClient.getPropertyById(listingId, true);
+      
+      // If that returned a property with .Media, we sort & return
+      if (singleProp) {
+        const p = singleProp as ParagonPropertyWithMedia;
+        const feed = p?.Media || [];
+        
+        if (feed.length > 0) {
+          // Filter out blank, remove duplicates, sort by order
+          const filtered = feed
+            .filter((m) => !!m.MediaURL)
+            .reduce((acc: IParagonMedia[], item) => {
+              if (!acc.find((x) => x.MediaKey === item.MediaKey)) {
+                acc.push(item);
+              }
+              return acc;
+            }, [])
+            .sort((a, b) => {
+              const aO = a.Order ?? 99999;
+              const bO = b.Order ?? 99999;
+              return aO - bO;
+            });
+            
+          console.log(`[tryFetchMediaForListing] => Paragon API success: ${filtered.length} media items`);
+          return filtered;
+        }
+      }
+      
+      console.log("[tryFetchMediaForListing] => Paragon API returned no media, trying direct API call");
+    } catch (apiError) {
+      console.log("[tryFetchMediaForListing] => Paragon API error:", apiError);
+      // Continue to the fallback approach below
+    }
+    
+    // If Paragon API fails, try direct API call
+    try {
+      const response = await fetch(`/api/v1/listings?propertyId=${encodeURIComponent(listingId)}`);
+      
+      // Check if the response is OK
+      if (!response.ok) {
+        console.error(`[tryFetchMediaForListing] => HTTP error: ${response.status}`);
+        return null;
+      }
+      
+      // Check content-type to avoid parsing HTML as JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error(`[tryFetchMediaForListing] => Invalid content type: ${contentType}`);
+        return null;
+      }
+      
+      const data = await response.json();
+      
+      if (Array.isArray(data) && data.length > 0) {
+        const item = data[0];
+        if (item && item.Media && item.Media.length > 0) {
+          // Filter and sort media
+          const filtered = item.Media
+            .filter((m: IParagonMedia) => !!m.MediaURL)
+            .sort((a: IParagonMedia, b: IParagonMedia) => {
+              const aO = a.Order ?? 99999;
+              const bO = b.Order ?? 99999;
+              return aO - bO;
+            });
+            
+          console.log(`[tryFetchMediaForListing] => API success: ${filtered.length} media items`);
+          return filtered;
+        }
+      }
+      
+      console.log("[tryFetchMediaForListing] => API returned no media");
+      return null;
+      
+    } catch (directApiError) {
+      console.error("[tryFetchMediaForListing] => Direct API error:", directApiError);
       return null;
     }
-
-    // Filter out blank, remove duplicates, sort by order
-    const filtered = feed
-      .filter((m) => !!m.MediaURL)
-      .reduce((acc: IParagonMedia[], item) => {
-        if (!acc.find((x) => x.MediaKey === item.MediaKey)) {
-          acc.push(item);
-        }
-        return acc;
-      }, [])
-      .sort((a, b) => {
-        const aO = a.Order ?? 99999;
-        const bO = b.Order ?? 99999;
-        return aO - bO;
-      });
-
-    return filtered;
   } catch (error) {
     console.error("[tryFetchMediaForListing] => error fetching fallback listing:", error);
     return null;

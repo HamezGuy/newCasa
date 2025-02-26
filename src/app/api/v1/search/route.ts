@@ -1,98 +1,84 @@
-import { NextResponse } from "next/server";
-import paragonApiClient, { IUserFilters } from "@/lib/ParagonApiClient";
+import { NextRequest, NextResponse } from "next/server";
+import paragonApiClient from "@/lib/ParagonApiClient";
 
 export const dynamic = "force-dynamic";
 
-// ----------------------------------------------------------------
-// GET /api/v1/listings => Main route handler
-// ----------------------------------------------------------------
-export async function GET(request: Request) {
-  console.log("[GET /api/v1/listings] => Endpoint triggered.");
+export async function GET(request: NextRequest) {
+  console.log("Triggered: /api/v1/listings");
 
+  // Parse params
   const { searchParams } = new URL(request.url);
-
   const zipCode = searchParams.get("zipCode");
   const streetName = searchParams.get("streetName");
   const propertyId = searchParams.get("propertyId");
   const city = searchParams.get("city");
   const county = searchParams.get("county");
+  const agentName = searchParams.get("agentName");
+  
+  // Address parameter (no radius needed for exact address search)
+  const address = searchParams.get("address");
 
-  // Parse user filters
-  const minPriceStr = searchParams.get("minPrice");
-  const maxPriceStr = searchParams.get("maxPrice");
-  const minRoomsStr = searchParams.get("minRooms");
-  const maxRoomsStr = searchParams.get("maxRooms");
-
-  // Grab all propertyType query params
-  const propertyTypeParams = searchParams.getAll("propertyType"); 
-  // e.g. ?propertyType=Residential&propertyType=Land => ["Residential","Land"]
-
-  // Convert them into { value: string }[] or undefined if empty
-  const propertyTypes = propertyTypeParams.length
-    ? propertyTypeParams.map((pt) => ({ value: pt }))
-    : undefined;
-
-  console.log("[GET /api/v1/listings] => Query params:", {
+  console.log("Query parameters received:", {
     zipCode,
     streetName,
     propertyId,
     city,
     county,
-    minPriceStr,
-    maxPriceStr,
-    minRoomsStr,
-    maxRoomsStr,
-    propertyTypes,
+    agentName,
+    address
   });
-
-  const userFilters: IUserFilters = {
-    minPrice: minPriceStr ? parseInt(minPriceStr, 10) : undefined,
-    maxPrice: maxPriceStr ? parseInt(maxPriceStr, 10) : undefined,
-    minRooms: minRoomsStr ? parseInt(minRoomsStr, 10) : undefined,
-    maxRooms: maxRoomsStr ? parseInt(maxRoomsStr, 10) : undefined,
-    propertyTypes, // could be undefined => no property-type filter
-  };
 
   try {
     let properties: any[] = [];
 
-    // Decide which method to call based on the user’s search param
-    if (zipCode) {
-      // For multi-result queries => skip media for minimal data
-      const resp = await paragonApiClient.searchByZipCode(zipCode, userFilters, false);
-      properties = resp?.value || [];
+    // (A) If agentName => fetch Tim's listings by agent
+    if (agentName) {
+      console.log(`Fetching properties for agentName = ${agentName}`);
+      properties = await paragonApiClient.searchByListAgentName(agentName);
+      console.log(`Fetched ${properties.length} for agentName=${agentName}`);
+    }
+    // (B) If address => fetch properties at the exact address
+    else if (address) {
+      console.log(`Fetching properties at address: ${address}`);
+      const response = await paragonApiClient.searchByAddress(address, 0); // 0 radius for exact match
+      properties = response?.value || [];
+    }
+    // (C) Else check zip/city/street/etc.
+    else if (zipCode) {
+      console.log(`Fetching properties for zipCode: ${zipCode}`);
+      const response = await paragonApiClient.searchByZipCode(zipCode);
+      properties = response?.value || [];
     } else if (streetName) {
-      // Another multi-result => skip media
-      const resp = await paragonApiClient.searchByStreetName(streetName, userFilters, false);
-      properties = resp?.value || [];
+      console.log(`Fetching properties for streetName: ${streetName}`);
+      const response = await paragonApiClient.searchByStreetName(streetName);
+      properties = response?.value || [];
     } else if (propertyId) {
-      // Single property => choose if you want images or not
-      // e.g. includeMedia = true if you want them
-      const prop = await paragonApiClient.getPropertyById(propertyId, false);
-      properties = prop ? [prop] : [];
+      console.log(`Fetching property for propertyId: ${propertyId}`);
+      const property = await paragonApiClient.getPropertyById(propertyId);
+      properties = property ? [property] : [];
     } else if (city) {
-      const resp = await paragonApiClient.searchByCity(city, userFilters, false);
-      properties = resp?.value || [];
+      console.log(`Fetching properties for city: ${city}`);
+      const response = await paragonApiClient.searchByCity(city);
+      properties = response?.value || [];
     } else if (county) {
-      const resp = await paragonApiClient.searchByCounty(county, userFilters, false);
-      properties = resp?.value || [];
+      console.log(`Fetching properties for county: ${county}`);
+      const response = await paragonApiClient.searchByCounty(county);
+      properties = response?.value || [];
     } else {
-      // If no location => get all properties
-      console.log("[GET /api/v1/listings] => no location => getAllPropertyWithMedia()");
-      // This method inherently fetches media. You could create an alternative
-      // method that doesn't, if you want minimal data.
-      properties = await paragonApiClient.getAllPropertyWithMedia();
+      console.log("No search param provided => returning empty array.");
+      properties = [];
     }
 
-    console.log(`[GET /api/v1/listings] => found ${properties.length} props`);
+    console.log(`Successfully fetched ${properties.length} properties.`);
     return NextResponse.json(properties, { status: 200 });
-  } catch (err: any) {
-    console.error("[GET /api/v1/listings] => CAUGHT ERROR =>", err);
+  } catch (error: any) {
+    console.error("Error in /api/v1/listings:", {
+      message: error.message,
+      stack: error.stack,
+      originalError: error,
+    });
     return NextResponse.json(
-      {
-        error: "Failed to fetch properties from API",
-        details: err.message || String(err),
-      },
+      { error: "Failed to fetch properties from API" },
       { status: 500 }
     );
   }

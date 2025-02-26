@@ -36,16 +36,26 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Check if this is an address search
+    const isAddressSearch = types === "address";
+    
+    const params: any = {
+      input,
+      key: GOOGLE_MAPS_API_KEY,
+      components: "country:US", // Limit to US results
+    };
+    
+    // Only use types for non-address searches
+    if (!isAddressSearch) {
+      params.types = types;
+    }
+    
     const options = {
-      params: {
-        input,
-        types,
-        key: GOOGLE_MAPS_API_KEY,
-      },
+      params,
       timeout: 5000,
     };
 
-    console.log(`Fetching autocomplete suggestions for input: ${input}`);
+    console.log(`Fetching autocomplete suggestions for input: ${input}, isAddressSearch: ${isAddressSearch}`);
     const response = await fetchWithRetry(
       "https://maps.googleapis.com/maps/api/place/autocomplete/json",
       options

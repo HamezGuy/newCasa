@@ -1,11 +1,14 @@
 "use client";
 
-import { Button, Checkbox, Popover, TextInput, Stack } from "@mantine/core";
+import { Button, Checkbox, Popover, TextInput, Stack, Slider, Text } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { useFilters } from "./FilterContext";
+import { useSearchParams } from "next/navigation";
 
 export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
   const { filters, setFilters } = useFilters();
+  const searchParams = useSearchParams();
+  const isAddressSearch = searchParams.has("address");
 
   // Local states
   const [minPrice, setMinPrice] = useState(filters.minPrice ?? "");
@@ -13,6 +16,7 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
   const [types, setTypes] = useState<string[]>(filters.types ?? []);
   const [minRooms, setMinRooms] = useState(filters.minRooms ?? "");
   const [maxRooms, setMaxRooms] = useState(filters.maxRooms ?? "");
+  const [radius, setRadius] = useState(filters.radius ?? 1);
 
   useEffect(() => {
     setMinPrice(filters.minPrice ?? "");
@@ -20,6 +24,7 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
     setTypes(filters.types ?? []);
     setMinRooms(filters.minRooms ?? "");
     setMaxRooms(filters.maxRooms ?? "");
+    setRadius(filters.radius ?? 1);
   }, [filters]);
 
   const [opened, setOpened] = useState(false);
@@ -31,8 +36,19 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
       types,
       minRooms,
       maxRooms,
+      radius,
     });
     setOpened(false);
+    
+    // Update URL with radius if this is an address search
+    if (isAddressSearch) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("radius", radius.toString());
+      window.history.replaceState({}, "", url.toString());
+      
+      // Trigger a reload to refresh the properties with the new radius
+      window.location.reload();
+    }
   };
 
   return (
@@ -101,6 +117,25 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
               size="xs"
               onChange={(e) => setMaxRooms(e.target.value)}
             />
+            
+            {isAddressSearch && (
+              <>
+                <Text size="sm">Search Radius (miles)</Text>
+                <Slider
+                  value={radius}
+                  onChange={setRadius}
+                  min={0.5}
+                  max={10}
+                  step={0.5}
+                  marks={[
+                    { value: 0.5, label: '0.5' },
+                    { value: 5, label: '5' },
+                    { value: 10, label: '10' }
+                  ]}
+                />
+                <Text size="xs" ta="center">{radius} miles</Text>
+              </>
+            )}
 
             <Button variant="filled" size="xs" onClick={applyFilters}>
               Apply Filters

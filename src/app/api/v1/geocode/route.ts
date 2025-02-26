@@ -2,7 +2,7 @@ import axios from "axios";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-  console.log("Geocode API endpoint hit."); // Updated log
+  console.log("Geocode API endpoint hit.");
 
   const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
 
@@ -19,17 +19,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Address query is required." }, { status: 400 });
   }
 
-  console.log(`Address received: ${address}`); // Debug log
+  console.log(`Address received: ${address}`);
 
   try {
+    // Call Google Maps Geocoding API with more specific parameters
     const response = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
       params: {
         address,
         key: GOOGLE_MAPS_API_KEY,
+        // Add these parameters to improve exact address matching
+        components: "country:US", // Limit to US addresses
+        result_type: "street_address|premise", // Focus on exact addresses
       },
     });
 
-    console.log("Google API response status:", response.data.status); // Debug log
+    console.log("Google API response status:", response.data.status);
+    
+    // Log the first result for debugging
+    if (response.data.results && response.data.results.length > 0) {
+      console.log("First result types:", response.data.results[0].types);
+      console.log("First result formatted address:", response.data.results[0].formatted_address);
+    }
 
     if (response.data.status === "OK") {
       return NextResponse.json(response.data, { status: 200 });

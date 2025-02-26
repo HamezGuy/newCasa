@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, TextInput, Checkbox, Stack } from "@mantine/core";
+import { Button, TextInput, Checkbox, Stack, NumberInput } from "@mantine/core";
 
 interface DebugTest {
   label: string;
@@ -34,6 +34,11 @@ export default function TestParagonApiClientUI() {
   const [storeZip, setStoreZip] = useState("");
   const [storeResult, setStoreResult] = useState("");
   const [storing, setStoring] = useState(false);
+  
+  // NEW: Address search with radius
+  const [searchAddress, setSearchAddress] = useState("");
+  const [searchRadius, setSearchRadius] = useState(1);
+  const [addressSearching, setAddressSearching] = useState(false);
 
   // Hardcoded type options => we show them as checkboxes
   const propertyTypeOptions = [
@@ -285,6 +290,65 @@ export default function TestParagonApiClientUI() {
       setStoring(false);
     }
   }
+  
+  // ---------------------------------------------
+  // NEW: Search by address with radius
+  // ---------------------------------------------
+  async function handleAddressSearch() {
+    if (!searchAddress.trim()) {
+      alert("Please enter an address to search");
+      return;
+    }
+    
+    setAddressSearching(true);
+    
+    try {
+      // First, make the API call to get properties near the address
+      const params = new URLSearchParams();
+      params.set("address", searchAddress);
+      params.set("radius", searchRadius.toString());
+      
+      const url = `/api/v1/listings?${params.toString()}`;
+      console.log("Address search URL:", url);
+      
+      const resp = await fetch(url);
+      
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        setResults((old) => [
+          ...old,
+          {
+            label: `Address: ${searchAddress} (${searchRadius} miles)`,
+            data: [],
+            count: 0,
+            error: `HTTP ${resp.status} => ${errorText}`,
+          },
+        ]);
+      } else {
+        const properties = await resp.json();
+        setResults((old) => [
+          ...old,
+          {
+            label: `Address: ${searchAddress} (${searchRadius} miles)`,
+            data: properties,
+            count: properties.length,
+          },
+        ]);
+      }
+    } catch (error: any) {
+      setResults((old) => [
+        ...old,
+        {
+          label: `Address: ${searchAddress} (${searchRadius} miles)`,
+          data: [],
+          count: 0,
+          error: error.toString(),
+        },
+      ]);
+    } finally {
+      setAddressSearching(false);
+    }
+  }
 
   function makeDownloadLink(r: DownloadableResult) {
     const text = JSON.stringify(r.data, null, 2);
@@ -309,6 +373,33 @@ export default function TestParagonApiClientUI() {
           />
           <Button onClick={handleGetById} loading={loading}>
             Get By ID
+          </Button>
+        </div>
+      </div>
+
+      {/* NEW: Address Search Section */}
+      <div style={{ marginTop: "30px" }}>
+        <h3>Search Properties by Address</h3>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+          <TextInput
+            placeholder="Enter full address"
+            value={searchAddress}
+            onChange={(e) => setSearchAddress(e.currentTarget.value)}
+            style={{ width: "300px" }}
+          />
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span>Radius (miles):</span>
+            <NumberInput
+              value={searchRadius}
+              onChange={(val) => setSearchRadius(Number(val) || 1)}
+              min={0.5}
+              max={10}
+              step={0.5}
+              style={{ width: "80px" }}
+            />
+          </div>
+          <Button onClick={handleAddressSearch} loading={addressSearching}>
+            Search by Address
           </Button>
         </div>
       </div>
@@ -371,7 +462,7 @@ export default function TestParagonApiClientUI() {
         </Button>
       </div>
 
-      {/* NEW: Store Active/Pending to Firebase */}
+      {/* Store Active/Pending to Firebase */}
       <div style={{ marginTop: "30px" }}>
         <h3>Store Active/Pending Properties to Firebase</h3>
         <p>Enter a city or zip code, then click the button.</p>

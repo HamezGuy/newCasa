@@ -4,8 +4,8 @@
 import { ParagonPropertyWithMedia } from "@/types/IParagonMedia";
 import DisplayUtils from "@/lib/utils/DisplayUtils";
 import { useState } from "react";
-import { Accordion, Badge, Group, Text, Button } from "@mantine/core";
-import { IconChevronDown, IconChevronUp } from "@tabler/icons-react";
+import { Accordion, Badge, Group, Text, Button, CopyButton, Tooltip } from "@mantine/core";
+import { IconChevronDown, IconChevronUp, IconShare, IconCheck, IconCopy } from "@tabler/icons-react";
 import ParagonPropertyUtils from "@/lib/utils/ParagonPropertyUtils";
 
 interface PropertyDetailsProps {
@@ -47,6 +47,11 @@ export default function PropertyDetails({
   const taxes = property.TaxAnnualAmount 
     ? DisplayUtils.formatCurrency(property.TaxAnnualAmount) 
     : "N/A";
+    
+  // Get current URL for sharing
+  const propertyUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}/properties/${property.ListingId}` 
+    : '';
 
   return (
     <div>
@@ -54,7 +59,26 @@ export default function PropertyDetails({
       <div className="mb-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center">
           <div>
-            <Badge color="green" className="mb-2">For Sale</Badge>
+            <div className="flex items-center gap-2 mb-2">
+              <Badge color="green">For Sale</Badge>
+              <CopyButton value={propertyUrl} timeout={2000}>
+                {({ copied, copy }) => (
+                  <Tooltip label={copied ? "Copied!" : "Copy link"} withArrow position="right">
+                    <Button 
+                      variant="subtle" 
+                      color={copied ? "teal" : "blue"} 
+                      onClick={copy} 
+                      size="xs"
+                    >
+                      <div className="flex items-center">
+                        {copied ? <IconCheck size={16} className="mr-1" /> : <IconShare size={16} className="mr-1" />}
+                        {copied ? "Copied" : "Share"}
+                      </div>
+                    </Button>
+                  </Tooltip>
+                )}
+              </CopyButton>
+            </div>
             <div className="text-sm text-gray-600 mb-1">Est. Mortgage: {estimatedMortgage}/mo</div>
             <h1 className="text-3xl font-bold">{price}</h1>
             <p className="text-xl mb-1">{address}</p>

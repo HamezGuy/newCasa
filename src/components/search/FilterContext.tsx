@@ -9,6 +9,7 @@ interface IFilters {
   types?: string[];
   minRooms?: string;
   maxRooms?: string;
+  radius?: number; // NEW: Added radius for address-based searches
 }
 
 // Expose these in context

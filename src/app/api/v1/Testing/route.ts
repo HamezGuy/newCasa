@@ -169,6 +169,31 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: err.toString() }, { status: 500 });
     }
   }
+  
+  // ---------------------------------------
+  // 5b) By Address => ?test=byAddress&address=xxx&radius=y
+  // ---------------------------------------
+  if (test === "byAddress") {
+    const address = searchParams.get("address");
+    const radiusStr = searchParams.get("radius");
+    const radius = radiusStr ? parseFloat(radiusStr) : 1; // Default to 1 mile
+    
+    if (!address) {
+      return NextResponse.json({ error: "No address provided" }, { status: 400 });
+    }
+    
+    try {
+      const resp = await paragonApiClient.searchByAddress(address, radius);
+      return NextResponse.json({ 
+        items: resp.value, 
+        count: resp.value.length,
+        address,
+        radius
+      });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.toString() }, { status: 500 });
+    }
+  }
 
   // ---------------------------------------
   // 6) test userFilters => ?test=userFilters
@@ -281,6 +306,103 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: err.toString() }, { status: 500 });
     }
   }
+  
+  // ---------------------------------------
+  // 8) Store Address Search to Firebase
+  // ---------------------------------------
+  if (test === "storeAddressSearch") {
+    const address = searchParams.get("address")?.trim();
+    const radiusStr = searchParams.get("radius");
+    const radius = radiusStr ? parseFloat(radiusStr) : 1;
+    
+    if (!address) {
+      return NextResponse.json(
+        { error: "Please provide an address for storeAddressSearch." },
+        { status: 400 }
+      );
+    }
+    
+    try {
+      // 1) Fetch properties near the address
+      const resp = await paragonApiClient.searchByAddress(address, radius, undefined, true);
+      const propertiesToStore = resp.value;
+      
+      // 2) Write them to Firestore with the address search info
+      await pMap(
+        propertiesToStore,
+        async (prop) => {
+          if (!prop.ListingKey) return;
+
+          // (A) Store the property doc
+          const propRef = firestoreAdmin
+            .collection("newcasaproperties")
+            .doc(prop.ListingKey);
+
+          // Add search metadata
+          const searchMetadata = {
+            searchedAddress: address,
+            searchRadius: radius,
+            distanceFromSearch: (prop as any).distanceFromSearch || null,
+            searchTimestamp: new Date().toISOString()
+          };
+          
+          // Remove the .Media array if you don't want it in the property doc
+          const { Media, ...rest } = prop;
+          await propRef.set({
+            ...rest,
+            searchMetadata
+          }, { merge: true });
+
+          // (B) If there's a Media array, store each item in "newcasapropertiesMedias"
+          if (Media && Media.length) {
+            await pMap(
+              Media,
+              async (m) => {
+                // docId => `${ListingKey}_${m.MediaKey}`
+                const docId = `${prop.ListingKey}_${m.MediaKey}`;
+                const mediaRef = firestoreAdmin
+                  .collection("newcasapropertiesMedias")
+                  .doc(docId);
+
+                // Include listingKey so we can filter by property later
+                await mediaRef.set(
+                  {
+                    listingKey: prop.ListingKey,
+                    ...m,
+                  },
+                  { merge: true }
+                );
+              },
+              { concurrency: 10 }
+            );
+          }
+        },
+        { concurrency: 5 }
+      );
+      
+      // 3) Also store the search itself in a separate collection
+      const searchDocRef = firestoreAdmin
+        .collection("addressSearches")
+        .doc(`${new Date().getTime()}`);
+        
+      await searchDocRef.set({
+        address,
+        radius,
+        timestamp: new Date().toISOString(),
+        resultCount: propertiesToStore.length,
+        propertyIds: propertiesToStore.map(p => p.ListingKey)
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Stored ${propertiesToStore.length} properties from address search in Firestore.`,
+        searchId: searchDocRef.id
+      });
+    } catch (err: any) {
+      console.error("[storeAddressSearch] => error =>", err);
+      return NextResponse.json({ error: err.toString() }, { status: 500 });
+    }
+  }
 
   // ---------------------------------------
   // Fallback => local JSON if no test param
@@ -289,6 +411,19 @@ export async function GET(request: Request) {
   const streetName = searchParams.get("streetName");
   const city = searchParams.get("city");
   const county = searchParams.get("county");
+  const address = searchParams.get("address");
+  const radiusStr = searchParams.get("radius");
+
+  // If address is provided, use the searchByAddress method
+  if (address) {
+    const radius = radiusStr ? parseFloat(radiusStr) : 1;
+    try {
+      const resp = await paragonApiClient.searchByAddress(address, radius);
+      return NextResponse.json(resp.value);
+    } catch (err: any) {
+      return NextResponse.json({ error: err.toString() }, { status: 500 });
+    }
+  }
 
   let filteredData = properties;
   if (zipCode) {
