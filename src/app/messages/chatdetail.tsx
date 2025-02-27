@@ -1,14 +1,13 @@
 import { db } from "@/lib/firebase";
 import {
-  addDoc,
   collection,
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
   where,
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
+import { sendMessageToRealtor } from "@/lib/utils/sendMessageToRealtor";
 
 interface Message {
   id: string;
@@ -28,6 +27,7 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
 
   // Scroll to the newest message
@@ -59,18 +59,24 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !chatId) return;
+    setError(null);
 
     try {
-      await addDoc(collection(db, "messages"), {
-        chatId,
-        sender: "client",
+      // Get the client email (you might want to get this from user context)
+      const clientEmail = "user@example.com"; // Replace with actual email logic
+      
+      await sendMessageToRealtor({
         message: newMessage,
-        propertyId: chatId, // Storing propertyId with each message
-        timestamp: serverTimestamp(),
+        clientEmail,
+        propertyId: chatId,
+        clientId,
+        // You can add realtor contact info if needed
       });
+      
       setNewMessage("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to send message:", error);
+      setError(`Error sending message: ${error.message}`);
     }
   };
 
@@ -128,6 +134,11 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
 
       {/* Input area */}
       <div className="border-t p-3">
+        {error && (
+          <div className="mb-2 p-2 text-sm bg-red-100 text-red-700 rounded">
+            {error}
+          </div>
+        )}
         <div className="flex">
           <textarea
             value={newMessage}

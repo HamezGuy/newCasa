@@ -1,13 +1,3 @@
-import { db } from "@/lib/firebase";
-import { 
-  addDoc, 
-  collection, 
-  doc, 
-  getDoc, 
-  serverTimestamp, 
-  setDoc, 
-  updateDoc 
-} from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 
 // Default values from your next.config.mjs publicRuntimeConfig
@@ -40,43 +30,11 @@ export async function sendMessageToRealtor({
   const finalRealtorPhone = realtorPhoneNumber || DEFAULT_REALTOR_PHONE;
 
   try {
-    // First, check if a chat for this property and client exists
-    const chatDocRef = doc(db, "chats", propertyId);
-    const chatDoc = await getDoc(chatDocRef);
-
-    // If no chat exists, create one
-    if (!chatDoc.exists()) {
-      await setDoc(chatDocRef, {
-        propertyId,
-        clientId,
-        clientEmail,
-        realtorEmail: finalRealtorEmail,
-        realtorPhoneNumber: finalRealtorPhone,
-        createdAt: serverTimestamp(),
-        lastActivity: serverTimestamp(),
-      });
-    } else {
-      // Update the lastActivity timestamp
-      await updateDoc(chatDocRef, {
-        lastActivity: serverTimestamp()
-      });
-    }
-
-    // Add the message to Firestore
-    await addDoc(collection(db, "messages"), {
-      chatId: propertyId,
-      sender: "client",
-      message,
-      propertyId, // Include property ID with the message for context
-      timestamp: serverTimestamp(),
-    });
-
-    // Call the cloud function to send SMS via Twilio
-    // UPDATED: Now explicitly passing realtor contact info to the cloud function
+    // Call the cloud function to handle everything
     const functions = getFunctions();
     const sendMessageFunction = httpsCallable(functions, 'sendMessageToRealtor');
     
-    await sendMessageFunction({
+    const result = await sendMessageFunction({
       message,
       clientEmail,
       propertyId,
@@ -85,7 +43,7 @@ export async function sendMessageToRealtor({
       realtorPhoneNumber: finalRealtorPhone
     });
 
-    return { success: true };
+    return { success: true, message: "Message sent successfully!" };
   } catch (error: any) {
     console.error("Error in sendMessageToRealtor:", error);
     throw new Error(`Failed to send message: ${error.message}`);
