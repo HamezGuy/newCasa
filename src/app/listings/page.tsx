@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import IParagonProperty from "@/types/IParagonProperty";
@@ -146,18 +146,18 @@ export default function ListingsPage() {
         let params: Record<string, any> = {};
 
         // First check if it might be a full address
-        const geocodeResponse = await axios.get("/api/v1/geocode", { 
-          params: { address: searchTerm } 
+        const geocodeResponse = await axios.get("/api/v1/geocode", {
+          params: { address: searchTerm },
         });
-        
+
         const geocodeData = geocodeResponse.data;
-        
+
         if (geocodeData.status === "OK" && geocodeData.results && geocodeData.results.length > 0) {
           const result = geocodeData.results[0];
           const comps = result.address_components || [];
           const hasStreetNumber = comps.some((c: any) => c.types.includes("street_number"));
           const hasRoute = comps.some((c: any) => c.types.includes("route"));
-          
+
           // If it has both street number and route, treat as full address
           if (hasStreetNumber && hasRoute) {
             params.address = result.formatted_address;
@@ -217,7 +217,8 @@ export default function ListingsPage() {
   }
 
   // (D) "Load More"
-  function handleLoadMore() {
+  // Wrap in useCallback to ensure stable reference
+  const handleLoadMore = useCallback(() => {
     if (isSearching || isLoadingMore) return;
     setIsLoadingMore(true);
     setTimeout(() => {
@@ -230,7 +231,7 @@ export default function ListingsPage() {
       });
       setIsLoadingMore(false);
     }, 500);
-  }
+  }, [isSearching, isLoadingMore, allProps, LIMIT, setShownCount, setHasMore]);
 
   const displayedProperties = allProps.slice(0, shownCount);
 
@@ -264,7 +265,15 @@ export default function ListingsPage() {
     return () => {
       if (observer && el) observer.unobserve(el);
     };
-  }, [observerRef, hasMore, isSearching, isLoadingMore, displayedProperties.length, allProps.length]);
+  }, [
+    observerRef,
+    hasMore,
+    isSearching,
+    isLoadingMore,
+    displayedProperties.length,
+    allProps.length,
+    handleLoadMore // <- Added to dependencies
+  ]);
 
   const isBusy = isVerifyingLocation || isSearching || isLoadingMore;
   const pageCursor = isBusy ? "cursor-wait" : "cursor-auto";
@@ -318,10 +327,10 @@ export default function ListingsPage() {
             All Listings for Tim Flores
           </h2>
           {loadingTim ? (
-            <p className="mt-3">Loading Tim's listings...</p>
+            <p className="mt-3">Loading Tim&apos;s listings...</p>
           ) : (
             <p className="mt-2 text-sm">
-              Check out all the active & pending listings under Tim's name.
+              Check out all the active & pending listings under Tim&apos;s name.
             </p>
           )}
         </div>

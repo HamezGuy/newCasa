@@ -61,11 +61,11 @@ export default function SearchInput({
   const detectIfAddress = (input: string): boolean => {
     // Look for patterns like numbers followed by words, or street types
     const addressPatterns = [
-      /^\d+\s+[a-zA-Z]/,  // Starts with numbers followed by words
+      /^\d+\s+[a-zA-Z]/, // Starts with numbers followed by words
       /\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|circle|cir|court|ct|place|pl|boulevard|blvd)\b/i, // Contains street types
     ];
-    
-    return addressPatterns.some(pattern => pattern.test(input));
+
+    return addressPatterns.some((pattern) => pattern.test(input));
   };
 
   // ----------------------------------------
@@ -85,13 +85,13 @@ export default function SearchInput({
       // Detect if input looks like an address
       const isAddress = detectIfAddress(input);
       setIsAddressInput(isAddress);
-      
+
       try {
         const response = await axios.get("/api/v1/autocomplete", {
-          params: { 
-            input, 
+          params: {
+            input,
             // If it looks like an address, use address type
-            types: isAddress ? "address" : "(regions)" 
+            types: isAddress ? "address" : "(regions)",
           },
         });
 
@@ -200,9 +200,10 @@ export default function SearchInput({
           urlParams.set("geocode", encodeURIComponent(JSON.stringify(formattedData)));
 
           // Check if this is a street address
-          const isStreetAddress = geocodeData.types && 
-            (geocodeData.types.includes("street_address") || 
-             geocodeData.types.includes("premise"));
+          const isStreetAddress =
+            geocodeData.types &&
+            (geocodeData.types.includes("street_address") ||
+              geocodeData.types.includes("premise"));
 
           // If we have a street number and route or it's explicitly a street address or input looks like address
           if ((streetNumber && route) || isStreetAddress || isAddressInput) {
@@ -260,11 +261,11 @@ export default function SearchInput({
     try {
       // Detect if input looks like an address for better suggestions
       const isAddress = detectIfAddress(input);
-      
+
       const response = await axios.get("/api/v1/autocomplete", {
-        params: { 
-          input, 
-          types: isAddress ? "address" : "(regions)" 
+        params: {
+          input,
+          types: isAddress ? "address" : "(regions)",
         },
       });
 
@@ -293,17 +294,17 @@ export default function SearchInput({
     setSuggestions([]);
     setPopupSuggestions([]);
     setIsPopupOpen(false);
-    
+
     // Check if this is an address suggestion based on types
     if (suggestion.types) {
       const addressTypes = ["street_address", "premise", "address"];
-      const isAddress = addressTypes.some(type => suggestion.types.includes(type));
+      const isAddress = addressTypes.some((type) => suggestion.types.includes(type));
       setIsAddressInput(isAddress);
     } else {
       // If no types, check the description
       setIsAddressInput(detectIfAddress(fullDescription));
     }
-    
+
     validateAddress(fullDescription);
   };
 
@@ -441,7 +442,7 @@ export default function SearchInput({
           </ul>
         ) : (
           <p>
-            No suggestions found for "{inputRef.current?.value}".<br />
+            No suggestions found for &quot;{inputRef.current?.value}&quot;.<br />
             Please try a more specific address, city, or ZIP code.
           </p>
         )}

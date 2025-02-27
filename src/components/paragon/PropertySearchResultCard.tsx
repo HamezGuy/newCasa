@@ -1,3 +1,4 @@
+// src/components/paragon/PropertySearchResultCard.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,6 +11,146 @@ import { Badge, Card, Group, Image, Space, Text } from "@mantine/core";
 import Link from "next/link";
 
 import style from "./PropertySearchResultCard.module.css";
+
+// Helper function to get property details based on property type
+// Helper function to get property details based on property type
+function getPropertyDetails(property: ParagonPropertyWithMedia) {
+  // Get property type
+  const propertyType = property.PropertyType || "";
+  
+  // Format price for all property types
+  const price = DisplayUtils.formatCurrency(property.ListPrice || 0);
+  
+  // Default values - ensure all are strings
+  let beds: string = "N/A";
+  let baths: string = "N/A";
+  let acres: string = property.LotSizeAcres ? `${property.LotSizeAcres} acres` : "N/A";
+  let sqFt: string = "N/A";
+  
+  // Determine values based on property type
+  switch(propertyType) {
+    case "Residential":
+      // Residential properties use standard fields
+      beds = property.BedroomsTotal !== null && property.BedroomsTotal !== undefined 
+        ? `${property.BedroomsTotal}` 
+        : "N/A";
+      
+      // Check different bathroom fields
+      if (property.BathroomsFull !== null && property.BathroomsFull !== undefined) {
+        const fullBaths = property.BathroomsFull;
+        const halfBaths = property.BathroomsHalf || 0;
+        baths = halfBaths > 0 ? `${fullBaths}.${halfBaths * 5}` : `${fullBaths}`;
+      } else if (property.TotBth) {
+        baths = `${property.TotBth}`;
+      }
+      
+      // Get square footage
+      sqFt = property.LivingArea || property.AboveGradeFinishedArea 
+        ? `${property.LivingArea || property.AboveGradeFinishedArea}` 
+        : "N/A";
+      break;
+      
+    case "Multi Family":
+      // Multi-family properties use unit-specific fields
+      let totalBeds = 0;
+      let totalBaths = 0;
+      let totalSqFt = 0;
+      
+      // Calculate totals from unit fields
+      const unitCount = property.NumberOfUnitsTotal || 0;
+      for (let i = 1; i <= unitCount; i++) {
+        // Add bedrooms - use type assertion to avoid TypeScript errors
+        const bedroomKey = `U${i}_Number__Bedrooms` as keyof ParagonPropertyWithMedia;
+        if (property[bedroomKey] && typeof property[bedroomKey] === 'number') {
+          totalBeds += property[bedroomKey] as number;
+        }
+        
+        // Add bathrooms
+        const fullBathKey = `U${i}_Full_Baths` as keyof ParagonPropertyWithMedia;
+        if (property[fullBathKey] && typeof property[fullBathKey] === 'number') {
+          totalBaths += property[fullBathKey] as number;
+        }
+        
+        const halfBathKey = `U${i}_Half_Baths` as keyof ParagonPropertyWithMedia;
+        if (property[halfBathKey] && typeof property[halfBathKey] === 'number') {
+          totalBaths += (property[halfBathKey] as number) * 0.5;
+        }
+        
+        // Add square footage
+        const sqFtKey = `U${i}_SqFt` as keyof ParagonPropertyWithMedia;
+        if (property[sqFtKey] && typeof property[sqFtKey] === 'number') {
+          totalSqFt += property[sqFtKey] as number;
+        }
+      }
+      
+      beds = totalBeds > 0 ? `${totalBeds}` : "N/A";
+      baths = totalBaths > 0 ? `${totalBaths}` : "N/A";
+      sqFt = totalSqFt > 0 ? `${totalSqFt}` : "N/A";
+      
+      // Show unit count
+      if (unitCount > 0) {
+        beds = `${totalBeds} (${unitCount} units)`;
+      }
+      break;
+      
+    case "Commercial Sale":
+      // Commercial properties focus on building specs
+      beds = "N/A";
+      baths = "N/A";
+      
+      // Ensure sqFt is a string
+      if (property.BuildingAreaTotal) {
+        sqFt = `${property.BuildingAreaTotal}`;
+      } else if (property.LeasableArea) {
+        sqFt = `${property.LeasableArea}`;
+      } else {
+        sqFt = "N/A";
+      }
+      
+      // Some commercial properties might have lot size in LotSizeArea instead
+      if (!property.LotSizeAcres && property.LotSizeArea) {
+        acres = `${property.LotSizeArea} acres`;
+      }
+      break;
+      
+    case "Land":
+      // Land properties primarily use lot size
+      beds = "N/A";
+      baths = "N/A";
+      sqFt = "N/A";
+      
+      // Check if we have number of lots
+      if (property.NumberOfLots && property.NumberOfLots > 1) {
+        acres = `${property.LotSizeAcres || "N/A"} acres (${property.NumberOfLots} lots)`;
+      }
+      break;
+      
+    default:
+      // For any other property types, use standard fields if available
+      beds = property.BedroomsTotal !== null && property.BedroomsTotal !== undefined 
+        ? `${property.BedroomsTotal}` 
+        : "N/A";
+      
+      if (property.BathroomsFull !== null && property.BathroomsFull !== undefined) {
+        const fullBaths = property.BathroomsFull;
+        const halfBaths = property.BathroomsHalf || 0;
+        baths = halfBaths > 0 ? `${fullBaths}.${halfBaths * 5}` : `${fullBaths}`;
+      } else if (property.TotBth) {
+        baths = `${property.TotBth}`;
+      }
+      
+      // Ensure sqFt is a string
+      if (property.LivingArea) {
+        sqFt = `${property.LivingArea}`;
+      } else if (property.AboveGradeFinishedArea) {
+        sqFt = `${property.AboveGradeFinishedArea}`;
+      } else {
+        sqFt = "N/A";
+      }
+  }
+  
+  return { price, beds, baths, acres, sqFt };
+}
 
 interface IPropertySearchResultCardProps {
   property: ParagonPropertyWithMedia;
@@ -38,17 +179,53 @@ export default function PropertySearchResultCard({
   }, [property]);
 
   const imgUrl = primaryPhoto?.MediaURL || "/img/placeholder.png";
-  const sPrice = DisplayUtils.formatCurrency(property.ListPrice || 0);
-  const sBeds = property.BedroomsTotal || 0;
-  const sBaths = property.TotBth || `${property.BathroomsFull || 0} Bths`;
+  
+  // Get property details based on property type
+  const { price, beds, baths, acres, sqFt } = getPropertyDetails(property);
 
   const subTypeRaw = property.PropertySubType ?? "";
   const finalType = subTypeRaw.trim() ? subTypeRaw : property.PropertyType;
 
-  // CHANGED: Add a small style fix so text doesn't overflow
+  // Small style fix so text doesn't overflow
   const cardStyleFix = {
     whiteSpace: "normal" as const,
     overflowWrap: "anywhere" as const,
+  };
+
+  // Generate the appropriate property details display
+  const renderPropertyDetails = () => {
+    const propertyType = property.PropertyType || "";
+    
+    if (propertyType === "Land") {
+      return (
+        <Group justify="flex-start" gap={5} mb="xs">
+          <Text>{acres}</Text>
+        </Group>
+      );
+    } else if (propertyType === "Commercial Sale") {
+      return (
+        <Group justify="flex-start" gap={5} mb="xs">
+          <Text>{sqFt} sqft</Text>
+          {acres !== "N/A" && (
+            <>
+              <Text>•</Text>
+              <Text>{acres}</Text>
+            </>
+          )}
+        </Group>
+      );
+    } else {
+      // Residential and Multi Family
+      return (
+        <Group justify="flex-start" gap={5} mb="xs">
+          {beds !== "N/A" && <Text>{beds} Beds</Text>}
+          {beds !== "N/A" && baths !== "N/A" && <Text>•</Text>}
+          {baths !== "N/A" && <Text>{baths} Baths</Text>}
+          {(beds !== "N/A" || baths !== "N/A") && sqFt !== "N/A" && <Text>•</Text>}
+          {sqFt !== "N/A" && <Text>{sqFt} sqft</Text>}
+        </Group>
+      );
+    }
   };
 
   if (onClick) {
@@ -62,7 +239,6 @@ export default function PropertySearchResultCard({
           h="100%"
           withBorder
           className={size === "md" ? style.propertyCard : style.propertyCardSmall}
-          // CHANGED: ensure no overflow
           style={cardStyleFix}
         >
           <Card.Section>
@@ -76,15 +252,11 @@ export default function PropertySearchResultCard({
           </Card.Section>
 
           <Group justify="space-between" mt="md" mb={size === "sm" ? 4 : 16}>
-            <Text fw="bold">{sPrice}</Text>
+            <Text fw="bold">{price}</Text>
             {property.Open_House_Time && <Badge color="green">{property.Open_House_Time}</Badge>}
           </Group>
 
-          <Group justify="flex-start" gap={5} mb="xs">
-            <Text>{sBeds} Beds</Text>
-            <Text>•</Text>
-            <Text>{sBaths}</Text>
-          </Group>
+          {renderPropertyDetails()}
 
           <Text fw={500} mb={5}>
             {finalType}
@@ -110,7 +282,7 @@ export default function PropertySearchResultCard({
           h="100%"
           withBorder
           className={size === "md" ? style.propertyCard : style.propertyCardSmall}
-          style={cardStyleFix} // CHANGED
+          style={cardStyleFix}
         >
           <Card.Section>
             <Image
@@ -123,15 +295,11 @@ export default function PropertySearchResultCard({
           </Card.Section>
 
           <Group justify="space-between" mt="md" mb={size === "sm" ? 4 : 16}>
-            <Text fw="bold">{sPrice}</Text>
+            <Text fw="bold">{price}</Text>
             {property.Open_House_Time && <Badge color="green">{property.Open_House_Time}</Badge>}
           </Group>
 
-          <Group justify="flex-start" gap={5} mb="xs">
-            <Text>{sBeds} Beds</Text>
-            <Text>•</Text>
-            <Text>{sBaths}</Text>
-          </Group>
+          {renderPropertyDetails()}
 
           <Text fw={500} mb={5}>
             {finalType}

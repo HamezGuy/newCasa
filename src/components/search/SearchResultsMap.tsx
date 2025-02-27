@@ -59,10 +59,13 @@ export function SearchResultsMap({
   const isLoading = !mapIsReady || isPropertiesLoading;
 
   // Memoize geocode data
-  const basicGeocodeData = useMemo<BasicGeocodeData>(() => ({
-    location: geocodeData?.location,
-    bounds: geocodeData?.bounds,
-  }), [geocodeData?.location, geocodeData?.bounds]);
+  const basicGeocodeData = useMemo<BasicGeocodeData>(
+    () => ({
+      location: geocodeData?.location,
+      bounds: geocodeData?.bounds,
+    }),
+    [geocodeData?.location, geocodeData?.bounds]
+  );
 
   const defaultCenter = useMemo(() => ({ lat: 43.0731, lng: -89.4012 }), []);
   const containerStyle = useMemo(() => ({ width: "100%", height: "100%" }), []);
@@ -72,8 +75,8 @@ export function SearchResultsMap({
   const markerClusterRef = useRef<MarkerClusterer | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
 
-  // CHANGED: detect if mobile for InfoWindow sizing logic, etc.
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  // CHANGED: detect if mobile
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   function makeSnapSignature(data: BasicGeocodeData): string | null {
     if (data.bounds) {
@@ -134,29 +137,8 @@ export function SearchResultsMap({
     setBounds(newBounds);
   }, [setBounds]);
 
-  // Marker click => open InfoWindow
-  const handleMarkerClick = useCallback((property: IParagonProperty) => {
-    setSelectedProperty(property);
-    setInfoWindowShown(true);
-
-    if (!mapRef.current || !property.Latitude || !property.Longitude) return;
-
-    // Center on the property
-    mapRef.current.panTo({ lat: property.Latitude, lng: property.Longitude });
-
-    // Offset left on desktop if needed
-    if (!isMobile) {
-      mapRef.current.panBy(-200, 0);
-    }
-  }, [isMobile]);
-
-  // Close InfoWindow if user clicks on map
-  const handleMapClick = useCallback(() => {
-    setInfoWindowShown(false);
-    setSelectedProperty(null);
-  }, []);
-
-  function clampZoomOnMobile(): void {
+  // CHANGED: wrap clampZoomOnMobile in useCallback for stable reference
+  const clampZoomOnMobile = useCallback(() => {
     if (!mapRef.current) return;
     if (isMobile) {
       const currentZoom = mapRef.current.getZoom() ?? 10;
@@ -164,7 +146,32 @@ export function SearchResultsMap({
         mapRef.current.setZoom(12);
       }
     }
-  }
+  }, [isMobile]);
+
+  // Marker click => open InfoWindow
+  const handleMarkerClick = useCallback(
+    (property: IParagonProperty) => {
+      setSelectedProperty(property);
+      setInfoWindowShown(true);
+
+      if (!mapRef.current || !property.Latitude || !property.Longitude) return;
+
+      // Center on the property
+      mapRef.current.panTo({ lat: property.Latitude, lng: property.Longitude });
+
+      // Offset left on desktop if needed
+      if (!isMobile) {
+        mapRef.current.panBy(-200, 0);
+      }
+    },
+    [isMobile]
+  );
+
+  // Close InfoWindow if user clicks on map
+  const handleMapClick = useCallback(() => {
+    setInfoWindowShown(false);
+    setSelectedProperty(null);
+  }, []);
 
   useEffect(() => {
     if (!mapIsReady || !mapRef.current) return;
@@ -191,7 +198,7 @@ export function SearchResultsMap({
         console.log("[SearchResultsMap] No bounds => default center/zoom");
         mapRef.current.setCenter(defaultCenter);
         mapRef.current.setZoom(10);
-        clampZoomOnMobile();
+        clampZoomOnMobile(); // call the callback
         setLastSnapSignature("DEFAULT");
       }
       return;
@@ -240,6 +247,7 @@ export function SearchResultsMap({
     lastSnapSignature,
     mapIsReady,
     onSearchComplete,
+    clampZoomOnMobile, // ADDED
   ]);
 
   // Rebuild markers whenever properties change

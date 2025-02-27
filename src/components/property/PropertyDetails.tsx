@@ -14,6 +14,78 @@ interface PropertyDetailsProps {
   userUid: string | null;
 }
 
+// Helper function to get property details based on property type
+function getPropertyDetails(property: ParagonPropertyWithMedia) {
+  // Determine property type
+  const propertyType = property.PropertyType || "";
+  
+  // Default values
+  let beds: number | string = property.BedroomsTotal || "N/A";
+  let baths: string = property.TotBth || `${property.BathroomsFull || 0}.${property.BathroomsHalf ? 5 : 0}`;
+  let acres: number | string = property.LotSizeAcres || "N/A";
+  let sqFt: number | string = property.LivingArea || property.AboveGradeFinishedArea || "N/A";
+  let yearBuilt: number | string = property.YearBuilt || "N/A";
+  
+  // For Multi Family properties
+  if (propertyType === "Multi Family") {
+    // Total unit stats
+    let totalBeds = 0;
+    let totalBaths = 0;
+    let totalSqFt = 0;
+    const unitCount = property.NumberOfUnitsTotal || 0;
+    
+    // Using type assertion to safely access dynamic property names
+    for (let i = 1; i <= unitCount; i++) {
+      // Add bedrooms
+      const bedroomKey = `U${i}_Number__Bedrooms` as keyof ParagonPropertyWithMedia;
+      if (property[bedroomKey] && typeof property[bedroomKey] === 'number') {
+        totalBeds += property[bedroomKey] as number;
+      }
+      
+      // Add bathrooms
+      const fullBathKey = `U${i}_Full_Baths` as keyof ParagonPropertyWithMedia;
+      if (property[fullBathKey] && typeof property[fullBathKey] === 'number') {
+        totalBaths += property[fullBathKey] as number;
+      }
+      
+      const halfBathKey = `U${i}_Half_Baths` as keyof ParagonPropertyWithMedia;
+      if (property[halfBathKey] && typeof property[halfBathKey] === 'number') {
+        totalBaths += (property[halfBathKey] as number) * 0.5;
+      }
+      
+      // Add square footage
+      const sqFtKey = `U${i}_SqFt` as keyof ParagonPropertyWithMedia;
+      if (property[sqFtKey] && typeof property[sqFtKey] === 'number') {
+        totalSqFt += property[sqFtKey] as number;
+      }
+    }
+    
+    // Update with calculated values
+    beds = unitCount > 0 ? `${unitCount} Units` : "N/A";
+    baths = totalBaths > 0 ? totalBaths.toString() : "N/A";
+    sqFt = totalSqFt > 0 ? totalSqFt : (property.LivingArea || "N/A");
+  } 
+  // For Commercial properties
+  else if (propertyType === "Commercial Sale") {
+    beds = "N/A";
+    baths = "N/A";
+    sqFt = property.BuildingAreaTotal || property.LeasableArea || "N/A";
+    
+    // Some commercial properties use LotSizeArea instead of LotSizeAcres
+    if (!property.LotSizeAcres && property.LotSizeArea) {
+      acres = property.LotSizeArea;
+    }
+  }
+  // For Land properties
+  else if (propertyType === "Land") {
+    beds = property.NumberOfLots && property.NumberOfLots > 1 ? `${property.NumberOfLots} Lots` : "N/A";
+    baths = "N/A";
+    sqFt = "N/A";
+  }
+  
+  return { beds, baths, acres, sqFt, yearBuilt };
+}
+
 export default function PropertyDetails({
   property,
   userRole = "user",
@@ -29,11 +101,8 @@ export default function PropertyDetails({
     ? DisplayUtils.formatCurrency((property.ListPrice * 0.005) / 12) 
     : "N/A";
 
-  const yearBuilt = property.YearBuilt || "N/A";
-  const acres = property.LotSizeAcres || "N/A";
-  const sqFt = property.LivingArea || property.AboveGradeFinishedArea || "N/A";
-  const beds = property.BedroomsTotal || 0;
-  const baths = property.TotBth || `${property.BathroomsFull || 0}.${property.BathroomsHalf ? 5 : 0}`;
+  // Get property details based on property type
+  const { beds, baths, acres, sqFt, yearBuilt } = getPropertyDetails(property);
 
   // Format property summary fields
   const mlsNumber = property.ListingId || "N/A";
@@ -48,10 +117,110 @@ export default function PropertyDetails({
     ? DisplayUtils.formatCurrency(property.TaxAnnualAmount) 
     : "N/A";
     
-  // Get current URL for sharing
+  // Get current URL for sharing - FIXED: Changed 'properties' to 'property' to match the correct URL pattern
   const propertyUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/properties/${property.ListingId}` 
+    ? `${window.location.origin}/property/${property.ListingId}` 
     : '';
+
+  // Render property stats based on property type
+  const renderPropertyStats = () => {
+    const type = property.PropertyType;
+    
+    if (type === "Land") {
+      return (
+        <div className="grid grid-cols-3 gap-2 mt-4 bg-gray-50 p-4 rounded-lg text-center">
+          <div>
+            <div className="text-xl font-semibold">{acres}</div>
+            <div className="text-sm text-gray-500">Acres</div>
+          </div>
+          {property.NumberOfLots && property.NumberOfLots > 1 && (
+            <div>
+              <div className="text-xl font-semibold">{property.NumberOfLots}</div>
+              <div className="text-sm text-gray-500">Lots</div>
+            </div>
+          )}
+          <div>
+            <div className="text-xl font-semibold">{property.Zoning || "N/A"}</div>
+            <div className="text-sm text-gray-500">Zoning</div>
+          </div>
+        </div>
+      );
+    } else if (type === "Commercial Sale") {
+      return (
+        <div className="grid grid-cols-4 gap-2 mt-4 bg-gray-50 p-4 rounded-lg text-center">
+          <div>
+            <div className="text-xl font-semibold">{sqFt}</div>
+            <div className="text-sm text-gray-500">SQ FT</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{acres}</div>
+            <div className="text-sm text-gray-500">Acres</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{property.StoriesTotal || "N/A"}</div>
+            <div className="text-sm text-gray-500">Stories</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{yearBuilt}</div>
+            <div className="text-sm text-gray-500">Year Built</div>
+          </div>
+        </div>
+      );
+    } else if (type === "Multi Family") {
+      return (
+        <div className="grid grid-cols-5 gap-2 mt-4 bg-gray-50 p-4 rounded-lg text-center">
+          <div>
+            <div className="text-xl font-semibold">{property.NumberOfUnitsTotal || "N/A"}</div>
+            <div className="text-sm text-gray-500">Units</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{sqFt}</div>
+            <div className="text-sm text-gray-500">SQ FT</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{acres}</div>
+            <div className="text-sm text-gray-500">Acres</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{yearBuilt}</div>
+            <div className="text-sm text-gray-500">Year Built</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">
+              {property.GrossIncome ? DisplayUtils.formatCurrency(property.GrossIncome) : "N/A"}
+            </div>
+            <div className="text-sm text-gray-500">Income</div>
+          </div>
+        </div>
+      );
+    } else {
+      // Default for Residential
+      return (
+        <div className="grid grid-cols-5 gap-2 mt-4 bg-gray-50 p-4 rounded-lg text-center">
+          <div>
+            <div className="text-xl font-semibold">{beds}</div>
+            <div className="text-sm text-gray-500">Beds</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{baths}</div>
+            <div className="text-sm text-gray-500">Baths</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{acres}</div>
+            <div className="text-sm text-gray-500">Acres</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{sqFt}</div>
+            <div className="text-sm text-gray-500">SQ FT</div>
+          </div>
+          <div>
+            <div className="text-xl font-semibold">{yearBuilt}</div>
+            <div className="text-sm text-gray-500">Year Built</div>
+          </div>
+        </div>
+      );
+    }
+  };
 
   return (
     <div>
@@ -86,29 +255,8 @@ export default function PropertyDetails({
           </div>
         </div>
 
-        {/* Key property stats */}
-        <div className="grid grid-cols-5 gap-2 mt-4 bg-gray-50 p-4 rounded-lg text-center">
-          <div>
-            <div className="text-xl font-semibold">{beds}</div>
-            <div className="text-sm text-gray-500">Beds</div>
-          </div>
-          <div>
-            <div className="text-xl font-semibold">{baths}</div>
-            <div className="text-sm text-gray-500">Baths</div>
-          </div>
-          <div>
-            <div className="text-xl font-semibold">{acres}</div>
-            <div className="text-sm text-gray-500">Acres</div>
-          </div>
-          <div>
-            <div className="text-xl font-semibold">{sqFt}</div>
-            <div className="text-sm text-gray-500">SQ FT</div>
-          </div>
-          <div>
-            <div className="text-xl font-semibold">{yearBuilt}</div>
-            <div className="text-sm text-gray-500">Year Built</div>
-          </div>
-        </div>
+        {/* Key property stats - Conditionally rendered based on property type */}
+        {renderPropertyStats()}
 
         {/* Property description */}
         <div className="mt-6">
@@ -116,6 +264,9 @@ export default function PropertyDetails({
         </div>
       </div>
 
+      {/* Rest of the component remains unchanged */}
+      {/* ... */}
+      
       {/* Detailed property information in accordions */}
       <Accordion variant="separated" className="mt-4">
         {/* Property Summary */}
