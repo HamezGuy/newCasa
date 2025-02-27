@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(req: NextRequest) {
   console.log("Geocode API endpoint hit.");
 
-  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
+  // Use the server-side API key, not the public one
+  const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
   if (!GOOGLE_MAPS_API_KEY) {
     console.error("Google Maps API key is missing.");
@@ -29,7 +30,6 @@ export async function GET(req: NextRequest) {
         key: GOOGLE_MAPS_API_KEY,
         // Add these parameters to improve exact address matching
         components: "country:US", // Limit to US addresses
-        result_type: "street_address|premise", // Focus on exact addresses
       },
     });
 
@@ -39,6 +39,16 @@ export async function GET(req: NextRequest) {
     if (response.data.results && response.data.results.length > 0) {
       console.log("First result types:", response.data.results[0].types);
       console.log("First result formatted address:", response.data.results[0].formatted_address);
+      
+      // Also log address components to help with debugging
+      if (response.data.results[0].address_components) {
+        console.log("Address components:", 
+          JSON.stringify(response.data.results[0].address_components.map((c: any) => ({
+            long_name: c.long_name,
+            short_name: c.short_name,
+            types: c.types
+          }))));
+      }
     }
 
     if (response.data.status === "OK") {

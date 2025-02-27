@@ -114,7 +114,7 @@ export default function AboutPage(): JSX.Element {
                     or stored in config as brand.logo 
                   */}
                   <Image
-                    src="/img/flores-realty-logo.png"
+                    src="/img/logo-realtor.png"
                     alt={`${brand} Logo`}
                     width={160}
                     height={80}

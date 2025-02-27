@@ -88,7 +88,7 @@ export default function MainPageSearch() {
 
             {/* Realtor Logo (optional) */}
             <Image
-              src="/img/exp-logo.png"
+              src="/img/logo-realtor.png"
               alt="EXP Realty Logo"
               width={120}
               height={40}

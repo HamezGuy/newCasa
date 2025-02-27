@@ -16,7 +16,8 @@ const fetchWithRetry = async (url: string, options: any, retries: number = 3): P
 };
 
 export async function GET(req: NextRequest) {
-  const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API;
+  // Use the server-side API key, not the public one
+  const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 
   if (!GOOGLE_MAPS_API_KEY) {
     console.error("Google Maps API key is missing.");

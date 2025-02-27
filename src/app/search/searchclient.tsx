@@ -125,8 +125,11 @@ export default function SearchClient() {
     const city = searchParams.get("city") || undefined;
     const county = searchParams.get("county") || undefined;
     const propertyId = searchParams.get("propertyId") || undefined;
+    const address = searchParams.get("address") || undefined; // Added address parameter
 
-    fetchProperties(zipCode, streetName, city, county, propertyId);
+    console.log("URL parameters:", { zipCode, streetName, city, county, propertyId, address });
+    
+    fetchProperties(zipCode, streetName, city, county, propertyId, address); // Added address parameter
   }, [searchParams]);
 
   // Re-apply filters whenever the data or user filters change
@@ -140,7 +143,8 @@ export default function SearchClient() {
     streetName?: string,
     city?: string,
     county?: string,
-    propertyId?: string
+    propertyId?: string,
+    address?: string // Added address parameter
   ) => {
     setLoading(true);
     try {
@@ -152,11 +156,14 @@ export default function SearchClient() {
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
       if (propertyId) queries.push(`propertyId=${encodeURIComponent(propertyId)}`);
+      if (address) queries.push(`address=${encodeURIComponent(address)}`); // Added address to query
 
       if (queries.length > 0) {
         url += `?${queries.join("&")}`;
       }
 
+      console.log("Fetching from URL:", url); // Log the complete URL
+      
       const response = await fetch(url);
       if (!response.ok) {
         console.error("[Search Page] fetchProperties => error:", await response.text());

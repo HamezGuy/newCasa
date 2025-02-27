@@ -206,9 +206,12 @@ export default function SearchInput({
               geocodeData.types.includes("premise"));
 
           // If we have a street number and route or it's explicitly a street address or input looks like address
+          // Inside the validateAddress function, where we set the address parameter:
+
           if ((streetNumber && route) || isStreetAddress || isAddressInput) {
             console.log("Detected as full address - using address search");
             urlParams.set("address", geocodeData.formatted_address);
+            console.log("Setting address parameter:", geocodeData.formatted_address); // Add this debug line
           } else if (zipCode) {
             urlParams.set("zipCode", zipCode);
           } else if (city) {

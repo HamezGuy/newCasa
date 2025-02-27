@@ -1,4 +1,3 @@
-// src/app/api/v1/listings/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import paragonApiClient from "@/lib/ParagonApiClient";
 
@@ -16,10 +15,31 @@ export async function GET(request: NextRequest) {
   const county = searchParams.get("county");
   const agentName = searchParams.get("agentName");
   
-  // NEW: address and radius parameters
+  // Address parameter and radius
   const address = searchParams.get("address");
   const radiusStr = searchParams.get("radius");
-  const radius = radiusStr ? parseFloat(radiusStr) : 1; // Default to 1 mile
+  const radius = radiusStr ? parseFloat(radiusStr) : 0; // Default to 0 for exact match
+
+  // Parse user filters
+  const minPriceStr = searchParams.get("minPrice");
+  const maxPriceStr = searchParams.get("maxPrice");
+  const minRoomsStr = searchParams.get("minRooms");
+  const maxRoomsStr = searchParams.get("maxRooms");
+  
+  // Get all propertyType values (can be multiple)
+  const propertyTypeParams = searchParams.getAll("propertyType");
+  const propertyTypes = propertyTypeParams.length 
+    ? propertyTypeParams.map(pt => ({ value: pt })) 
+    : undefined;
+
+  // Build user filters object
+  const userFilters = {
+    minPrice: minPriceStr ? parseInt(minPriceStr, 10) : undefined,
+    maxPrice: maxPriceStr ? parseInt(maxPriceStr, 10) : undefined,
+    minRooms: minRoomsStr ? parseInt(minRoomsStr, 10) : undefined,
+    maxRooms: maxRoomsStr ? parseInt(maxRoomsStr, 10) : undefined,
+    propertyTypes,
+  };
 
   console.log("Query parameters received:", {
     zipCode,
@@ -30,30 +50,35 @@ export async function GET(request: NextRequest) {
     agentName,
     address,
     radius,
+    userFilters
   });
 
   try {
     let properties: any[] = [];
 
-    // (A) If agentName => fetch Tim's listings by agent
+    // (A) If agentName => fetch agent's listings
     if (agentName) {
       console.log(`Fetching properties for agentName = ${agentName}`);
       try {
-        properties = await paragonApiClient.searchByListAgentName(agentName);
+        properties = await paragonApiClient.searchByListAgentName(agentName, userFilters, true);
         console.log(`Fetched ${properties.length} for agentName=${agentName}`);
       } catch (err) {
         console.error(`Error fetching by agent name ${agentName}:`, err);
         properties = [];
       }
     }
-    // (B) If address => fetch properties near the address
+    // (B) If address => fetch properties at the exact address
     else if (address) {
-      console.log(`Fetching properties near address: ${address} with radius ${radius} miles`);
+      console.log(`Fetching properties at address: ${address} with radius ${radius} miles`);
       try {
-        const response = await paragonApiClient.searchByAddress(address, radius);
+        console.log("About to call paragonApiClient.searchByAddress");
+        const response = await paragonApiClient.searchByAddress(address, radius, userFilters, true);
+        console.log("searchByAddress response:", response);
         properties = response?.value || [];
+        console.log(`Found ${properties.length} properties for address ${address}`);
       } catch (err) {
         console.error(`Error fetching by address ${address}:`, err);
+        console.error("Error details:", err);
         properties = [];
       }
     }
@@ -61,7 +86,7 @@ export async function GET(request: NextRequest) {
     else if (zipCode) {
       console.log(`Fetching properties for zipCode: ${zipCode}`);
       try {
-        const response = await paragonApiClient.searchByZipCode(zipCode);
+        const response = await paragonApiClient.searchByZipCode(zipCode, userFilters, true);
         properties = response?.value || [];
       } catch (err) {
         console.error(`Error fetching by zipCode ${zipCode}:`, err);
@@ -70,7 +95,7 @@ export async function GET(request: NextRequest) {
     } else if (streetName) {
       console.log(`Fetching properties for streetName: ${streetName}`);
       try {
-        const response = await paragonApiClient.searchByStreetName(streetName);
+        const response = await paragonApiClient.searchByStreetName(streetName, userFilters, true);
         properties = response?.value || [];
       } catch (err) {
         console.error(`Error fetching by streetName ${streetName}:`, err);
@@ -79,7 +104,7 @@ export async function GET(request: NextRequest) {
     } else if (propertyId) {
       console.log(`Fetching property for propertyId: ${propertyId}`);
       try {
-        const property = await paragonApiClient.getPropertyById(propertyId);
+        const property = await paragonApiClient.getPropertyById(propertyId, true);
         properties = property ? [property] : [];
       } catch (err) {
         console.error(`Error fetching by propertyId ${propertyId}:`, err);
@@ -88,7 +113,7 @@ export async function GET(request: NextRequest) {
     } else if (city) {
       console.log(`Fetching properties for city: ${city}`);
       try {
-        const response = await paragonApiClient.searchByCity(city);
+        const response = await paragonApiClient.searchByCity(city, userFilters, true);
         properties = response?.value || [];
       } catch (err) {
         console.error(`Error fetching by city ${city}:`, err);
@@ -97,7 +122,7 @@ export async function GET(request: NextRequest) {
     } else if (county) {
       console.log(`Fetching properties for county: ${county}`);
       try {
-        const response = await paragonApiClient.searchByCounty(county);
+        const response = await paragonApiClient.searchByCounty(county, userFilters, true);
         properties = response?.value || [];
       } catch (err) {
         console.error(`Error fetching by county ${county}:`, err);
@@ -117,7 +142,6 @@ export async function GET(request: NextRequest) {
       originalError: error,
     });
     
-    // Return a cleaner error response
     return NextResponse.json(
       { 
         error: "Failed to fetch properties from API",

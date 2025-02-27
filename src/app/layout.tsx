@@ -18,11 +18,7 @@ export const metadata: Metadata = {
   title: "NewCasa",
   description: "NewCasa MVP",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-  icons: {
-    icon: "/favicon.ico",        
-    shortcut: "/favicon.ico",    
-    apple: "/favicon.ico",       
-  },
+  // Remove the icons configuration - Next.js will automatically handle favicon.ico in the app directory
 };
 
 const mantineTheme = createTheme({

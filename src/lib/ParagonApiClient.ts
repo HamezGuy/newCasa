@@ -1229,219 +1229,381 @@ export class ParagonApiClient {
   // ------------------------------------------------------------------
   // NEW METHOD => search by address and find properties
   // ------------------------------------------------------------------
-  public async searchByAddress(
-    address: string,
-    radiusMiles: number = 0, // Set default to 0 for exact address search
-    userFilters?: IUserFilters,
-    includeMedia = true
-  ): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
-    console.log("[searchByAddress => full data + images] => address=", address);
+  // This is the key method that needs to be updated in ParagonApiClient.ts
+// Make sure this replaces the existing searchByAddress method
+public async searchByAddress(
+  address: string,
+  radiusMiles: number = 0, // Default to 0 for exact address search
+  userFilters?: IUserFilters,
+  includeMedia = true
+): Promise<IOdataResponse<ParagonPropertyWithMedia>> {
+  console.log("[searchByAddress] => address:", address, "radius:", radiusMiles);
 
-    if (MOCK_DATA) {
-      // For mock data, just return properties with similar addresses
-      const all = getMockProperties();
-      const addressLower = address.toLowerCase();
-      const filtered = all.filter(
-        (p) =>
-          (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
-          (
-            (p.StreetName && p.StreetName.toLowerCase().includes(addressLower)) ||
-            (p.StreetNumber && p.StreetNumber.toLowerCase().includes(addressLower)) ||
-            (p.City && p.City.toLowerCase().includes(addressLower))
-          )
-      );
-      const geo = await geocodeProperties(filtered);
-      if (includeMedia) {
-        const withMed = await this.populatePropertyMedia(geo);
-        return { "@odata.context": "mockAddress", value: withMed };
-      }
-      return { "@odata.context": "mockAddress", value: geo };
+  if (MOCK_DATA) {
+    // For mock data, just return properties with similar addresses
+    const all = getMockProperties();
+    const addressLower = address.toLowerCase();
+    const filtered = all.filter(
+      (p) =>
+        (p.StandardStatus === "Active" || p.StandardStatus === "Pending") &&
+        (
+          (p.StreetName && p.StreetName.toLowerCase().includes(addressLower)) ||
+          (p.StreetNumber && p.StreetNumber.toLowerCase().includes(addressLower)) ||
+          (p.City && p.City.toLowerCase().includes(addressLower))
+        )
+    );
+    const geo = await geocodeProperties(filtered);
+    if (includeMedia) {
+      const withMed = await this.populatePropertyMedia(geo);
+      return { "@odata.context": "mockAddress", value: withMed };
     }
+    return { "@odata.context": "mockAddress", value: geo };
+  }
 
-    // First, geocode the address to get components
+  // Function to manually parse address components when geocoding fails
+  const manuallyParseAddress = (addressStr: string) => {
+    console.log("[searchByAddress] => Manually parsing address:", addressStr);
+    
+    // Remove any country suffix and trim
+    let cleanAddress = addressStr.replace(/,\s*USA$/i, "").trim();
+    
+    // Extract components - this is a simple implementation
+    const parts = cleanAddress.split(',').map(p => p.trim());
+    
+    // Assuming format like: "330 S Brooks St, Madison, WI 53715"
+    const streetPart = parts[0] || '';
+    const cityPart = parts.length > 1 ? parts[1] : '';
+    
+    // Extract street number and name from street part
+    const streetMatch = streetPart.match(/^(\d+)\s+(.+)$/);
+    const streetNumber = streetMatch ? streetMatch[1] : null;
+    const streetName = streetMatch ? streetMatch[2] : null;
+    
+    // Extract city
+    const cityMatch = cityPart.match(/^([^,]+)/);
+    const city = cityMatch ? cityMatch[1].trim() : null;
+    
+    console.log("[searchByAddress] => Manually extracted:", {
+      streetNumber,
+      streetName,
+      city
+    });
+    
+    return {
+      streetNumber,
+      streetName,
+      city
+    };
+  };
+
+  try {
+    let streetNumber = null;
+    let streetName = null;
+    let city = null;
+    
+    // First try geocoding with Google API
     try {
+      console.log("[searchByAddress] => Trying geocoding with Google API:", address);
+      
+      // Use our own API endpoint to avoid exposing the key directly
       const geocodeResponse = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
-          address
-        )}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+        `/api/v1/geocode?address=${encodeURIComponent(address)}`,
+        { headers: { 'Cache-Control': 'no-cache' } }
       );
+      
+      if (!geocodeResponse.ok) {
+        throw new Error(`Geocoding API returned ${geocodeResponse.status}`);
+      }
       
       const geocodeData = await geocodeResponse.json();
       
-      if (geocodeData.status !== "OK" || !geocodeData.results || geocodeData.results.length === 0) {
-        console.log("[searchByAddress] => Geocoding failed:", geocodeData.status);
-        return { "@odata.context": "addressNotFound", value: [] };
-      }
-      
-      // Extract address components from geocode result
-      const addressComponents = geocodeData.results[0].address_components || [];
-      console.log("[searchByAddress] => Address components:", JSON.stringify(addressComponents));
-      
-      await this.forClientSecret();
-      const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
-      
-      // Extract street number
-      const streetNumber = addressComponents.find((c: { types: string[], long_name: string }) => 
-        c.types.includes("street_number")
-      )?.long_name;
-      
-      // Extract street name
-      let streetName = addressComponents.find((c: { types: string[], long_name: string }) => 
-        c.types.includes("route")
-      )?.long_name;
-      
-      // Extract city
-      const city = addressComponents.find((c: { types: string[], long_name: string }) => 
-        c.types.includes("locality") || c.types.includes("sublocality")
-      )?.long_name;
-      
-      // Extract zip code
-      const zipCode = addressComponents.find((c: { types: string[], long_name: string }) => 
-        c.types.includes("postal_code")
-      )?.long_name;
-      
-      // If we have a street name with "North", "South", etc., create alternative versions
-      let streetNameAlternatives: string[] = [];
-      if (streetName) {
-        // Original street name
-        streetNameAlternatives.push(streetName);
+      if (geocodeData.status === "OK" && geocodeData.results && geocodeData.results.length > 0) {
+        console.log("[searchByAddress] => Geocoding successful");
         
-        // Handle directional prefixes (North, South, East, West)
-        const directionalMap: Record<string, string> = {
-          'North': 'N',
-          'South': 'S',
-          'East': 'E',
-          'West': 'W',
-          'N': 'North',
-          'S': 'South',
-          'E': 'East',
-          'W': 'West'
-        };
+        // Extract address components from geocode result
+        const addressComponents = geocodeData.results[0].address_components || [];
+        console.log("[searchByAddress] => Address components:", JSON.stringify(addressComponents));
         
-        const words = streetName.split(' ');
-        if (words.length > 1) {
-          const firstWord = words[0];
-          if (directionalMap[firstWord]) {
-            // Replace "North" with "N" or vice versa
-            const alternativeFirstWord = directionalMap[firstWord];
-            const alternativeStreetName = [alternativeFirstWord, ...words.slice(1)].join(' ');
-            streetNameAlternatives.push(alternativeStreetName);
-          }
-        }
+        // Extract street number
+        streetNumber = addressComponents.find((c: { types: string[], long_name: string }) => 
+          c.types.includes("street_number")
+        )?.long_name;
+        
+        // Extract street name
+        streetName = addressComponents.find((c: { types: string[], long_name: string }) => 
+          c.types.includes("route")
+        )?.long_name;
+        
+        // Extract city
+        city = addressComponents.find((c: { types: string[], long_name: string }) => 
+          c.types.includes("locality") || c.types.includes("sublocality")
+        )?.long_name;
+        
+        console.log("[searchByAddress] => Extracted components:", {
+          streetNumber,
+          streetName,
+          city
+        });
+      } else {
+        throw new Error(`Geocoding failed: ${geocodeData.status}`);
       }
+    } catch (geocodeError) {
+      console.error("[searchByAddress] => Geocoding failed:", geocodeError);
+      console.log("[searchByAddress] => Falling back to manual address parsing");
       
-      console.log("[searchByAddress] => Street name alternatives:", streetNameAlternatives);
-      
-      // Build multiple possible filters for different combinations
-      let possibleFilters = [];
-      
-      // Try exact match on street number and street name first
-      if (streetNumber && streetNameAlternatives.length > 0) {
-        for (const streetNameAlt of streetNameAlternatives) {
-          // Exact match on street number and contains on street name
-          possibleFilters.push(
-            `(StreetNumber eq '${streetNumber}' and contains(StreetName, '${encodeURIComponent(streetNameAlt)}')`
-          );
-        }
+      // Fall back to manual parsing
+      const manualComponents = manuallyParseAddress(address);
+      streetNumber = manualComponents.streetNumber;
+      streetName = manualComponents.streetName;
+      city = manualComponents.city;
+    }
+    
+    // If we still don't have components, try manual parsing
+    if (!streetNumber || !streetName) {
+      console.log("[searchByAddress] => Missing street components, trying manual parsing");
+      const manualComponents = manuallyParseAddress(address);
+      streetNumber = streetNumber || manualComponents.streetNumber;
+      streetName = streetName || manualComponents.streetName;
+      city = city || manualComponents.city;
+    }
+    
+    // Validate that we have the minimum required components
+    if (!streetNumber) {
+      console.log("[searchByAddress] => Could not extract street number");
+      return { "@odata.context": "streetNumberMissing", value: [] };
+    }
+    
+    if (!streetName) {
+      console.log("[searchByAddress] => Could not extract street name");
+      return { "@odata.context": "streetNameMissing", value: [] };
+    }
+    
+    await this.forClientSecret();
+    const filterPortion = "(StandardStatus eq 'Active' or StandardStatus eq 'Pending')";
+    
+    // Create street name alternatives for common prefix/suffix variations
+    const streetNameAlternatives: string[] = [];
+    
+    // Original street name
+    streetNameAlternatives.push(streetName);
+    
+    // Normalize street name for better matching
+    // Remove common prefixes like "North", "South", "East", "West" and their abbreviations
+    const normalizedStreetName = streetName
+      .replace(/^(north|south|east|west|n\.?|s\.?|e\.?|w\.?)\s+/i, '')
+      .trim();
+    
+    if (normalizedStreetName !== streetName) {
+      streetNameAlternatives.push(normalizedStreetName);
+      console.log("[searchByAddress] => Added normalized street name:", normalizedStreetName);
+    }
+    
+    // Handle case where "Old" might be omitted in database
+    const words = streetName.split(' ');
+    if (words.length > 1 && words[0].toLowerCase() === 'old') {
+      // Add a version without the "Old" prefix
+      const withoutOld = words.slice(1).join(' ');
+      streetNameAlternatives.push(withoutOld);
+      console.log("[searchByAddress] => Added version without 'Old' prefix:", withoutOld);
+    }
+    
+    // Sometimes street names may have abbreviations
+    // Convert common street suffixes to their alternatives
+    const streetSuffixMap: Record<string, string[]> = {
+      'street': ['st', 'str'],
+      'st': ['street', 'str'],
+      'avenue': ['ave', 'av'],
+      'ave': ['avenue', 'av'],
+      'boulevard': ['blvd', 'boul'],
+      'blvd': ['boulevard', 'boul'],
+      'drive': ['dr'],
+      'dr': ['drive'],
+      'road': ['rd'],
+      'rd': ['road'],
+      'place': ['pl'],
+      'pl': ['place'],
+      'lane': ['ln'],
+      'ln': ['lane'],
+      'court': ['ct'],
+      'ct': ['court'],
+      'circle': ['cir'],
+      'cir': ['circle'],
+      'trail': ['tr', 'trl'],
+      'tr': ['trail', 'trl'],
+      'trl': ['trail', 'tr'],
+      'way': [],
+      'parkway': ['pkwy'],
+      'pkwy': ['parkway']
+    };
+    
+    // Check if the last word is a known street suffix
+    const lastWord = words[words.length - 1].toLowerCase();
+    if (streetSuffixMap[lastWord]) {
+      // For each alternative suffix, create a new street name variation
+      for (const altSuffix of streetSuffixMap[lastWord]) {
+        const newStreetName = [...words.slice(0, -1), altSuffix].join(' ');
+        streetNameAlternatives.push(newStreetName);
+        console.log("[searchByAddress] => Added suffix alternative:", newStreetName);
       }
-      
-      // Try with city as additional filter
-      if (streetNumber && streetNameAlternatives.length > 0 && city) {
-        for (const streetNameAlt of streetNameAlternatives) {
-          possibleFilters.push(
-            `(StreetNumber eq '${streetNumber}' and contains(StreetName, '${encodeURIComponent(streetNameAlt)}') and contains(City, '${encodeURIComponent(city)}')`
-          );
-        }
+    }
+    
+    console.log("[searchByAddress] => Street name alternatives:", streetNameAlternatives);
+    
+    // Helper function to safely encode values for OData
+    const safeEncode = (value: string): string => {
+      // Replace apostrophes with double apostrophes for OData
+      return value.replace(/'/g, "''");
+    };
+    
+    // Build search filters - focus on street number + street name + city
+    let possibleFilters: string[] = [];
+    
+    // Start with the most specific filter: street number + street name + city (if available)
+    if (streetNumber && streetName && city) {
+      for (const streetNameAlt of streetNameAlternatives) {
+        possibleFilters.push(
+          `(StreetNumberNumeric eq ${streetNumber} and contains(StreetName, '${safeEncode(streetNameAlt)}') and contains(City, '${safeEncode(city)}')`
+        );
+        
+        // Also try with StreetNumber field (string version)
+        possibleFilters.push(
+          `(StreetNumber eq '${safeEncode(streetNumber)}' and contains(StreetName, '${safeEncode(streetNameAlt)}') and contains(City, '${safeEncode(city)}')`
+        );
       }
-      
-      // Try with zip code as additional filter
-      if (streetNumber && streetNameAlternatives.length > 0 && zipCode) {
-        for (const streetNameAlt of streetNameAlternatives) {
-          possibleFilters.push(
-            `(StreetNumber eq '${streetNumber}' and contains(StreetName, '${encodeURIComponent(streetNameAlt)}') and contains(PostalCode, '${encodeURIComponent(zipCode)}')`
-          );
-        }
+    }
+    
+    // Next, try street number + street name without city
+    if (streetNumber && streetName) {
+      for (const streetNameAlt of streetNameAlternatives) {
+        possibleFilters.push(
+          `(StreetNumberNumeric eq ${streetNumber} and contains(StreetName, '${safeEncode(streetNameAlt)}')`
+        );
+        
+        // Also try with StreetNumber field (string version)
+        possibleFilters.push(
+          `(StreetNumber eq '${safeEncode(streetNumber)}' and contains(StreetName, '${safeEncode(streetNameAlt)}')`
+        );
       }
-      
-      // As a fallback, try just the street number and partial street name match
-      if (streetNumber && streetNameAlternatives.length > 0) {
-        for (const streetNameAlt of streetNameAlternatives) {
-          const mainPart = streetNameAlt.split(' ')[streetNameAlt.split(' ').length - 1]; // Last word of street name
-          if (mainPart && mainPart.length > 3) { // Only use if it's substantial
-            possibleFilters.push(
-              `(StreetNumber eq '${streetNumber}' and contains(StreetName, '${encodeURIComponent(mainPart)}')`
-            );
-          }
-        }
-      }
-      
-      // If we have no filters yet but have a street name, try just the street name
-      if (possibleFilters.length === 0 && streetNameAlternatives.length > 0) {
-        for (const streetNameAlt of streetNameAlternatives) {
-          possibleFilters.push(`contains(StreetName, '${encodeURIComponent(streetNameAlt)}')`);
-        }
-      }
-      
-      // Add closing parentheses to all filters
-      possibleFilters = possibleFilters.map(f => f.endsWith(')') ? f : f + ')');
-      
-      // If we still have no filters, use a fallback approach
-      if (possibleFilters.length === 0) {
-        // Use the formatted address as a fallback
-        const formattedAddress = geocodeData.results[0].formatted_address;
-        if (formattedAddress) {
-          const addressParts = formattedAddress.split(',')[0].trim().split(' ');
-          if (addressParts.length >= 2) {
-            // Assume first part is street number, rest is street name
-            const streetNum = addressParts[0];
-            const streetNm = addressParts.slice(1).join(' ');
-            
-            possibleFilters.push(`(StreetNumber eq '${streetNum}' and contains(StreetName, '${encodeURIComponent(streetNm)}'))`);
-          }
-        }
-      }
-      
-      // If we still have no filters, return empty result
-      if (possibleFilters.length === 0) {
-        console.log("[searchByAddress] => No valid filters could be created");
-        return { "@odata.context": "addressNoFilters", value: [] };
-      }
-      
-      // Combine all possible filters with OR
-      const addressFilter = possibleFilters.join(' or ');
-      let filter = `${filterPortion} and (${addressFilter})`;
-      
-      // Log the final filter for debugging
-      console.log("[searchByAddress] => Final filter:", filter);
-      
-      // Append user filters
-      const userPart = this.buildUserFilter(userFilters);
-      if (userPart) {
-        filter += ` and ${userPart}`;
-      }
-      
-      const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+    }
+    
+    // Try just the street number as a last resort
+    possibleFilters.push(`(StreetNumberNumeric eq ${streetNumber})`);
+    possibleFilters.push(`(StreetNumber eq '${safeEncode(streetNumber)}')`);
+    
+    // Add closing parentheses to all filters
+    possibleFilters = possibleFilters.map(f => f.endsWith(')') ? f : f + ')');
+    
+    // If we still have no filters, return empty result
+    if (possibleFilters.length === 0) {
+      console.log("[searchByAddress] => No valid filters could be created");
+      return { "@odata.context": "addressNoFilters", value: [] };
+    }
+    
+    // Combine all possible filters with OR
+    const addressFilter = possibleFilters.join(' or ');
+    let filter = `${filterPortion} and (${addressFilter})`;
+    
+    // Log the final filter for debugging
+    console.log("[searchByAddress] => Final filter:", filter);
+    
+    // Append user filters
+    const userPart = this.buildUserFilter(userFilters);
+    if (userPart) {
+      filter += ` and ${userPart}`;
+    }
+    
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+    
+    try {
+      console.log("[searchByAddress] => Executing query");
       const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, this.__offsetFetchLimit);
-      
       console.log(`[searchByAddress] => Found ${resp.value.length} properties`);
       
-      if (includeMedia && resp.value.length) {
-        resp.value = await this.populatePropertyMedia(resp.value);
+      if (resp.value.length > 0) {
+        if (includeMedia) {
+          resp.value = await this.populatePropertyMedia(resp.value);
+          
+          // Also geocode
+          const geo = await geocodeProperties(resp.value);
+          resp.value.forEach((p, i) => {
+            p.Latitude = geo[i].Latitude;
+            p.Longitude = geo[i].Longitude;
+          });
+        }
         
-        // Also geocode
-        const geo = await geocodeProperties(resp.value);
-        resp.value.forEach((p, i) => {
-          p.Latitude = geo[i].Latitude;
-          p.Longitude = geo[i].Longitude;
-        });
+        return resp;
       }
       
-      return resp;
-    } catch (error) {
-      console.error("[searchByAddress] => Error:", error);
-      return { "@odata.context": "addressSearchError", value: [] };
+      // If no properties found with combined query, try simpler approaches one by one
+      console.log("[searchByAddress] => No properties found with combined query, trying one-by-one approach");
+      
+      // Try each filter individually
+      for (const singleFilter of possibleFilters) {
+        const simplifiedFilter = `${filterPortion} and ${singleFilter}`;
+        const simplifiedBase = `${this.__baseUrl}/Property?$count=true&$filter=${simplifiedFilter}`;
+        
+        console.log("[searchByAddress] => Trying individual filter:", simplifiedFilter);
+        const simplifiedResp = await this.getWithOffset<ParagonPropertyWithMedia>(simplifiedBase, this.__offsetFetchLimit);
+        
+        if (simplifiedResp.value.length > 0) {
+          console.log(`[searchByAddress] => Found ${simplifiedResp.value.length} properties with filter: ${singleFilter}`);
+          
+          if (includeMedia) {
+            simplifiedResp.value = await this.populatePropertyMedia(simplifiedResp.value);
+            
+            // Also geocode
+            const geo = await geocodeProperties(simplifiedResp.value);
+            simplifiedResp.value.forEach((p, i) => {
+              p.Latitude = geo[i].Latitude;
+              p.Longitude = geo[i].Longitude;
+            });
+          }
+          
+          return simplifiedResp;
+        }
+      }
+      
+      console.log("[searchByAddress] => No properties found with any filters");
+      return { "@odata.context": "noPropertiesFound", value: [] };
+      
+    } catch (fetchError) {
+      console.error("[searchByAddress] => Error fetching properties:", fetchError);
+      
+      // If there's an error, try with just the street number
+      console.log("[searchByAddress] => Error with filter, trying with just street number");
+      
+      // Just use street number as a simpler filter
+      const simplifiedFilter = `${filterPortion} and (StreetNumberNumeric eq ${streetNumber})`;
+      const simplifiedBase = `${this.__baseUrl}/Property?$count=true&$filter=${simplifiedFilter}`;
+      
+      try {
+        console.log("[searchByAddress] => Executing simplified query:", simplifiedFilter);
+        const simplifiedResp = await this.getWithOffset<ParagonPropertyWithMedia>(simplifiedBase, this.__offsetFetchLimit);
+        console.log(`[searchByAddress] => Found ${simplifiedResp.value.length} properties with simplified filter`);
+        
+        if (includeMedia && simplifiedResp.value.length) {
+          simplifiedResp.value = await this.populatePropertyMedia(simplifiedResp.value);
+          
+          // Also geocode
+          const geo = await geocodeProperties(simplifiedResp.value);
+          simplifiedResp.value.forEach((p, i) => {
+            p.Latitude = geo[i].Latitude;
+            p.Longitude = geo[i].Longitude;
+          });
+        }
+        
+        return simplifiedResp;
+      } catch (innerError) {
+        console.error("[searchByAddress] => Error with simplified query:", innerError);
+        return { "@odata.context": "errorWithSimplifiedQuery", value: [] };
+      }
     }
+  } catch (error) {
+    console.error("[searchByAddress] => Error:", error);
+    return { "@odata.context": "addressSearchError", value: [] };
   }
+}
+
 }
 
 // Env config

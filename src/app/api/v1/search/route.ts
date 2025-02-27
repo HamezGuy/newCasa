@@ -1,84 +1,108 @@
-import { NextRequest, NextResponse } from "next/server";
-import paragonApiClient from "@/lib/ParagonApiClient";
+import { NextResponse } from "next/server";
+import paragonApiClient, { IUserFilters } from "@/lib/ParagonApiClient";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
-  console.log("Triggered: /api/v1/listings");
+// ----------------------------------------------------------------
+// GET /api/v1/search => Main route handler for property searches
+// ----------------------------------------------------------------
+export async function GET(request: Request) {
+  console.log("[GET /api/v1/search] => Endpoint triggered.");
 
-  // Parse params
   const { searchParams } = new URL(request.url);
+
   const zipCode = searchParams.get("zipCode");
   const streetName = searchParams.get("streetName");
   const propertyId = searchParams.get("propertyId");
   const city = searchParams.get("city");
   const county = searchParams.get("county");
-  const agentName = searchParams.get("agentName");
   
-  // Address parameter (no radius needed for exact address search)
+  // Address and radius parameters
   const address = searchParams.get("address");
+  const radiusStr = searchParams.get("radius");
+  const radius = radiusStr ? parseFloat(radiusStr) : 0; // Default to 0 for exact match
 
-  console.log("Query parameters received:", {
+  // Parse user filters
+  const minPriceStr = searchParams.get("minPrice");
+  const maxPriceStr = searchParams.get("maxPrice");
+  const minRoomsStr = searchParams.get("minRooms");
+  const maxRoomsStr = searchParams.get("maxRooms");
+
+  // Grab all propertyType query params
+  const propertyTypeParams = searchParams.getAll("propertyType"); 
+  // e.g. ?propertyType=Residential&propertyType=Land => ["Residential","Land"]
+
+  // Convert them into { value: string }[] or undefined if empty
+  const propertyTypes = propertyTypeParams.length
+    ? propertyTypeParams.map((pt) => ({ value: pt }))
+    : undefined;
+
+  console.log("[GET /api/v1/search] => Query params:", {
     zipCode,
     streetName,
     propertyId,
     city,
     county,
-    agentName,
-    address
+    address,
+    radius,
+    minPriceStr,
+    maxPriceStr,
+    minRoomsStr,
+    maxRoomsStr,
+    propertyTypes,
   });
+
+  const userFilters: IUserFilters = {
+    minPrice: minPriceStr ? parseInt(minPriceStr, 10) : undefined,
+    maxPrice: maxPriceStr ? parseInt(maxPriceStr, 10) : undefined,
+    minRooms: minRoomsStr ? parseInt(minRoomsStr, 10) : undefined,
+    maxRooms: maxRoomsStr ? parseInt(maxRoomsStr, 10) : undefined,
+    propertyTypes, // could be undefined => no property-type filter
+  };
 
   try {
     let properties: any[] = [];
 
-    // (A) If agentName => fetch Tim's listings by agent
-    if (agentName) {
-      console.log(`Fetching properties for agentName = ${agentName}`);
-      properties = await paragonApiClient.searchByListAgentName(agentName);
-      console.log(`Fetched ${properties.length} for agentName=${agentName}`);
-    }
-    // (B) If address => fetch properties at the exact address
-    else if (address) {
-      console.log(`Fetching properties at address: ${address}`);
-      const response = await paragonApiClient.searchByAddress(address, 0); // 0 radius for exact match
-      properties = response?.value || [];
-    }
-    // (C) Else check zip/city/street/etc.
-    else if (zipCode) {
-      console.log(`Fetching properties for zipCode: ${zipCode}`);
-      const response = await paragonApiClient.searchByZipCode(zipCode);
-      properties = response?.value || [];
+    // Decide which method to call based on the user's search param
+    if (address) {
+      // Address search with radius
+      console.log(`[GET /api/v1/search] => Searching by address: ${address} with radius ${radius}`);
+      const resp = await paragonApiClient.searchByAddress(address, radius, userFilters, true);
+      properties = resp?.value || [];
+      console.log(`[GET /api/v1/search] => Found ${properties.length} properties for address search`);
+    } else if (zipCode) {
+      // For multi-result queries => include media for complete data
+      const resp = await paragonApiClient.searchByZipCode(zipCode, userFilters, true);
+      properties = resp?.value || [];
     } else if (streetName) {
-      console.log(`Fetching properties for streetName: ${streetName}`);
-      const response = await paragonApiClient.searchByStreetName(streetName);
-      properties = response?.value || [];
+      // Another multi-result => include media
+      const resp = await paragonApiClient.searchByStreetName(streetName, userFilters, true);
+      properties = resp?.value || [];
     } else if (propertyId) {
-      console.log(`Fetching property for propertyId: ${propertyId}`);
-      const property = await paragonApiClient.getPropertyById(propertyId);
-      properties = property ? [property] : [];
+      // Single property => include images
+      const prop = await paragonApiClient.getPropertyById(propertyId, true);
+      properties = prop ? [prop] : [];
     } else if (city) {
-      console.log(`Fetching properties for city: ${city}`);
-      const response = await paragonApiClient.searchByCity(city);
-      properties = response?.value || [];
+      const resp = await paragonApiClient.searchByCity(city, userFilters, true);
+      properties = resp?.value || [];
     } else if (county) {
-      console.log(`Fetching properties for county: ${county}`);
-      const response = await paragonApiClient.searchByCounty(county);
-      properties = response?.value || [];
+      const resp = await paragonApiClient.searchByCounty(county, userFilters, true);
+      properties = resp?.value || [];
     } else {
-      console.log("No search param provided => returning empty array.");
-      properties = [];
+      // If no location => get all properties
+      console.log("[GET /api/v1/search] => no location => getAllPropertyWithMedia()");
+      properties = await paragonApiClient.getAllPropertyWithMedia();
     }
 
-    console.log(`Successfully fetched ${properties.length} properties.`);
+    console.log(`[GET /api/v1/search] => found ${properties.length} properties`);
     return NextResponse.json(properties, { status: 200 });
-  } catch (error: any) {
-    console.error("Error in /api/v1/listings:", {
-      message: error.message,
-      stack: error.stack,
-      originalError: error,
-    });
+  } catch (err: any) {
+    console.error("[GET /api/v1/search] => CAUGHT ERROR =>", err);
     return NextResponse.json(
-      { error: "Failed to fetch properties from API" },
+      {
+        error: "Failed to fetch properties from API",
+        details: process.env.NODE_ENV === 'development' ? err.message : String(err),
+      },
       { status: 500 }
     );
   }
