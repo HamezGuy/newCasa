@@ -14,14 +14,21 @@ export async function getPropertyById(
   id: string
 ): Promise<ParagonPropertyWithMedia> {
   console.log('Fetching real property data by ID from API...');
-  const property = await paragonApiClient.getPropertyById(id);
+  
+  try {
+    // Wrap in try-catch to handle errors better
+    const property = await paragonApiClient.getPropertyById(id);
 
-  if (!property) {
-    console.error(`Failed to get property (ListingId): ${id}`);
+    if (!property) {
+      console.error(`Failed to get property (ListingId): ${id}`);
+      throw new Error(`Failed to get property (ListingId): ${id}`);
+    }
+
+    return property;
+  } catch (error) {
+    console.error(`Failed to get property (ListingId): ${id}`, error);
     throw new Error(`Failed to get property (ListingId): ${id}`);
   }
-
-  return property;
 }
 
 export async function getPropertiesBySearchTerm(
@@ -152,14 +159,19 @@ export async function getPropertiesByZipCode(): Promise<
 }
 
 export async function getProperties(): Promise<IParagonProperty[]> {
-  // Fetch properties with pagination
-  const allProperties = await paragonApiClient.getAllPropertyWithMedia();
+  try {
+    // Use a limited version for static generation to prevent timeouts
+    const allProperties = await paragonApiClient.getAllActivePendingWithCap500(false);
 
-  if (allProperties.length === 0) {
-    console.warn('No properties found');
+    if (allProperties.length === 0) {
+      console.warn('No properties found');
+      return [];
+    }
+
+    console.log(`Fetched ${allProperties.length} properties`);
+    return allProperties;
+  } catch (error) {
+    console.error("Error fetching properties:", error);
     return [];
   }
-
-  console.log(`Fetched ${allProperties.length} properties`);
-  return allProperties;
 }

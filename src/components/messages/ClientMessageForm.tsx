@@ -59,8 +59,16 @@ export default function ClientMessageForm({
       const clientId = user?.uid || `guest-${Date.now()}`;
       const clientEmail = userEmail || user?.email || "anonymous@example.com";
 
-      // UPDATED: Pass the realtor contact info explicitly
-      await sendMessageToRealtor({
+      console.log("Sending message with parameters:", {
+        message,
+        clientEmail,
+        propertyId,
+        clientId,
+        realtorEmail,
+        realtorPhoneNumber
+      });
+
+      const result = await sendMessageToRealtor({
         message, 
         clientEmail,
         propertyId,
@@ -69,6 +77,7 @@ export default function ClientMessageForm({
         realtorPhoneNumber, // Explicitly pass the realtor's phone
       });
 
+      console.log("Message sent successfully:", result);
       setSuccess(true);
       setMessage("");
     } catch (err: any) {

@@ -3,11 +3,13 @@
 import { Button, Checkbox, Popover, TextInput, Stack, Slider, Text } from "@mantine/core";
 import { useState, useEffect } from "react";
 import { useFilters } from "./FilterContext";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation"; // CHANGED
+// ^ we added useRouter to allow navigation
 
 export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
   const { filters, setFilters } = useFilters();
   const searchParams = useSearchParams();
+  const router = useRouter(); // CHANGED
   const isAddressSearch = searchParams.has("address");
 
   // Local states
@@ -40,15 +42,48 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
     });
     setOpened(false);
     
-    // Update URL with radius if this is an address search
+    // If user is on an address search, we also update radius in URL
     if (isAddressSearch) {
       const url = new URL(window.location.href);
       url.searchParams.set("radius", radius.toString());
       window.history.replaceState({}, "", url.toString());
       
-      // Trigger a reload to refresh the properties with the new radius
+      // Reload so new radius is applied
       window.location.reload();
     }
+  };
+
+  // CHANGED: new "All Properties" button
+  const handleAllPropertiesClick = () => {
+    const url = new URL(window.location.href);
+
+    // If we already have allProperties=true, do nothing
+    if (url.searchParams.get("allProperties") === "true") {
+      return;
+    }
+
+    // Remove other search params so it doesn't conflict
+    url.searchParams.delete("zipCode");
+    url.searchParams.delete("address");
+    url.searchParams.delete("city");
+    url.searchParams.delete("county");
+    url.searchParams.delete("streetName");
+    url.searchParams.delete("propertyId");
+    url.searchParams.delete("agentName");
+
+    // Clear out filters in the URL if you want
+    url.searchParams.delete("minPrice");
+    url.searchParams.delete("maxPrice");
+    url.searchParams.delete("minRooms");
+    url.searchParams.delete("maxRooms");
+    url.searchParams.delete("propertyType");
+    url.searchParams.delete("radius");
+
+    // Finally set allProperties=true
+    url.searchParams.set("allProperties", "true");
+
+    // Navigate there
+    router.push(url.toString());
   };
 
   return (
@@ -143,6 +178,16 @@ export default function SearchFilters({ isLoading }: { isLoading?: boolean }) {
           </Stack>
         </Popover.Dropdown>
       </Popover>
+
+      {/* CHANGED: the “All Properties” button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleAllPropertiesClick}
+        loading={isLoading}
+      >
+        All Properties
+      </Button>
     </div>
   );
 }

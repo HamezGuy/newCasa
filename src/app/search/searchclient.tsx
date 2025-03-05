@@ -118,33 +118,14 @@ export default function SearchClient() {
     }
   }, [searchParams, setGeocodeData, setBounds]);
 
-  // Each time URL changes => fetch data
-  useEffect(() => {
-    const zipCode = searchParams.get("zipCode") || undefined;
-    const streetName = searchParams.get("streetName") || undefined;
-    const city = searchParams.get("city") || undefined;
-    const county = searchParams.get("county") || undefined;
-    const propertyId = searchParams.get("propertyId") || undefined;
-    const address = searchParams.get("address") || undefined; // Added address parameter
-
-    console.log("URL parameters:", { zipCode, streetName, city, county, propertyId, address });
-    
-    fetchProperties(zipCode, streetName, city, county, propertyId, address); // Added address parameter
-  }, [searchParams]);
-
-  // Re-apply filters whenever the data or user filters change
-  useEffect(() => {
-    const newFiltered = applyClientFilters(fetchedProperties, filters);
-    setFilteredProperties(newFiltered);
-  }, [fetchedProperties, filters]);
-
-  const fetchProperties = async (
+  // Changed to useCallback to fix the dependency warning
+  const fetchProperties = useCallback(async (
     zipCode?: string,
     streetName?: string,
     city?: string,
     county?: string,
     propertyId?: string,
-    address?: string // Added address parameter
+    address?: string
   ) => {
     setLoading(true);
     try {
@@ -156,13 +137,19 @@ export default function SearchClient() {
       if (city) queries.push(`city=${encodeURIComponent(city)}`);
       if (county) queries.push(`county=${encodeURIComponent(county)}`);
       if (propertyId) queries.push(`propertyId=${encodeURIComponent(propertyId)}`);
-      if (address) queries.push(`address=${encodeURIComponent(address)}`); // Added address to query
+      if (address) queries.push(`address=${encodeURIComponent(address)}`);
+
+      // If user typed "allProperties=true" directly, or via the button
+      const allProps = searchParams.get("allProperties") === "true";
+      if (allProps) {
+        queries.push("allProperties=true");
+      }
 
       if (queries.length > 0) {
         url += `?${queries.join("&")}`;
       }
 
-      console.log("Fetching from URL:", url); // Log the complete URL
+      console.log("Fetching from URL:", url);
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -178,7 +165,28 @@ export default function SearchClient() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchParams]); // Add searchParams as a dependency since it's used inside
+
+  // Each time URL changes => fetch data
+  useEffect(() => {
+    const zipCode = searchParams.get("zipCode") || undefined;
+    const streetName = searchParams.get("streetName") || undefined;
+    const city = searchParams.get("city") || undefined;
+    const county = searchParams.get("county") || undefined;
+    const propertyId = searchParams.get("propertyId") || undefined;
+    const address = searchParams.get("address") || undefined; 
+    const allProps = searchParams.get("allProperties") === "true"; // new param if you want to see it
+
+    console.log("URL parameters:", { zipCode, streetName, city, county, propertyId, address, allProps });
+    
+    fetchProperties(zipCode, streetName, city, county, propertyId, address);
+  }, [searchParams, fetchProperties]); // Add fetchProperties to the dependencies
+
+  // Re-apply filters whenever the data or user filters change
+  useEffect(() => {
+    const newFiltered = applyClientFilters(fetchedProperties, filters);
+    setFilteredProperties(newFiltered);
+  }, [fetchedProperties, filters]);
 
   const handlePlaceSelected = useCallback((geo: any) => {
     // do nothing special; route push is in <SearchInput>

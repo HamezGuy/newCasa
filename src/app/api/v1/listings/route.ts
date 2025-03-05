@@ -20,6 +20,9 @@ export async function GET(request: NextRequest) {
   const radiusStr = searchParams.get("radius");
   const radius = radiusStr ? parseFloat(radiusStr) : 0; // Default to 0 for exact match
 
+  // CHANGED: Added allProperties param
+  const allProperties = searchParams.get("allProperties") === "true";
+
   // Parse user filters
   const minPriceStr = searchParams.get("minPrice");
   const maxPriceStr = searchParams.get("maxPrice");
@@ -50,14 +53,22 @@ export async function GET(request: NextRequest) {
     agentName,
     address,
     radius,
-    userFilters
+    userFilters,
+    // CHANGED: show allProperties
+    allProperties
   });
 
   try {
     let properties: any[] = [];
 
+    // CHANGED: If allProperties => call new method that returns up to 500
+    if (allProperties) {
+      console.log("Fetching ALL properties via getAllActivePendingWithCap500...");
+      properties = await paragonApiClient.getAllActivePendingWithCap500(true);
+    }
+
     // (A) If agentName => fetch agent's listings
-    if (agentName) {
+    else if (agentName) {
       console.log(`Fetching properties for agentName = ${agentName}`);
       try {
         properties = await paragonApiClient.searchByListAgentName(agentName, userFilters, true);

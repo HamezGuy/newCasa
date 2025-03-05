@@ -205,13 +205,9 @@ export default function SearchInput({
             (geocodeData.types.includes("street_address") ||
               geocodeData.types.includes("premise"));
 
-          // If we have a street number and route or it's explicitly a street address or input looks like address
-          // Inside the validateAddress function, where we set the address parameter:
-
           if ((streetNumber && route) || isStreetAddress || isAddressInput) {
             console.log("Detected as full address - using address search");
             urlParams.set("address", geocodeData.formatted_address);
-            console.log("Setting address parameter:", geocodeData.formatted_address); // Add this debug line
           } else if (zipCode) {
             urlParams.set("zipCode", zipCode);
           } else if (city) {
@@ -237,6 +233,7 @@ export default function SearchInput({
             }
           }
 
+          // Finally redirect
           router.push(`/search?${urlParams.toString()}`);
 
           // Clear input
@@ -317,14 +314,24 @@ export default function SearchInput({
   const handleSearch = () => {
     const val = inputRef.current?.value?.trim();
     if (val) {
-      // Check if input looks like an address before validating
       setIsAddressInput(detectIfAddress(val));
       validateAddress(val);
     }
   };
 
+  // CHANGED: remove 'allProperties' when user types anything new
   const handleInputChange = () => {
     const val = inputRef.current?.value?.trim() || "";
+
+    // If user starts typing, remove allProperties param
+    if (val.length > 0) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("allProperties")) {
+        url.searchParams.delete("allProperties");
+        window.history.replaceState({}, "", url.toString());
+      }
+    }
+
     requestIdRef.current += 1;
     const currentId = requestIdRef.current;
     fetchSuggestions(val, currentId);

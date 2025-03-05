@@ -1,4 +1,5 @@
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { functions } from "@/lib/firebase";
+import { httpsCallable } from "firebase/functions";
 
 // Default values from your next.config.mjs publicRuntimeConfig
 const DEFAULT_REALTOR_EMAIL = "tim.flores@flores.realty";
@@ -30,8 +31,16 @@ export async function sendMessageToRealtor({
   const finalRealtorPhone = realtorPhoneNumber || DEFAULT_REALTOR_PHONE;
 
   try {
-    // Call the cloud function to handle everything
-    const functions = getFunctions();
+    console.log("Calling sendMessageToRealtor function with parameters:", {
+      message,
+      clientEmail,
+      propertyId,
+      clientId,
+      realtorEmail: finalRealtorEmail,
+      realtorPhoneNumber: finalRealtorPhone
+    });
+
+    // Use the functions instance from your firebase.ts file
     const sendMessageFunction = httpsCallable(functions, 'sendMessageToRealtor');
     
     const result = await sendMessageFunction({
@@ -43,9 +52,19 @@ export async function sendMessageToRealtor({
       realtorPhoneNumber: finalRealtorPhone
     });
 
+    console.log("Cloud function returned:", result.data);
     return { success: true, message: "Message sent successfully!" };
   } catch (error: any) {
     console.error("Error in sendMessageToRealtor:", error);
-    throw new Error(`Failed to send message: ${error.message}`);
+    
+    // Enhanced error logging to help debug
+    if (error.code) {
+      console.error(`Firebase error code: ${error.code}`);
+    }
+    if (error.details) {
+      console.error(`Error details: ${JSON.stringify(error.details)}`);
+    }
+    
+    throw new Error(`Failed to send message: ${error.message || 'Unknown error'}`);
   }
 }

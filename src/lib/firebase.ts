@@ -1,7 +1,7 @@
 import { FirebaseApp, getApps, initializeApp } from "firebase/app";
 import { Auth, getAuth, GoogleAuthProvider } from "firebase/auth";
 import { Firestore, getFirestore } from "firebase/firestore";
-import { Functions, getFunctions } from "firebase/functions";
+import { Functions, getFunctions, connectFunctionsEmulator } from "firebase/functions";
 
 // Firebase configuration (from environment variables)
 const firebaseConfig = {
@@ -27,13 +27,16 @@ const googleProvider: GoogleAuthProvider = new GoogleAuthProvider(); // Google A
 const db: Firestore = getFirestore(app); // Firestore database
 const functions: Functions = getFunctions(app); // Cloud Functions
 
-// Optionally enable Firestore offline persistence (uncomment if needed)
-// if (process.env.NODE_ENV === 'development') {
-//   enableIndexedDbPersistence(db).catch((error) => {
-//     console.error("Firestore persistence error:", error);
-//   });
-// }
+// Set up emulator connections for development environment
+if (process.env.NODE_ENV === 'development') {
+  try {
+    // Uncomment the line below if you're running a local emulator
+    // connectFunctionsEmulator(functions, 'localhost', 5001);
+    console.log('Development environment detected');
+  } catch (e) {
+    console.warn('Could not connect to Functions emulator:', e);
+  }
+}
 
 // Export the initialized Firebase services
 export { auth, db, functions, googleProvider };
-

@@ -71,7 +71,7 @@ export class ParagonApiClient {
   private __limitToTwenty: boolean;
 
   // Controls how many total items we gather via getWithOffset()
-  private __offsetFetchLimit = 300; // default: 200
+  private __offsetFetchLimit = 400; // default: 200
 
   constructor(
     baseUrl: string,
@@ -125,80 +125,84 @@ export class ParagonApiClient {
     }
   }
 
-  public async forClientSecret(): Promise<ParagonApiClient> {
-    if (MOCK_DATA) return this;
+  // Update this method in your ParagonApiClient class:
 
-    console.log("[forClientSecret] => Checking token...");
-    if (this.__accessToken && this.__tokenExpiration && new Date() < this.__tokenExpiration) {
-      console.log("[forClientSecret] => token still valid");
-      return this;
-    }
+// In ParagonApiClient.ts
+public async forClientSecret(): Promise<ParagonApiClient> {
+  if (MOCK_DATA) return this;
 
-    console.log("[forClientSecret] => need new token => requesting...");
-    
-    // If environment variables are not set, use mock data instead
-    if (!this.__tokenUrl || !this.__clientId || !this.__clientSecret) {
-      console.log("[forClientSecret] => Missing credentials, switching to mock mode");
-      return this;
-    }
-    
-    try {
-      // Using the exact form structure and headers from the original working version
-      const body = new URLSearchParams();
-      body.append("grant_type", "client_credentials");
-      body.append("scope", "OData");
-
-      const token = Buffer.from(`${this.__clientId}:${this.__clientSecret}`).toString("base64");
-      
-      // Using the original headers structure that was working before
-      const headers: HeadersInit = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-        "Authorization": `Basic ${token}`,
-      };
-
-      console.log("[forClientSecret] => Making token request...");
-      
-      const resp = await fetch(this.__tokenUrl, {
-        method: "POST",
-        headers,
-        body: body.toString(),
-        cache: "no-store",
-      });
-      
-      // Check if response is OK before trying to parse JSON
-      if (!resp.ok) {
-        const text = await resp.text();
-        console.error("[forClientSecret] => Non-OK response:", resp.status, text.substring(0, 200));
-        // Try to use any existing token if available instead of immediately failing
-        if (this.__accessToken) {
-          console.log("[forClientSecret] => Using existing token as fallback");
-          return this;
-        }
-        throw new Error(`Failed to get token: ${resp.status} ${resp.statusText}`);
-      }
-      
-      // Try to parse JSON response
-      const tokenResp = await resp.json() as ITokenResponse;
-      console.log("[forClientSecret] => tokenResp =>", tokenResp);
-
-      if (!tokenResp.access_token) {
-        console.error("[forClientSecret] => No access_token in response");
-        throw new Error("No access_token in response");
-      }
-
-      this.__accessToken = tokenResp.access_token;
-      this.__tokenExpiration = new Date(Date.now() + tokenResp.expires_in * 1000);
-
-      console.log("[forClientSecret] => new token => expires:", this.__tokenExpiration);
-      return this;
-    } catch (error) {
-      console.error("[forClientSecret] => Error getting token:", error);
-      // Fall back to mock data if token fetch fails
-      console.log("[forClientSecret] => Falling back to mock data due to token error");
-      return this;
-    }
+  console.log("[forClientSecret] => Checking token...");
+  if (this.__accessToken && this.__tokenExpiration && new Date() < this.__tokenExpiration) {
+    console.log("[forClientSecret] => token still valid");
+    return this;
   }
+
+  console.log("[forClientSecret] => need new token => requesting...");
+  
+  // If environment variables are not set, use mock data instead
+  if (!this.__tokenUrl || !this.__clientId || !this.__clientSecret) {
+    console.log("[forClientSecret] => Missing credentials, switching to mock mode");
+    return this;
+  }
+  
+  try {
+    // Using the exact form structure and headers from the original working version
+    const body = new URLSearchParams();
+    body.append("grant_type", "client_credentials");
+    body.append("scope", "OData");
+
+    const token = Buffer.from(`${this.__clientId}:${this.__clientSecret}`).toString("base64");
+    
+    // Using the original headers structure that was working before
+    const headers: HeadersInit = {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json",
+      "Authorization": `Basic ${token}`,
+    };
+
+    console.log("[forClientSecret] => Making token request...");
+    
+    // Use only next.revalidate, not both cache and revalidate
+    const resp = await fetch(this.__tokenUrl, {
+      method: "POST",
+      headers,
+      body: body.toString(),
+      next: { revalidate: 3600 } // Revalidate every hour
+    });
+    
+    // Check if response is OK before trying to parse JSON
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("[forClientSecret] => Non-OK response:", resp.status, text.substring(0, 200));
+      // Try to use any existing token if available instead of immediately failing
+      if (this.__accessToken) {
+        console.log("[forClientSecret] => Using existing token as fallback");
+        return this;
+      }
+      throw new Error(`Failed to get token: ${resp.status} ${resp.statusText}`);
+    }
+    
+    // Try to parse JSON response
+    const tokenResp = await resp.json() as ITokenResponse;
+    console.log("[forClientSecret] => tokenResp =>", tokenResp);
+
+    if (!tokenResp.access_token) {
+      console.error("[forClientSecret] => No access_token in response");
+      throw new Error("No access_token in response");
+    }
+
+    this.__accessToken = tokenResp.access_token;
+    this.__tokenExpiration = new Date(Date.now() + tokenResp.expires_in * 1000);
+
+    console.log("[forClientSecret] => new token => expires:", this.__tokenExpiration);
+    return this;
+  } catch (error) {
+    console.error("[forClientSecret] => Error getting token:", error);
+    // Fall back to mock data if token fetch fails
+    console.log("[forClientSecret] => Falling back to mock data due to token error");
+    return this;
+  }
+}
 
   private async __getAuthHeader(): Promise<string> {
     try {
@@ -1227,6 +1231,60 @@ export class ParagonApiClient {
   }
 
   // ------------------------------------------------------------------
+  // BRAND NEW METHOD: getAllActivePendingWithCap500
+  // ------------------------------------------------------------------
+  /**
+   * Fetches *only* Active or Pending properties, up to *500* total.
+   * Optionally loads all Media and geocodes them.
+   */
+  public async getAllActivePendingWithCap500(includeMedia = true): Promise<IParagonProperty[]> {
+    console.log("[getAllActivePendingWithCap500] => fetching up to 500 Active/Pending");
+
+    // If mocking
+    if (MOCK_DATA) {
+      let all = getMockProperties();
+      // Only keep Active or Pending
+      all = all.filter((p) => p.StandardStatus === "Active" || p.StandardStatus === "Pending");
+      // Then cap at 500
+      if (all.length > 500) all = all.slice(0, 500);
+
+      if (!includeMedia) return all;
+
+      // Geocode + Media
+      const geo = await geocodeProperties(all);
+      return this.populatePropertyMedia(geo);
+    }
+
+    // Real fetch
+    await this.forClientSecret();
+    const filter = `(StandardStatus eq 'Active' or StandardStatus eq 'Pending')`;
+    const base = `${this.__baseUrl}/Property?$count=true&$filter=${filter}`;
+
+    // We'll fetch up to 500 via getWithOffset
+    const resp = await this.getWithOffset<ParagonPropertyWithMedia>(base, 500);
+    console.log(`[getAllActivePendingWithCap500] => got => ${resp.value.length} items`);
+
+    if (!includeMedia || !resp.value.length) {
+      return resp.value;
+    }
+
+    // Populate media + geocode
+    const [withMed, withGeo] = await Promise.all([
+      this.populatePropertyMedia(resp.value),
+      geocodeProperties(resp.value),
+    ]);
+
+    const final = withMed.map((p, i) => {
+      p.Latitude = withGeo[i].Latitude;
+      p.Longitude = withGeo[i].Longitude;
+      return p;
+    });
+
+    console.log(`[getAllActivePendingWithCap500] => returning => ${final.length} items`);
+    return final;
+  }
+
+  // ------------------------------------------------------------------
   // NEW METHOD => search by address and find properties
   // ------------------------------------------------------------------
   // This is the key method that needs to be updated in ParagonApiClient.ts
@@ -1603,6 +1661,8 @@ public async searchByAddress(
     return { "@odata.context": "addressSearchError", value: [] };
   }
 }
+
+
 
 }
 

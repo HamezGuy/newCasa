@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@cloudinary-util/types": "^1.5.11",
+    "@ducanh2912/next-pwa": "^10.2.9",
     "@googlemaps/google-maps-services-js": "^3.4.0",
     "@googlemaps/markerclusterer": "^2.5.3",
     "@mantine/core": "^7.6.2",
@@ -33,6 +34,7 @@
     "firebase-functions": "^4.3.1",
     "lodash": "^4.17.21",
     "next": "^14.2.22",
+    "next-with-workbox": "^3.0.2",
     "nodemailer": "^6.9.15",
     "p-map": "^7.0.2",
     "react": "^18",
