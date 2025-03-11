@@ -5,6 +5,7 @@ import {
   orderBy,
   query,
   where,
+  getDocs,
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import { sendMessageToRealtor } from "@/lib/utils/sendMessageToRealtor";
@@ -27,6 +28,7 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messageEndRef = useRef<HTMLDivElement>(null);
 
@@ -60,23 +62,41 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
   const sendMessage = async () => {
     if (!newMessage.trim() || !chatId) return;
     setError(null);
+    setIsSending(true);
 
     try {
-      // Get the client email (you might want to get this from user context)
-      const clientEmail = "user@example.com"; // Replace with actual email logic
+      // Try to find the chat to get client email and realtor contact info
+      const chatQuery = query(
+        collection(db, "chats"),
+        where("propertyId", "==", chatId)
+      );
+      
+      const chatSnapshot = await getDocs(chatQuery);
+      let clientEmail = "user@example.com"; // Fallback
+      let realtorEmail, realtorPhoneNumber;
+      
+      if (!chatSnapshot.empty) {
+        const chatData = chatSnapshot.docs[0].data();
+        clientEmail = chatData.clientEmail || clientEmail;
+        realtorEmail = chatData.realtorEmail;
+        realtorPhoneNumber = chatData.realtorPhoneNumber;
+      }
       
       await sendMessageToRealtor({
         message: newMessage,
         clientEmail,
         propertyId: chatId,
         clientId,
-        // You can add realtor contact info if needed
+        realtorEmail,
+        realtorPhoneNumber,
       });
       
       setNewMessage("");
+      setIsSending(false);
     } catch (error: any) {
       console.error("Failed to send message:", error);
       setError(`Error sending message: ${error.message}`);
+      setIsSending(false);
     }
   };
 
@@ -124,7 +144,9 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
               <div className={`text-xs mt-1 ${
                 msg.sender === "client" ? "text-blue-100" : "text-gray-500"
               }`}>
-                {msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleString() : "Sending..."}
+                {msg.timestamp && typeof msg.timestamp.toDate === 'function' 
+                  ? new Date(msg.timestamp.toDate()).toLocaleString() 
+                  : "Sending..."}
               </div>
             </div>
           ))
@@ -147,13 +169,14 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
             placeholder="Type your message"
             className="flex-1 p-2 border rounded-l focus:outline-none focus:ring-1 focus:ring-blue-500"
             rows={2}
+            disabled={isSending}
           />
           <button
             onClick={sendMessage}
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() || isSending}
             className="bg-blue-500 text-white px-4 rounded-r hover:bg-blue-600 disabled:bg-gray-300"
           >
-            Send
+            {isSending ? "Sending..." : "Send"}
           </button>
         </div>
       </div>

@@ -13,7 +13,6 @@ import Link from "next/link";
 import style from "./PropertySearchResultCard.module.css";
 
 // Helper function to get property details based on property type
-// Helper function to get property details based on property type
 function getPropertyDetails(property: ParagonPropertyWithMedia) {
   // Get property type
   const propertyType = property.PropertyType || "";
@@ -83,19 +82,17 @@ function getPropertyDetails(property: ParagonPropertyWithMedia) {
         }
       }
       
-      beds = totalBeds > 0 ? `${totalBeds}` : "N/A";
+      // Format the values
+      beds = unitCount > 0 ? `${unitCount} units` : "N/A";
       baths = totalBaths > 0 ? `${totalBaths}` : "N/A";
-      sqFt = totalSqFt > 0 ? `${totalSqFt}` : "N/A";
-      
-      // Show unit count
-      if (unitCount > 0) {
-        beds = `${totalBeds} (${unitCount} units)`;
-      }
+      sqFt = totalSqFt > 0 ? `${totalSqFt}` : (property.LivingArea ? `${property.LivingArea}` : "N/A");
       break;
       
     case "Commercial Sale":
       // Commercial properties focus on building specs
-      beds = "N/A";
+      beds = property.NumberOfUnitsTotal 
+        ? `${property.NumberOfUnitsTotal} units` 
+        : "N/A";
       baths = "N/A";
       
       // Ensure sqFt is a string
@@ -115,14 +112,9 @@ function getPropertyDetails(property: ParagonPropertyWithMedia) {
       
     case "Land":
       // Land properties primarily use lot size
-      beds = "N/A";
+      beds = property.NumberOfLots && property.NumberOfLots > 1 ? `${property.NumberOfLots} lots` : "N/A";
       baths = "N/A";
       sqFt = "N/A";
-      
-      // Check if we have number of lots
-      if (property.NumberOfLots && property.NumberOfLots > 1) {
-        acres = `${property.LotSizeAcres || "N/A"} acres (${property.NumberOfLots} lots)`;
-      }
       break;
       
     default:
@@ -200,22 +192,29 @@ export default function PropertySearchResultCard({
       return (
         <Group justify="flex-start" gap={5} mb="xs">
           <Text>{acres}</Text>
+          {beds !== "N/A" && <Text>• {beds}</Text>}
         </Group>
       );
     } else if (propertyType === "Commercial Sale") {
       return (
         <Group justify="flex-start" gap={5} mb="xs">
-          <Text>{sqFt} sqft</Text>
-          {acres !== "N/A" && (
-            <>
-              <Text>•</Text>
-              <Text>{acres}</Text>
-            </>
+          {sqFt !== "N/A" && <Text>{sqFt} sqft</Text>}
+          {beds !== "N/A" && <Text>• {beds}</Text>}
+          {acres !== "N/A" && <Text>• {acres}</Text>}
+        </Group>
+      );
+    } else if (propertyType === "Multi Family") {
+      return (
+        <Group justify="flex-start" gap={5} mb="xs">
+          <Text>{beds}</Text>
+          {sqFt !== "N/A" && <Text>• {sqFt} sqft</Text>}
+          {property.GrossIncome && (
+            <Text>• ${property.GrossIncome}/mo</Text>
           )}
         </Group>
       );
     } else {
-      // Residential and Multi Family
+      // Residential
       return (
         <Group justify="flex-start" gap={5} mb="xs">
           {beds !== "N/A" && <Text>{beds} Beds</Text>}

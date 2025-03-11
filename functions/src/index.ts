@@ -230,27 +230,17 @@ async function handleUserRole(
   }
 }
 
-// Export the Cloud Functions with proper handling of the request object
-
 /**
  * Sends a message to a realtor and updates Firestore.
  */
-// Disabling eslint for this line to allow for broader compatibility
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
 exports.sendMessageToRealtor = functions.https.onCall(
   async (request) => {
     try {
       // Log the request for debugging
-      console.log(
-        "sendMessageToRealtor called with data:",
-        request.data
-      );
+      console.log("sendMessageToRealtor called with data:", request.data);
 
-      // Access the data property and cast it to MessageData
-      const messageData = request.data as unknown as MessageData;
-
-      // Process the message
+      // Process the message data from request.data
+      const messageData = request.data as MessageData;
       const result = await handleMessage(messageData);
       console.log("Message sent successfully:", result);
       return result;
@@ -265,6 +255,28 @@ exports.sendMessageToRealtor = functions.https.onCall(
     }
   }
 );
+
+/**
+ * Assigns a role to a user and updates Firestore.
+ */
+// Disabling eslint for this line to allow for broader compatibility
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+exports.assignUserRole = functions.https.onCall(async (data, context) => {
+  try {
+    // Process the user role assignment directly without accessing data.data
+    const result = await handleUserRole(data as UserRoleData);
+    return result;
+  } catch (error) {
+    console.error("Error assigning user role:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    throw new functions.https.HttpsError(
+      "internal",
+      `Failed to assign user role: ${errorMessage}`
+    );
+  }
+});
 
 /**
  * Handles incoming SMS messages and updates Firestore.
@@ -343,31 +355,6 @@ exports.handleIncomingSms = functions.https.onRequest(
     });
   }
 );
-
-/**
- * Assigns a role to a user and updates Firestore.
- */
-// Disabling eslint for this line to allow for broader compatibility
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-exports.assignUserRole = functions.https.onCall(async (request) => {
-  try {
-    // Access the data property and cast it to UserRoleData
-    const userData = request.data as unknown as UserRoleData;
-
-    // Process the user role assignment
-    const result = await handleUserRole(userData);
-    return result;
-  } catch (error) {
-    console.error("Error assigning user role:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    throw new functions.https.HttpsError(
-      "internal",
-      `Failed to assign user role: ${errorMessage}`
-    );
-  }
-});
 
 /**
  * Tests Firestore connection by adding a test document.
