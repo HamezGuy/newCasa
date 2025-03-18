@@ -1,4 +1,5 @@
-import { db } from "@/lib/firebase";
+// @/components/messaging/ChatDetail.tsx
+import { db, auth } from "@/lib/firebase";
 import {
   collection,
   onSnapshot,
@@ -6,6 +7,10 @@ import {
   query,
   where,
   getDocs,
+  Timestamp,
+  DocumentData,
+  serverTimestamp,
+  addDoc,
 } from "firebase/firestore";
 import React, { useEffect, useRef, useState } from "react";
 import { sendMessageToRealtor } from "@/lib/utils/sendMessageToRealtor";
@@ -14,7 +19,7 @@ interface Message {
   id: string;
   sender: string;
   message: string;
-  timestamp: any;
+  timestamp: Timestamp | any;
   propertyId?: string;
 }
 
@@ -54,6 +59,10 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
       })) as Message[];
       setMessages(messagesData);
       setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching messages:", error);
+      setError(`Error loading messages: ${error.message}`);
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
@@ -72,16 +81,19 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
       );
       
       const chatSnapshot = await getDocs(chatQuery);
-      let clientEmail = "user@example.com"; // Fallback
-      let realtorEmail, realtorPhoneNumber;
+      let clientEmail = auth.currentUser?.email || "user@example.com"; // Use authenticated email if available
+      let realtorEmail: string | undefined;
+      let realtorPhoneNumber: string | undefined;
       
       if (!chatSnapshot.empty) {
-        const chatData = chatSnapshot.docs[0].data();
+        const chatData = chatSnapshot.docs[0].data() as DocumentData;
         clientEmail = chatData.clientEmail || clientEmail;
         realtorEmail = chatData.realtorEmail;
         realtorPhoneNumber = chatData.realtorPhoneNumber;
       }
       
+      // Send the message using our utility function
+      // This will handle both Firestore operations and API calls
       await sendMessageToRealtor({
         message: newMessage,
         clientEmail,
@@ -92,10 +104,10 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
       });
       
       setNewMessage("");
-      setIsSending(false);
     } catch (error: any) {
       console.error("Failed to send message:", error);
       setError(`Error sending message: ${error.message}`);
+    } finally {
       setIsSending(false);
     }
   };
@@ -159,6 +171,12 @@ const ChatDetail: React.FC<ChatDetailProps> = ({ chatId, clientId, propertyTitle
         {error && (
           <div className="mb-2 p-2 text-sm bg-red-100 text-red-700 rounded">
             {error}
+            <button 
+              className="ml-2 text-red-500 hover:text-red-700"
+              onClick={() => setError(null)}
+            >
+              Dismiss
+            </button>
           </div>
         )}
         <div className="flex">

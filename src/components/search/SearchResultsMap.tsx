@@ -1,3 +1,4 @@
+// @/components/search/SearchResultsMap.tsx
 "use client";
 
 import IParagonProperty from "@/types/IParagonProperty";
@@ -8,7 +9,7 @@ import { useGeocode } from "./GeocodeContext";
 import { useBounds } from "@/components/search/boundscontext";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { Button } from "@mantine/core";
-import { useMediaQuery } from "@mantine/hooks"; // CHANGED: to detect mobile vs. desktop
+import { useMediaQuery } from "@mantine/hooks";
 
 interface ILatLng {
   lat: number;
@@ -23,7 +24,6 @@ interface BasicGeocodeData {
   };
 }
 
-// CHANGED: Add onPropertyClick so we can open the same modal from InfoWindow
 export interface SearchResultsMapProps {
   properties: IParagonProperty[];
   selectedGeometry?: {
@@ -462,3 +462,6 @@ export function SearchResultsMap({
     </div>
   );
 }
+
+// Add this default export to fix the dynamic import
+export default SearchResultsMap;

@@ -1,14 +1,16 @@
+// @/components/messaging/ClientMessageForm.tsx
 "use client";
 
 import { useState, useEffect } from "react";
-import { auth } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { sendMessageToRealtor } from "@/lib/utils/sendMessageToRealtor";
+import { collection, addDoc, doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 interface ClientMessageFormProps {
   propertyId: string;
-  realtorEmail: string;
-  realtorPhoneNumber: string;
+  realtorEmail?: string;
+  realtorPhoneNumber?: string;
 }
 
 export default function ClientMessageForm({
@@ -23,7 +25,8 @@ export default function ClientMessageForm({
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [fallbackEmailShown, setFallbackEmailShown] = useState(false);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -53,31 +56,76 @@ export default function ClientMessageForm({
     setIsSending(true);
     setError(null);
     setSuccess(false);
+    setFallbackEmailShown(false);
 
     try {
       // Get user ID or generate a temporary one for non-logged in users
       const clientId = user?.uid || `guest-${Date.now()}`;
       const clientEmail = userEmail || user?.email || "anonymous@example.com";
 
-      console.log("Sending message with parameters:", {
-        message,
+      // Include user's phone if provided
+      const finalMessage = userPhone ? 
+        `${message}\n\nPhone: ${userPhone}` : 
+        message;
+
+      const messageData = {
+        message: finalMessage,
         clientEmail,
         propertyId,
         clientId,
         realtorEmail,
-        realtorPhoneNumber
-      });
+        realtorPhoneNumber,
+      };
 
-      const result = await sendMessageToRealtor({
-        message, 
-        clientEmail,
-        propertyId,
-        clientId,
-        realtorEmail,       // Explicitly pass the realtor's email
-        realtorPhoneNumber, // Explicitly pass the realtor's phone
-      });
+      console.log("Sending message with parameters:", JSON.stringify(messageData, null, 2));
 
-      console.log("Message sent successfully:", result);
+      // Try direct Firestore write first if authenticated
+      let messageSent = false;
+      
+      if (user) {
+        try {
+          // Create or update chat document
+          const chatRef = doc(db, "chats", propertyId);
+          await setDoc(chatRef, {
+            propertyId,
+            clientId,
+            clientEmail,
+            realtorEmail,
+            realtorPhoneNumber,
+            lastActivity: serverTimestamp(),
+          }, { merge: true });
+          
+          // Add message document
+          await addDoc(collection(db, "messages"), {
+            chatId: propertyId,
+            sender: "client",
+            message: finalMessage,
+            propertyId,
+            timestamp: serverTimestamp(),
+          });
+          
+          messageSent = true;
+          console.log("Message added directly to Firestore");
+        } catch (firestoreError) {
+          console.warn("Direct Firestore write failed:", firestoreError);
+          // Will fall back to sendMessageToRealtor
+        }
+      }
+      
+      // If direct write didn't work, use the utility function
+      if (!messageSent) {
+        try {
+          const result = await sendMessageToRealtor(messageData);
+          console.log("Message sent via utility function:", result);
+          messageSent = true;
+        } catch (utilError) {
+          console.error("Utility function failed:", utilError);
+          // Show fallback email option
+          setFallbackEmailShown(true);
+          throw new Error("We're having trouble sending your message. Please try the manual email option below.");
+        }
+      }
+
       setSuccess(true);
       setMessage("");
     } catch (err: any) {
@@ -87,6 +135,25 @@ export default function ClientMessageForm({
       setIsSending(false);
     }
   };
+
+  // Create a mailto link with all the information
+  const createMailtoLink = () => {
+    const subject = encodeURIComponent(`Inquiry about Property ID: ${propertyId}`);
+    const body = encodeURIComponent(
+      `Property ID: ${propertyId}\n\n` +
+      `${message}\n\n` +
+      `Contact Information:\n` +
+      `Name: ${userName || "Not provided"}\n` +
+      `Email: ${userEmail || "Not provided"}\n` +
+      `Phone: ${userPhone || "Not provided"}`
+    );
+    
+    const targetEmail = realtorEmail || DEFAULT_REALTOR_EMAIL;
+    return `mailto:${targetEmail}?subject=${subject}&body=${body}`;
+  };
+
+  // Constants
+  const DEFAULT_REALTOR_EMAIL = "tim.flores@flores.realty";
 
   return (
     <div className="max-w-lg bg-white p-4 rounded shadow-sm border border-gray-200">
@@ -103,8 +170,28 @@ export default function ClientMessageForm({
       )}
 
       {error && (
-        <div className="mb-4 p-2 bg-red-100 text-red-700 rounded">
-          {error}
+        <div className="mb-4 p-2 bg-red-100 text-red-700 rounded flex justify-between">
+          <span>{error}</span>
+          <button 
+            onClick={() => setError(null)}
+            className="text-red-700 hover:text-red-900"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {fallbackEmailShown && (
+        <div className="mb-4 p-2 bg-yellow-100 text-yellow-800 rounded">
+          <p className="mb-2">Our messaging system is experiencing difficulties. You can send your message directly via email:</p>
+          <a 
+            href={createMailtoLink()}
+            className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded block text-center"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open Email Client
+          </a>
         </div>
       )}
 
@@ -167,7 +254,7 @@ export default function ClientMessageForm({
       <button
         onClick={handleSendMessage}
         disabled={isSending}
-        className="w-full bg-blue-600 text-white font-medium py-2 px-4 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+        className="w-full bg-blue-600 text-white font-medium py-2 px-4 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
       >
         {isSending ? "Sending..." : "Send Message"}
       </button>

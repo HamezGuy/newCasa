@@ -1,7 +1,7 @@
 import { FirebaseApp, getApps, initializeApp } from "firebase/app";
 import { Auth, getAuth, GoogleAuthProvider } from "firebase/auth";
-import { Firestore, getFirestore } from "firebase/firestore";
-import { Functions, getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { Firestore, getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { Functions, getFunctions, connectFunctionsEmulator, httpsCallable } from "firebase/functions";
 
 // Firebase configuration (from environment variables)
 const firebaseConfig = {
@@ -25,18 +25,54 @@ if (!getApps().length) {
 const auth: Auth = getAuth(app); // Authentication
 const googleProvider: GoogleAuthProvider = new GoogleAuthProvider(); // Google Auth Provider
 const db: Firestore = getFirestore(app); // Firestore database
-const functions: Functions = getFunctions(app); // Cloud Functions
+const functions: Functions = getFunctions(app, "us-central1"); // Explicitly set region
 
 // Set up emulator connections for development environment
 if (process.env.NODE_ENV === 'development') {
   try {
-    // Uncomment the line below if you're running a local emulator
+    // Uncomment the lines below if you're running local emulators
+    // connectFirestoreEmulator(db, 'localhost', 8080);
     // connectFunctionsEmulator(functions, 'localhost', 5001);
     console.log('Development environment detected');
   } catch (e) {
-    console.warn('Could not connect to Functions emulator:', e);
+    console.warn('Could not connect to Firebase emulators:', e);
   }
 }
+
+// Helper function to call Firebase functions with proper error handling
+export const callFunction = async (name: string, data: any) => {
+  try {
+    // First try to use the Next.js API route as a proxy
+    const apiPath = `/api/v1/${name}`;
+    console.log(`Attempting to call function via Next.js API: ${apiPath}`);
+    
+    const response = await fetch(apiPath, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("API error response:", errorData);
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.warn(`Next.js API proxy failed, falling back to direct Firebase function call: ${name}`, error);
+    
+    // Fall back to direct Firebase function call
+    const functionCall = httpsCallable(functions, name);
+    try {
+      const result = await functionCall(data);
+      return result.data;
+    } catch (fbError: any) {
+      console.error("Error calling Firebase function directly:", fbError);
+      throw new Error(`Firebase function error (${name}): ${fbError.message || 'Unknown error'}`);
+    }
+  }
+};
 
 // Export the initialized Firebase services
 export { auth, db, functions, googleProvider };

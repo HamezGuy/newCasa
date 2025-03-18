@@ -1,3 +1,4 @@
+// @/components/search/SearchClient.tsx
 "use client";
 
 import dynamic from "next/dynamic";
@@ -9,13 +10,14 @@ import { useFilters } from "@/components/search/FilterContext";
 import SearchFilters from "@/components/search/SearchFilters";
 import SearchInput from "@/components/search/SearchInput";
 import PropertyList from "@/components/paragon/PropertyList";
-import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
 import PropertyModal from "@/components/property/PropertyModal";
 
+// Import the type only
+import type { SearchResultsMapProps } from "@/components/search/SearchResultsMap";
+
+// Fixed dynamic import
 const SearchResultsMapNoSSR = dynamic<SearchResultsMapProps>(
-  () => import("@/components/search/SearchResultsMap").then((mod) => ({
-    default: mod.SearchResultsMap,
-  })),
+  () => import("@/components/search/SearchResultsMap").then(mod => mod.default),
   { ssr: false }
 );
 
