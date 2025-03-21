@@ -4,8 +4,8 @@
 /**
  * Tim's details are hard-coded so all messages go to Tim's phone and email.
  */
-const FIXED_REALTOR_EMAIL = "tim.flores@flores.realty";
-const FIXED_REALTOR_PHONE = "+16085793033";
+const FIXED_REALTOR_EMAIL = "tim.flores@flores.realty"; //tim.flores@flores.realty
+const FIXED_REALTOR_PHONE = "+16085793033"; //+16085793033
 
 interface SendMessageParams {
   message: string;
@@ -93,7 +93,8 @@ export async function sendMessageToRealtor({
   if (notificationSuccess) {
     return {
       success: true,
-      message: "Message request sent successfully. Tim Flores will be in touch shortly.",
+      message:
+        "Message request sent successfully. Tim Flores will be in touch shortly.",
     };
   } else {
     throw new Error(
