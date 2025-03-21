@@ -27,6 +27,13 @@ interface MessageData {
   // If user is not logged in, front-end sets "guest-<timestamp>"
   realtorEmail?: string;
   realtorPhoneNumber?: string;
+
+  // We now REQUIRE clientName to be non-optional
+  clientName: string;   // CHANGED: mandatory
+  // Phone can still be optional, but we’ll use it if provided
+  clientPhone?: string;
+  // Also pass the propertyLink
+  propertyLink?: string;
 }
 
 /**
@@ -102,6 +109,12 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
     clientId,
     realtorEmail,
     realtorPhoneNumber,
+
+    // Required
+    clientName,
+    // Optional
+    clientPhone,
+    propertyLink,
   } = data;
 
   const targetEmail =
@@ -112,6 +125,14 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
 
   const twilioClient = twilio(twilioSid, twilioAuthToken);
 
+  // CHANGED: We now enforce clientName as mandatory
+  if (!clientName?.trim()) {
+    throw new functions.https.HttpsError(
+      "invalid-argument",
+      "Client name is missing or empty"
+    );
+  }
+
   if (!propertyId || !clientId || !message.trim()) {
     throw new functions.https.HttpsError(
       "invalid-argument",
@@ -121,7 +142,10 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
 
   console.log("Message received:", {
     message,
+    clientName,
     clientEmail,
+    clientPhone,
+    propertyLink,
     propertyId,
     clientId,
     recipientEmail: targetEmail,
@@ -163,14 +187,16 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
 
       try {
         console.log(`Adding message to Firestore for chat ${propertyId}`);
-        const messageRef = await db.collection("messages").add({
+        await db.collection("messages").add({
           chatId: propertyId,
           sender: "client",
           message,
           propertyId,
+          clientName: clientName,
+          clientPhone: clientPhone || null,
+          propertyLink: propertyLink || null,
           timestamp: admin.firestore.FieldValue.serverTimestamp(),
         });
-        console.log(`Message stored in Firestore with ID: ${messageRef.id}`);
       } catch (error: unknown) {
         console.error("Error storing message in Firestore:", error);
         throw new functions.https.HttpsError(
@@ -186,12 +212,28 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
     let smsSuccess = false;
     try {
       console.log(`Sending SMS to ${targetPhone}`);
+
+      // CHANGED: Make a nicer formatted text message
+      // We'll include line breaks, a header, etc.
+      const smsBody = [
+        `🔥 NEW INQUIRY 🔥`,
+        `Name: ${clientName}`,
+        `Email: ${clientEmail}`,
+        `Phone: ${clientPhone || "N/A"}`,
+        `-------------------------------------`,
+        propertyLink
+          ? `Property: ${propertyLink}`
+          : `Property ID: ${propertyId}`,
+        `-------------------------------------`,
+        `Message:`,
+        message,
+      ].join("\n");
+
       await twilioClient.messages.create({
-        body: `Property ID: ${propertyId}\nMessage: ${message}`,
+        body: smsBody,
         from: twilioPhoneNumber,
         to: targetPhone,
       });
-      console.log("SMS sent successfully to", targetPhone);
       smsSuccess = true;
     } catch (error: unknown) {
       console.error("Failed to send SMS:", error);
@@ -199,16 +241,32 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
 
     // Try to send email
     let emailSuccess = false;
+
+    // CHANGED: Nicer formatting in email as well
+    const emailHtmlLines = [
+      `<p><strong>Name:</strong> ${clientName}</p>`,
+      `<p><strong>Email:</strong> ${clientEmail}</p>`,
+      `<p><strong>Phone:</strong> ${clientPhone || "N/A"}</p>`,
+      propertyLink
+        ? `<p><strong>Property:</strong> <a href="${propertyLink}" target="_blank">${propertyLink}</a></p>`
+        : `<p><strong>Property:</strong> ${propertyId}</p>`,
+      `<p><strong>Message:</strong></p>`,
+      `<p>${message}</p>`,
+    ];
     const mailOptions = {
       from: emailUser,
       to: targetEmail,
-      subject: `Message about Property ID: ${propertyId}`,
-      text: `Message from client (${clientEmail}):\n\n${message}`,
-      html:
-        `<p><strong>Property ID:</strong> ${propertyId}</p>` +
-        `<p><strong>From:</strong> ${clientEmail}</p>` +
-        "<p><strong>Message:</strong></p>" +
-        `<p>${message}</p>`,
+      subject: `New Inquiry: ${clientName}`,
+      text:
+        `NEW INQUIRY\n\n` +
+        `Name: ${clientName}\n` +
+        `Email: ${clientEmail}\n` +
+        `Phone: ${clientPhone || "N/A"}\n\n` +
+        (propertyLink
+          ? `Property: ${propertyLink}\n\n`
+          : `Property ID: ${propertyId}\n\n`) +
+        `Message:\n${message}`,
+      html: emailHtmlLines.join(""),
     };
 
     try {
@@ -221,7 +279,6 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
         },
       });
       await transporter.sendMail(mailOptions);
-      console.log("Email sent successfully to", targetEmail);
       emailSuccess = true;
     } catch (error: unknown) {
       console.error("Failed to send email:", error);
@@ -247,7 +304,7 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
       successMessage += " Sent via email (SMS failed).";
     }
 
-    return {success: true, message: successMessage};
+    return { success: true, message: successMessage };
   } catch (error: unknown) {
     console.error("Error in handleMessage:", error);
     const errorMessage =
@@ -265,7 +322,7 @@ async function handleMessage(data: MessageData): Promise<OperationResult> {
  * @return {Promise<OperationResult>} A promise with the operation result.
  */
 async function handleUserRole(data: UserRoleData): Promise<OperationResult> {
-  const {uid, role = "realtor"} = data;
+  const { uid, role = "realtor" } = data;
 
   if (!uid) {
     throw new functions.https.HttpsError("invalid-argument", "Missing UID");
@@ -277,10 +334,10 @@ async function handleUserRole(data: UserRoleData): Promise<OperationResult> {
         role,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       },
-      {merge: true}
+      { merge: true }
     );
-    await admin.auth().setCustomUserClaims(uid, {role});
-    return {success: true, message: "User role assigned successfully"};
+    await admin.auth().setCustomUserClaims(uid, { role });
+    return { success: true, message: "User role assigned successfully" };
   } catch (error: unknown) {
     console.error("Failed to assign user role:", error);
     throw new functions.https.HttpsError(
@@ -340,9 +397,9 @@ exports.sendMessageToRealtorHttp = functions.https.onRequest((req, res) => {
       const errorMessage =
         error instanceof Error ? error.message : "Internal server error";
       const errorCode =
-        error instanceof functions.https.HttpsError ?
-          (error as functions.https.HttpsError).code :
-          "unknown";
+        error instanceof functions.https.HttpsError
+          ? (error as functions.https.HttpsError).code
+          : "unknown";
       res.status(500).json({
         success: false,
         error: errorCode,
@@ -355,19 +412,17 @@ exports.sendMessageToRealtorHttp = functions.https.onRequest((req, res) => {
 /**
  * Callable function to send messages to realtors.
  */
-exports.sendMessageToRealtor = functions.https.onCall(
-  async (data) => {
-    console.log("Callable function called with data:", data);
-    try {
-      return await handleMessage(data as MessageData);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to process message";
-      console.error("Error in sendMessageToRealtor:", error);
-      throw new functions.https.HttpsError("internal", errorMessage);
-    }
+exports.sendMessageToRealtor = functions.https.onCall(async (data) => {
+  console.log("Callable function called with data:", data);
+  try {
+    return await handleMessage(data as MessageData);
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to process message";
+    console.error("Error in sendMessageToRealtor:", error);
+    throw new functions.https.HttpsError("internal", errorMessage);
   }
-);
+});
 
 /**
  * Callable function to assign user roles.
@@ -437,7 +492,7 @@ exports.handleIncomingSms = functions.https.onRequest((req, res) => {
       console.error("No chat found for this phone number");
       res.status(200).send(
         "<Response><Message>Please specify a property ID " +
-          "(e.g., \"PROP123: your message\")</Message></Response>"
+          '(e.g., "PROP123: your message")</Message></Response>'
       );
       return;
     }
@@ -469,8 +524,7 @@ exports.handleIncomingSms = functions.https.onRequest((req, res) => {
       res
         .status(500)
         .send(
-          "<Response><Message>Failed to store your message</Message>" +
-          "</Response>"
+          "<Response><Message>Failed to store your message</Message></Response>"
         );
     }
   });
@@ -515,19 +569,17 @@ exports.testFirestoreConnection = functions.https.onRequest((req, res) => {
 });
 
 // V1 function aliases for backward compatibility
-exports.sendMessageToRealtorV1 = functions.https.onCall(
-  async (data) => {
-    console.log("V1 callable function called with data:", data);
-    try {
-      return await handleMessage(data as MessageData);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to process message";
-      console.error("Error in sendMessageToRealtorV1:", error);
-      throw new functions.https.HttpsError("internal", errorMessage);
-    }
+exports.sendMessageToRealtorV1 = functions.https.onCall(async (data) => {
+  console.log("V1 callable function called with data:", data);
+  try {
+    return await handleMessage(data as MessageData);
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to process message";
+    console.error("Error in sendMessageToRealtorV1:", error);
+    throw new functions.https.HttpsError("internal", errorMessage);
   }
-);
+});
 
 exports.assignUserRoleV1 = exports.assignUserRole;
 exports.handleIncomingSmsV1 = exports.handleIncomingSms;
@@ -582,9 +634,9 @@ exports.sendMessageToRealtorHttpV1 = functions.https.onRequest((req, res) => {
       const errorMessage =
         error instanceof Error ? error.message : "Internal server error";
       const errorCode =
-        error instanceof functions.https.HttpsError ?
-          (error as functions.https.HttpsError).code :
-          "unknown";
+        error instanceof functions.https.HttpsError
+          ? (error as functions.https.HttpsError).code
+          : "unknown";
       res.status(500).json({
         success: false,
         error: errorCode,

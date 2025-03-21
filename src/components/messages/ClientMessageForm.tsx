@@ -17,13 +17,17 @@ interface ClientMessageFormProps {
   propertyId: string;
   realtorEmail?: string;
   realtorPhoneNumber?: string;
+  // We pass propertyLink for the full link if relevant
+  propertyLink?: string;
 }
 
 export default function ClientMessageForm({
   propertyId,
   realtorEmail,
   realtorPhoneNumber,
+  propertyLink,
 }: ClientMessageFormProps) {
+  // CHANGED: We will require userName as mandatory
   const [userName, setUserName] = useState("");
   const [userPhone, setUserPhone] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -47,30 +51,40 @@ export default function ClientMessageForm({
   }, []);
 
   const handleSendMessage = async () => {
-    if (!message.trim()) {
-      setError("Please type a message before sending.");
-      return;
-    }
-    if (!user && !userEmail) {
-      setError("Please provide your email address to continue.");
-      return;
-    }
-    setIsSending(true);
     setError(null);
     setSuccess(false);
     setFallbackEmailShown(false);
 
+    // CHANGED: Make sure name is mandatory
+    if (!userName.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+
+    if (!userEmail.trim()) {
+      setError("Please provide your email address.");
+      return;
+    }
+
+    if (!message.trim()) {
+      setError("Please type a message before sending.");
+      return;
+    }
+
+    setIsSending(true);
+
     try {
       const clientId = user?.uid || `guest-${Date.now()}`;
-      const clientEmail = userEmail || user?.email || "anonymous@example.com";
-      const finalMessage = userPhone
-        ? `${message}\n\nPhone: ${userPhone}`
-        : message;
+      const finalEmail = userEmail || "anonymous@example.com";
 
-      const result = await sendMessageToRealtor({
-        message: finalMessage,
-        clientEmail,
+      // We'll pass userName as mandatory
+      await sendMessageToRealtor({
+        message,
+        clientName: userName,
+        clientPhone: userPhone,
+        clientEmail: finalEmail,
         propertyId,
+        propertyLink,
         clientId,
         realtorEmail,
         realtorPhoneNumber,
@@ -78,7 +92,6 @@ export default function ClientMessageForm({
 
       setSuccess(true);
       setMessage("");
-      // Optional: if you want to track how it was sent
       setSendingMethod("Cloud Function POST");
     } catch (err: any) {
       console.error("Error sending message:", err);
@@ -112,8 +125,7 @@ export default function ClientMessageForm({
     <div className="max-w-lg bg-white p-4 rounded shadow-sm border border-gray-200">
       <h3 className="text-lg font-semibold mb-2">Contact the Realtor</h3>
       <p className="text-sm text-gray-500 mb-4">
-        We can get you more info about property #{propertyId}, or schedule a
-        showing.
+        We can get you more info about property #{propertyId}, or schedule a showing.
       </p>
 
       {/* Success UI */}
@@ -160,10 +172,10 @@ export default function ClientMessageForm({
         </div>
       )}
 
-      {/* Name Field */}
+      {/* Name Field (REQUIRED) */}
       <div className="mb-3">
         <label className="block text-sm font-medium text-gray-700">
-          Your Name {!user && "(optional)"}
+          Your Name
         </label>
         <input
           type="text"
@@ -171,28 +183,24 @@ export default function ClientMessageForm({
           placeholder="John Doe"
           value={userName}
           onChange={(e) => setUserName(e.target.value)}
-          disabled={!!user?.displayName}
         />
       </div>
 
-      {/* Email Field (only if not logged in) */}
-      {!user && (
-        <div className="mb-3">
-          <label className="block text-sm font-medium text-gray-700">
-            Your Email
-          </label>
-          <input
-            type="email"
-            className="mt-1 w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
-            placeholder="your@email.com"
-            value={userEmail}
-            onChange={(e) => setUserEmail(e.target.value)}
-            required
-          />
-        </div>
-      )}
+      {/* Email Field */}
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700">
+          Your Email
+        </label>
+        <input
+          type="email"
+          className="mt-1 w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500"
+          placeholder="your@email.com"
+          value={userEmail}
+          onChange={(e) => setUserEmail(e.target.value)}
+        />
+      </div>
 
-      {/* Phone Field */}
+      {/* Phone Field (optional) */}
       <div className="mb-3">
         <label className="block text-sm font-medium text-gray-700">
           Your Phone Number (optional)

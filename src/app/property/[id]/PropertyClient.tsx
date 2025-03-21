@@ -1,5 +1,5 @@
-// app/property/[id]/PropertyClient.tsx
-'use client';
+// File: app/property/[id]/PropertyClient.tsx
+"use client";
 
 import PropertyDetails from "@/components/property/PropertyDetails";
 import { PropertyImages } from "@/components/property/PropertyImages";
@@ -24,7 +24,7 @@ export default function PropertyClient({ property }: PropertyClientProps) {
     const user = auth.currentUser;
     if (user) {
       setCurrentUser(user);
-      getUserRole(user.uid).then(role => {
+      getUserRole(user.uid).then((role) => {
         setUserRole(role);
       });
     }
@@ -33,6 +33,12 @@ export default function PropertyClient({ property }: PropertyClientProps) {
   // Realtor contact data for the form
   const realtorEmail = property.ListAgentEmail || "realtor@example.com";
   const realtorPhone = property.ListAgentPreferredPhone || "123-456-7890";
+
+  // CHANGED: Build a propertyLink for the share link
+  const propertyLink =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/property/${property.ListingId}`
+      : "";
 
   return (
     <main className="w-full">
@@ -56,6 +62,8 @@ export default function PropertyClient({ property }: PropertyClientProps) {
             propertyId={property.ListingId}
             realtorEmail={realtorEmail}
             realtorPhoneNumber={realtorPhone}
+            // CHANGED: pass the property link to the form
+            propertyLink={propertyLink}
           />
         </div>
       </div>

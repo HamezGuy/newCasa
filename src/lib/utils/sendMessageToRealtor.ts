@@ -14,6 +14,11 @@ interface SendMessageParams {
   clientId: string;
   realtorEmail?: string;
   realtorPhoneNumber?: string;
+
+  // NEW FIELDS:
+  clientName?: string;
+  clientPhone?: string;
+  propertyLink?: string;
 }
 
 interface SendMessageResponse {
@@ -31,6 +36,11 @@ export async function sendMessageToRealtor({
   clientId,
   realtorEmail,
   realtorPhoneNumber,
+
+  // NEW FIELDS
+  clientName,
+  clientPhone,
+  propertyLink,
 }: SendMessageParams): Promise<SendMessageResponse> {
   // Validate input
   if (!message.trim() || !propertyId) {
@@ -46,8 +56,13 @@ export async function sendMessageToRealtor({
     clientEmail: clientEmail || "guest@example.com",
     propertyId,
     clientId: finalClientId,
-    realtorEmail: FIXED_REALTOR_EMAIL,     // Always Tim's email
+    realtorEmail: FIXED_REALTOR_EMAIL,      // Always Tim's email
     realtorPhoneNumber: FIXED_REALTOR_PHONE, // Always Tim's phone
+
+    // Pass along the new fields if provided
+    clientName,
+    clientPhone,
+    propertyLink,
   };
 
   console.log("Sending message with parameters:", messageData);

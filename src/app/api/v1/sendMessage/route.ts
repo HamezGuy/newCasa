@@ -14,6 +14,11 @@ interface MessageData {
   clientId: string;
   realtorEmail?: string;
   realtorPhoneNumber?: string;
+
+  // NEW FIELDS
+  clientName?: string;
+  clientPhone?: string;
+  propertyLink?: string;
 }
 
 export async function OPTIONS() {

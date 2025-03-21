@@ -1,7 +1,7 @@
 "use client";
 
-import { Modal } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks'; // CHANGED: we import this to detect mobile
+import { Modal } from "@mantine/core";
+import { useMediaQuery } from "@mantine/hooks"; // detect mobile
 import PropertyDetails from "@/components/property/PropertyDetails";
 import { PropertyImages } from "@/components/property/PropertyImages";
 import ClientMessageForm from "@/components/messages/ClientMessageForm";
@@ -27,24 +27,25 @@ export default function PropertyModal({
   realtorEmail,
   realtorPhone,
 }: PropertyModalProps) {
-  // CHANGED: detect mobile vs. desktop
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
+  // CHANGED: Construct property link here as well if needed
+  const propertyLink =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/property/${property.ListingId}`
+      : "";
 
   return (
     <Modal
       opened={opened}
       onClose={onClose}
       title="Property Details"
-      // CHANGED: Make the modal much wider on desktop; smaller on mobile
-      size={isMobile ? 'lg' : '70%'}
+      size={isMobile ? "lg" : "70%"}
       overlayProps={{ opacity: 0.55, blur: 3 }}
-      // CHANGED: Enforce text to wrap properly and adjust font size
       styles={{
         body: {
           fontSize: isMobile ? 14 : 16,
-          overflowWrap: 'break-word',
-          // If text still overflows, you can also add:
-          // whiteSpace: 'pre-wrap',
+          overflowWrap: "break-word",
         },
       }}
     >
@@ -66,6 +67,8 @@ export default function PropertyModal({
               propertyId={property.ListingId}
               realtorEmail={realtorEmail}
               realtorPhoneNumber={realtorPhone}
+              // CHANGED: pass the property link for the share
+              propertyLink={propertyLink}
             />
           </div>
         </div>

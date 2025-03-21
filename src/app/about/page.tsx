@@ -18,7 +18,7 @@ interface Realtor {
   phone: string;
 }
 
-// CHANGED: Add an optional interface for the agency if you like
+// CHANGED: Optional interface for the agency
 interface Agency {
   name?: string;
   address?: string;
@@ -28,17 +28,14 @@ interface Agency {
 }
 
 export default function AboutPage(): JSX.Element {
-  // CHANGED: We can also default to your config values
   const realtor: Realtor = {
     name: realtorConfig.name || "Tim Flores",
-    // CHANGED: replaced weird entities with curly quotes
     bio: `I’m a real estate agent with LPT Realty in Cottage Grove, WI and the nearby area, providing home-buyers and sellers with professional, responsive and attentive real estate services. Want an agent who’ll really listen to what you want in a home? Need an agent who knows how to effectively market your home so it sells? Give me a call! I’m eager to help and would love to talk to you.`,
     image: realtorConfig.image || "/img/realtor-profile.jpg",
     email: realtorConfig.email || "tim.flores@flores.realty",
     phone: realtorConfig.phone || "608.579.3033",
   };
 
-  // CHANGED: We'll gather the brand/agency data from config
   const { brand, agency, phoneAlt } = realtorConfig;
   const agencyData: Agency = agency || {};
 
@@ -93,10 +90,7 @@ export default function AboutPage(): JSX.Element {
         </div>
       </section>
 
-      {/* 
-        CHANGED: New “Realtor Info” subsection 
-        => phone, email, agency address, brand, etc.
-      */}
+      {/* Realtor Info subsection */}
       <section className="bg-gray-100 py-12">
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto bg-white p-6 md:p-8 rounded-lg shadow-md">
@@ -104,15 +98,9 @@ export default function AboutPage(): JSX.Element {
               Contact & Agency Info
             </h2>
 
-            {/* Flex container for brand/logo & textual info */}
             <div className="flex flex-col md:flex-row items-center gap-6">
-              {/* CHANGED: If you have a brand logo, show it */}
               {brand && (
                 <div className="flex-shrink-0">
-                  {/* 
-                    Example: /img/flores-realty-logo.png 
-                    or stored in config as brand.logo 
-                  */}
                   <Image
                     src="/img/logo-realtor.png"
                     alt={`${brand} Logo`}
@@ -158,10 +146,16 @@ export default function AboutPage(): JSX.Element {
             <p className="mb-4 text-gray-600">
               Have questions or need more information? Fill out the form below and I’ll be in touch shortly.
             </p>
+            {/* 
+               CHANGED: We must pass propertyId to the form, 
+               so we’ll use "about" as a placeholder propertyId.
+               We can also pass propertyLink if you want a link to this about page.
+            */}
             <ClientMessageForm
               propertyId="about"
               realtorEmail={realtor.email}
               realtorPhoneNumber={realtor.phone}
+              propertyLink="https://yoursite.com/about"  // optional or remove
             />
           </div>
         </div>
